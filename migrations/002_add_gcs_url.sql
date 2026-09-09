@@ -1,0 +1,1 @@
+ALTER TABLE bachata.videos ADD COLUMN IF NOT EXISTS gcs_url TEXT;

@@ -4,7 +4,8 @@
 {% block content %}
 <div class="topbar">
   <div class="topbar-tabs">
-    <button class="topbar-tab active" data-tab="basics">Basics</button>
+    <button class="topbar-tab active" data-tab="myvideos">My Videos</button>
+    <button class="topbar-tab" data-tab="basics">Basics</button>
     <button class="topbar-tab" data-tab="sensual">Sensual</button>
     <button class="topbar-tab" data-tab="footwork">Footwork</button>
     <button class="topbar-tab" data-tab="musicality">Musicality</button>
@@ -14,7 +15,29 @@
   </button>
 </div>
 
-<div id="tab-basics" class="tab-panel active">
+<div id="tab-myvideos" class="tab-panel active">
+  <!-- Upload area -->
+  <div id="drop-zone" class="drop-zone drop-zone-compact">
+    <div class="drop-zone-inner">
+      <p class="drop-text">Drop video here or click to browse</p>
+      <p class="drop-formats">MP4, MOV, AVI, WebM</p>
+      <input type="file" id="file-input" accept="video/*" hidden>
+    </div>
+  </div>
+  <div id="upload-progress" class="upload-progress hidden">
+    <div class="progress-info">
+      <span id="upload-filename"></span>
+      <span id="upload-percent">0%</span>
+    </div>
+    <div class="progress-bar">
+      <div id="progress-fill" class="progress-fill"></div>
+    </div>
+  </div>
+  <!-- Uploaded videos grid -->
+  <div class="vgrid" id="grid-myvideos" style="margin-top: 16px;"></div>
+</div>
+
+<div id="tab-basics" class="tab-panel">
   <div class="vgrid" id="grid-basics"></div>
 </div>
 
@@ -28,6 +51,17 @@
 
 <div id="tab-musicality" class="tab-panel">
   <div class="vgrid" id="grid-musicality"></div>
+</div>
+<!-- Video player modal -->
+<div id="video-modal" class="video-modal hidden">
+  <div class="video-modal-backdrop"></div>
+  <div class="video-modal-content">
+    <div class="video-modal-header">
+      <span id="modal-title" class="video-modal-title"></span>
+      <button id="modal-close" class="video-modal-close">&times;</button>
+    </div>
+    <video id="modal-player" controls autoplay></video>
+  </div>
 </div>
 {% endblock %}
 
@@ -46,6 +80,142 @@ document.addEventListener("DOMContentLoaded", () => {
       document.getElementById(`tab-${tab.dataset.tab}`).classList.add("active");
     });
   });
+
+  // ── Upload ──────────────────────────────────────────────────────────
+  const dropZone = document.getElementById("drop-zone");
+  const fileInput = document.getElementById("file-input");
+  const progressBox = document.getElementById("upload-progress");
+  const progressFill = document.getElementById("progress-fill");
+  const uploadFilename = document.getElementById("upload-filename");
+  const uploadPercent = document.getElementById("upload-percent");
+
+  dropZone.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", () => {
+    if (fileInput.files.length) uploadFile(fileInput.files[0]);
+  });
+
+  dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.classList.add("drag-over"); });
+  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag-over"));
+  dropZone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropZone.classList.remove("drag-over");
+    if (e.dataTransfer.files.length) uploadFile(e.dataTransfer.files[0]);
+  });
+
+  function uploadFile(file) {
+    progressBox.classList.remove("hidden");
+    uploadFilename.textContent = file.name;
+    uploadPercent.textContent = "0%";
+    progressFill.style.width = "0%";
+    progressFill.style.background = "";
+
+    const xhr = new XMLHttpRequest();
+    const formData = new FormData();
+    formData.append("file", file);
+
+    xhr.upload.addEventListener("progress", (e) => {
+      if (e.lengthComputable) {
+        const pct = Math.round((e.loaded / e.total) * 100);
+        progressFill.style.width = pct + "%";
+        uploadPercent.textContent = pct + "%";
+      }
+    });
+
+    xhr.addEventListener("load", () => {
+      if (xhr.status === 201) {
+        progressBox.classList.add("hidden");
+        loadMyVideos();
+      } else {
+        const err = xhr.responseText ? JSON.parse(xhr.responseText).error : xhr.status;
+        uploadPercent.textContent = `Upload failed: ${err}`;
+        progressFill.style.background = "var(--danger)";
+      }
+    });
+
+    xhr.addEventListener("error", () => {
+      uploadPercent.textContent = "Upload failed";
+      progressFill.style.background = "var(--danger)";
+    });
+
+    xhr.open("POST", "/api/videos");
+    xhr.send(formData);
+  }
+
+  // ── Video player modal ───────────────────────────────────────────────
+  const modal = document.getElementById("video-modal");
+  const modalPlayer = document.getElementById("modal-player");
+  const modalTitle = document.getElementById("modal-title");
+  const modalClose = document.getElementById("modal-close");
+  const modalBackdrop = modal.querySelector(".video-modal-backdrop");
+
+  function openPlayer(src, title) {
+    modalTitle.textContent = title;
+    modalPlayer.src = src;
+    modal.classList.remove("hidden");
+  }
+
+  function closePlayer() {
+    modal.classList.add("hidden");
+    modalPlayer.pause();
+    modalPlayer.src = "";
+  }
+
+  modalClose.addEventListener("click", closePlayer);
+  modalBackdrop.addEventListener("click", closePlayer);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closePlayer();
+  });
+
+  // ── My Videos grid ──────────────────────────────────────────────────
+  const myGrid = document.getElementById("grid-myvideos");
+
+  function formatDuration(sec) {
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  }
+
+  async function loadMyVideos() {
+    const res = await fetch("/api/videos");
+    const videos = await res.json();
+    myGrid.innerHTML = "";
+
+    if (!videos.length) {
+      myGrid.innerHTML = `<div class="empty-state"><p>No videos yet. Upload one above!</p></div>`;
+      return;
+    }
+
+    for (const v of videos) {
+      const src = v.gcs_url || `/uploads/${v.filename}`;
+      const dur = v.duration_sec ? formatDuration(v.duration_sec) : "";
+      const card = document.createElement("div");
+      card.className = "vcard";
+      card.innerHTML = `
+        <div class="vcard-thumb">
+          <video src="${src}#t=0.5" muted preload="metadata"></video>
+          <span class="vcard-duration">${dur}</span>
+          <button class="vcard-delete" title="Delete">&times;</button>
+          <div class="vcard-overlay">
+            <button class="vcard-play">&#9654;</button>
+          </div>
+        </div>
+        <div class="vcard-body">
+          <p class="vcard-title">${v.original_name}</p>
+          <p class="vcard-meta">${v.fps} fps &middot; ${v.frame_count} frames</p>
+        </div>`;
+      card.addEventListener("click", () => openPlayer(src, v.original_name));
+      card.querySelector(".vcard-delete").addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (!confirm("Delete this video?")) return;
+        await fetch(`/api/videos/${v.id}`, { method: "DELETE" });
+        loadMyVideos();
+      });
+      card.style.cursor = "pointer";
+      myGrid.appendChild(card);
+    }
+  }
+
+  loadMyVideos();
 
   // ── Placeholder cards ───────────────────────────────────────────────
   const categories = {

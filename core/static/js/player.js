@@ -34,7 +34,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const videoData = await vRes.json();
   titleEl.textContent = videoData.original_name;
   metaEl.textContent = `${videoData.fps} fps | ${videoData.frame_count} frames | ${Math.round(videoData.duration_sec)}s`;
-  document.getElementById("video-source").src = `/uploads/${videoData.filename}`;
+  document.getElementById("video-source").src = videoData.gcs_url || `/uploads/${videoData.filename}`;
   video.load();
 
   // Check for analysis

@@ -14,13 +14,15 @@ class VideosAdapter(BaseAdapter):
         return self.get(video_id)
 
     def create(self, filename: str, original_name: str,
-               duration_sec: float, fps: float, frame_count: int) -> dict:
+               duration_sec: float, fps: float, frame_count: int,
+               gcs_url: str | None = None) -> dict:
         return self.add(
             filename=filename,
             original_name=original_name,
             duration_sec=duration_sec,
             fps=fps,
             frame_count=frame_count,
+            gcs_url=gcs_url,
         )
 
     def set_status(self, video_id: int, status: str) -> dict | None:

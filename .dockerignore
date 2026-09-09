@@ -1,0 +1,9 @@
+venv/
+.venv/
+__pycache__/
+.git/
+.claude/
+*.pyc
+*.pyo
+.DS_Store
+Thumbs.db

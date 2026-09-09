@@ -1,7 +1,7 @@
 """API routes for video upload, listing, and deletion."""
 
-from flask import Blueprint, request, jsonify, send_from_directory
-from core.domains.videos import upload_video, list_videos, get_video, delete_video, UPLOAD_DIR
+from flask import Blueprint, request, jsonify
+from core.domains.videos import upload_video, list_videos, get_video, delete_video
 
 videos_bp = Blueprint("videos", __name__)
 
@@ -49,8 +49,3 @@ def api_delete_video(video_id):
     if delete_video(video_id):
         return jsonify({"status": "ok"})
     return jsonify({"error": "not found"}), 404
-
-
-@videos_bp.route("/uploads/<path:filename>")
-def serve_upload(filename):
-    return send_from_directory(str(UPLOAD_DIR), filename)
