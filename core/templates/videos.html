@@ -16,7 +16,6 @@
 </div>
 
 <div id="tab-myvideos" class="tab-panel active">
-  <!-- Upload area -->
   <div id="drop-zone" class="drop-zone drop-zone-compact">
     <div class="drop-zone-inner">
       <p class="drop-text">Drop video here or click to browse</p>
@@ -33,25 +32,22 @@
       <div id="progress-fill" class="progress-fill"></div>
     </div>
   </div>
-  <!-- Uploaded videos grid -->
   <div class="vgrid" id="grid-myvideos" style="margin-top: 16px;"></div>
 </div>
 
 <div id="tab-basics" class="tab-panel">
   <div class="vgrid" id="grid-basics"></div>
 </div>
-
 <div id="tab-sensual" class="tab-panel">
   <div class="vgrid" id="grid-sensual"></div>
 </div>
-
 <div id="tab-footwork" class="tab-panel">
   <div class="vgrid" id="grid-footwork"></div>
 </div>
-
 <div id="tab-musicality" class="tab-panel">
   <div class="vgrid" id="grid-musicality"></div>
 </div>
+
 <!-- Video player modal -->
 <div id="video-modal" class="video-modal hidden">
   <div class="video-modal-backdrop"></div>
@@ -60,12 +56,42 @@
       <span id="modal-title" class="video-modal-title"></span>
       <button id="modal-close" class="video-modal-close">&times;</button>
     </div>
-    <video id="modal-player" controls autoplay></video>
+    <div class="player-container">
+      <video id="modal-player" controls autoplay></video>
+      <canvas id="modal-skeleton-canvas"></canvas>
+    </div>
+    <!-- Analysis panel -->
+    <div id="modal-analysis" class="modal-analysis hidden">
+      <div class="frame-scrubber">
+        <input type="range" id="modal-frame-slider" min="0" max="100" value="0">
+        <div class="frame-info">
+          <span id="modal-frame-num">Frame 0</span>
+          <span id="modal-frame-time">0.00s</span>
+        </div>
+      </div>
+      <div id="modal-summary-grid" class="summary-grid"></div>
+      <details class="modal-charts-details">
+        <summary>Joint Angles Over Time</summary>
+        <div class="angle-selector" id="modal-angle-selector"></div>
+        <div class="chart-container">
+          <canvas id="modal-angle-chart"></canvas>
+        </div>
+      </details>
+    </div>
+    <!-- Analysis progress (while processing) -->
+    <div id="modal-analysis-progress" class="modal-analysis-progress hidden">
+      <div class="progress-bar">
+        <div id="modal-progress-fill" class="progress-fill progress-fill-pulse"></div>
+      </div>
+      <p class="modal-progress-text">Analyzing frames...</p>
+    </div>
   </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='js/player.js') }}"></script>
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
 <script>
 document.addEventListener("DOMContentLoaded", () => {
   // ── Tab switching ───────────────────────────────────────────────────
@@ -147,17 +173,80 @@ document.addEventListener("DOMContentLoaded", () => {
   const modalTitle = document.getElementById("modal-title");
   const modalClose = document.getElementById("modal-close");
   const modalBackdrop = modal.querySelector(".video-modal-backdrop");
+  const modalAnalysis = document.getElementById("modal-analysis");
+  const modalProgress = document.getElementById("modal-analysis-progress");
 
-  function openPlayer(src, title) {
-    modalTitle.textContent = title;
+  let skeletonPlayer = null;
+  let angleCharts = null;
+  let modalPollInterval = null;
+
+  async function openPlayer(video) {
+    const src = video.gcs_url || `/uploads/${video.filename}`;
+    modalTitle.textContent = video.original_name;
     modalPlayer.src = src;
+    modalAnalysis.classList.add("hidden");
+    modalProgress.classList.add("hidden");
     modal.classList.remove("hidden");
+
+    // Clean up previous
+    if (skeletonPlayer) { skeletonPlayer.destroy(); skeletonPlayer = null; }
+    if (angleCharts) { angleCharts.destroy(); angleCharts = null; }
+
+    // Set up skeleton player
+    skeletonPlayer = SkeletonPlayer({
+      video: modalPlayer,
+      canvas: document.getElementById("modal-skeleton-canvas"),
+      slider: document.getElementById("modal-frame-slider"),
+      frameNumEl: document.getElementById("modal-frame-num"),
+      frameTimeEl: document.getElementById("modal-frame-time"),
+      summaryGrid: document.getElementById("modal-summary-grid"),
+    });
+
+    angleCharts = AngleChartController(
+      document.getElementById("modal-angle-chart"),
+      document.getElementById("modal-angle-selector"),
+    );
+
+    // Check for analysis
+    if (video.analysis_status === "done" && video.analysis_id) {
+      modalAnalysis.classList.remove("hidden");
+      await skeletonPlayer.loadAnalysis(video.analysis_id, video.analysis_summary);
+      await angleCharts.loadAngles(video.analysis_id);
+    } else if (video.analysis_status === "running") {
+      modalProgress.classList.remove("hidden");
+      pollModalAnalysis(video.id);
+    }
+  }
+
+  function pollModalAnalysis(videoId) {
+    if (modalPollInterval) clearInterval(modalPollInterval);
+    modalPollInterval = setInterval(async () => {
+      const r = await fetch(`/api/videos/${videoId}/analysis`);
+      if (!r.ok) return;
+      const a = await r.json();
+      if (a.status === "done") {
+        clearInterval(modalPollInterval);
+        modalPollInterval = null;
+        modalProgress.classList.add("hidden");
+        modalAnalysis.classList.remove("hidden");
+        await skeletonPlayer.loadAnalysis(a.id, a.summary);
+        await angleCharts.loadAngles(a.id);
+        loadMyVideos();
+      } else if (a.status === "error") {
+        clearInterval(modalPollInterval);
+        modalPollInterval = null;
+        modalProgress.querySelector(".modal-progress-text").textContent = "Analysis failed";
+      }
+    }, 3000);
   }
 
   function closePlayer() {
     modal.classList.add("hidden");
     modalPlayer.pause();
     modalPlayer.src = "";
+    if (skeletonPlayer) { skeletonPlayer.destroy(); skeletonPlayer = null; }
+    if (angleCharts) { angleCharts.destroy(); angleCharts = null; }
+    if (modalPollInterval) { clearInterval(modalPollInterval); modalPollInterval = null; }
   }
 
   modalClose.addEventListener("click", closePlayer);
@@ -173,6 +262,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const m = Math.floor(sec / 60);
     const s = Math.floor(sec % 60);
     return `${m}:${s.toString().padStart(2, "0")}`;
+  }
+
+  function badgeHtml(status) {
+    if (status === "done") return `<span class="vcard-badge badge-done">Analyzed</span>`;
+    if (status === "running") return `<span class="vcard-badge badge-processing">Processing...</span>`;
+    if (status === "error") return `<span class="vcard-badge badge-error">Error</span>`;
+    return "";
   }
 
   async function loadMyVideos() {
@@ -194,7 +290,11 @@ document.addEventListener("DOMContentLoaded", () => {
         <div class="vcard-thumb">
           <video src="${src}#t=0.5" muted preload="metadata"></video>
           <span class="vcard-duration">${dur}</span>
+          ${badgeHtml(v.analysis_status)}
           <button class="vcard-delete" title="Delete">&times;</button>
+          ${!v.analysis_status ? `<button class="vcard-analyze" title="Run Pose Analysis">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20v-6M6 20V10M18 20V4"/></svg>
+          </button>` : ""}
           <div class="vcard-overlay">
             <button class="vcard-play">&#9654;</button>
           </div>
@@ -203,13 +303,36 @@ document.addEventListener("DOMContentLoaded", () => {
           <p class="vcard-title">${v.original_name}</p>
           <p class="vcard-meta">${v.fps} fps &middot; ${v.frame_count} frames</p>
         </div>`;
-      card.addEventListener("click", () => openPlayer(src, v.original_name));
+
+      card.addEventListener("click", () => openPlayer(v));
+
       card.querySelector(".vcard-delete").addEventListener("click", async (e) => {
         e.stopPropagation();
         if (!confirm("Delete this video?")) return;
         await fetch(`/api/videos/${v.id}`, { method: "DELETE" });
         loadMyVideos();
       });
+
+      const analyzeBtn = card.querySelector(".vcard-analyze");
+      if (analyzeBtn) {
+        analyzeBtn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          await fetch(`/api/videos/${v.id}/analyze`, { method: "POST" });
+          v.analysis_status = "running";
+          loadMyVideos();
+          // Poll for completion
+          const poll = setInterval(async () => {
+            const r = await fetch(`/api/videos/${v.id}/analysis`);
+            if (!r.ok) return;
+            const a = await r.json();
+            if (a.status === "done" || a.status === "error") {
+              clearInterval(poll);
+              loadMyVideos();
+            }
+          }, 3000);
+        });
+      }
+
       card.style.cursor = "pointer";
       myGrid.appendChild(card);
     }

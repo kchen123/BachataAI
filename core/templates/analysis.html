@@ -62,5 +62,63 @@
 <script src="{{ url_for('static', filename='js/charts.js') }}"></script>
 <script>
 const VIDEO_ID = {{ video_id }};
+
+document.addEventListener("DOMContentLoaded", async () => {
+  const video = document.getElementById("video-player");
+  const noAnalysis = document.getElementById("no-analysis");
+  const analysisContent = document.getElementById("analysis-content");
+  const titleEl = document.getElementById("video-title");
+  const metaEl = document.getElementById("video-meta");
+
+  const vRes = await fetch(`/api/videos/${VIDEO_ID}`);
+  if (!vRes.ok) return;
+  const videoData = await vRes.json();
+  titleEl.textContent = videoData.original_name;
+  metaEl.textContent = `${videoData.fps} fps | ${videoData.frame_count} frames | ${Math.round(videoData.duration_sec)}s`;
+  document.getElementById("video-source").src = videoData.gcs_url || `/uploads/${videoData.filename}`;
+  video.load();
+
+  const aRes = await fetch(`/api/videos/${VIDEO_ID}/analysis`);
+  if (!aRes.ok || (await aRes.clone().json()).status !== "done") {
+    noAnalysis.classList.remove("hidden");
+    const btn = document.getElementById("run-analysis-btn");
+    const statusEl = document.getElementById("analysis-status");
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      btn.textContent = "Starting...";
+      document.getElementById("analysis-progress").classList.remove("hidden");
+      await fetch(`/api/videos/${VIDEO_ID}/analyze`, { method: "POST" });
+      const poll = setInterval(async () => {
+        const r = await fetch(`/api/videos/${VIDEO_ID}/analysis`);
+        if (r.ok) {
+          const a = await r.json();
+          if (a.status === "done") { clearInterval(poll); location.reload(); }
+          else if (a.status === "error") { clearInterval(poll); statusEl.textContent = "Error"; btn.disabled = false; btn.textContent = "Retry"; }
+          else { statusEl.textContent = "Processing frames..."; }
+        }
+      }, 2000);
+    });
+    return;
+  }
+
+  const analysis = (await aRes.json());
+  analysisContent.classList.remove("hidden");
+
+  const sp = SkeletonPlayer({
+    video,
+    canvas: document.getElementById("skeleton-canvas"),
+    slider: document.getElementById("frame-slider"),
+    frameNumEl: document.getElementById("frame-num"),
+    frameTimeEl: document.getElementById("frame-time"),
+    summaryGrid: document.getElementById("summary-grid"),
+  });
+  await sp.loadAnalysis(analysis.id, analysis.summary);
+
+  const ac = AngleChartController(
+    document.getElementById("angle-chart"),
+    document.getElementById("angle-selector"),
+  );
+  await ac.loadAngles(analysis.id);
+});
 </script>
 {% endblock %}

@@ -2,6 +2,7 @@
 
 from flask import Blueprint, request, jsonify
 from core.domains.videos import upload_video, list_videos, get_video, delete_video
+from core.domains.analysis import get_latest_analysis
 
 videos_bp = Blueprint("videos", __name__)
 
@@ -13,6 +14,10 @@ def api_list_videos():
         for k in ("created_at", "updated_at"):
             if v.get(k):
                 v[k] = str(v[k])
+        analysis = get_latest_analysis(v["id"])
+        v["analysis_status"] = analysis["status"] if analysis else None
+        v["analysis_id"] = analysis["id"] if analysis else None
+        v["analysis_summary"] = analysis.get("summary") if analysis else None
     return jsonify(videos)
 
 
