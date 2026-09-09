@@ -14,8 +14,8 @@ from mediapipe.tasks.python import vision
 
 # Model will be auto-downloaded on first use
 _MODEL_DIR = Path(__file__).resolve().parent.parent.parent / "models"
-_MODEL_PATH = _MODEL_DIR / "pose_landmarker_lite.task"
-_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task"
+_MODEL_PATH = _MODEL_DIR / "pose_landmarker_heavy.task"
+_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/latest/pose_landmarker_heavy.task"
 
 
 def _ensure_model():
