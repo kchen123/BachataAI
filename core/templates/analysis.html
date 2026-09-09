@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Analysis — BachataAI{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 id="video-title">Analysis</h1>
+    <p class="subtitle" id="video-meta"></p>
+  </div>
+  <a href="/videos" class="btn btn-secondary">&#8592; Back</a>
+</div>
+
+<div id="no-analysis" class="empty-state hidden">
+  <p>No analysis yet for this video.</p>
+  <button id="run-analysis-btn" class="btn btn-primary">Run Pose Analysis</button>
+  <div id="analysis-progress" class="hidden" style="margin-top: 20px;">
+    <p id="analysis-status" style="color: var(--warning);">Processing...</p>
+  </div>
+</div>
+
+<div id="analysis-content" class="hidden">
+  <!-- Row 1: Video + Summary -->
+  <div class="analysis-layout">
+    <div class="analysis-panel">
+      <h2>Video + Skeleton</h2>
+      <div class="player-container">
+        <video id="video-player" controls>
+          <source id="video-source" src="" type="video/mp4">
+        </video>
+        <canvas id="skeleton-canvas"></canvas>
+      </div>
+      <div class="frame-scrubber">
+        <input type="range" id="frame-slider" min="0" max="100" value="0">
+        <div class="frame-info">
+          <span id="frame-num">Frame 0</span>
+          <span id="frame-time">0.00s</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="analysis-panel">
+      <h2>Summary</h2>
+      <div id="summary-grid" class="summary-grid"></div>
+    </div>
+  </div>
+
+  <!-- Row 2: Charts (full width) -->
+  <div class="analysis-layout" style="margin-top: 24px;">
+    <div class="analysis-panel analysis-full">
+      <h2>Joint Angles Over Time</h2>
+      <div class="angle-selector" id="angle-selector"></div>
+      <div class="chart-container">
+        <canvas id="angle-chart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/player.js') }}"></script>
+<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+<script>
+const VIDEO_ID = {{ video_id }};
+</script>
+{% endblock %}

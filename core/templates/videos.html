@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Videos — BachataAI{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div class="topbar-tabs">
+    <button class="topbar-tab active" data-tab="basics">Basics</button>
+    <button class="topbar-tab" data-tab="sensual">Sensual</button>
+    <button class="topbar-tab" data-tab="footwork">Footwork</button>
+    <button class="topbar-tab" data-tab="musicality">Musicality</button>
+  </div>
+  <button class="account-btn" title="Account">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+  </button>
+</div>
+
+<div id="tab-basics" class="tab-panel active">
+  <div class="vgrid" id="grid-basics"></div>
+</div>
+
+<div id="tab-sensual" class="tab-panel">
+  <div class="vgrid" id="grid-sensual"></div>
+</div>
+
+<div id="tab-footwork" class="tab-panel">
+  <div class="vgrid" id="grid-footwork"></div>
+</div>
+
+<div id="tab-musicality" class="tab-panel">
+  <div class="vgrid" id="grid-musicality"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  // ── Tab switching ───────────────────────────────────────────────────
+  const tabs = document.querySelectorAll(".topbar-tab");
+  const panels = document.querySelectorAll(".tab-panel");
+
+  tabs.forEach(tab => {
+    tab.addEventListener("click", () => {
+      tabs.forEach(t => t.classList.remove("active"));
+      panels.forEach(p => p.classList.remove("active"));
+      tab.classList.add("active");
+      document.getElementById(`tab-${tab.dataset.tab}`).classList.add("active");
+    });
+  });
+
+  // ── Placeholder cards ───────────────────────────────────────────────
+  const categories = {
+    basics: [
+      { title: "Body Movement Fundamentals", dur: "3:24" },
+      { title: "Basic Step — Open & Closed", dur: "2:48" },
+      { title: "Lead & Follow Turns", dur: "4:12" },
+      { title: "Frame & Posture", dur: "2:15" },
+      { title: "Weight Transfer Drills", dur: "1:55" },
+      { title: "Simple Combos for Beginners", dur: "3:40" },
+    ],
+    sensual: [
+      { title: "Wave Technique — Isolation", dur: "3:52" },
+      { title: "Body Rolls & Flow", dur: "4:30" },
+      { title: "Headrolls — Lead & Follow", dur: "2:18" },
+      { title: "Cambre & Dips", dur: "3:05" },
+      { title: "Connection in Close Hold", dur: "2:44" },
+      { title: "Sensual Combo Breakdown", dur: "5:10" },
+    ],
+    footwork: [
+      { title: "Basic Footwork Patterns", dur: "2:30" },
+      { title: "Dominican Footwork", dur: "3:15" },
+      { title: "Syncopation & Double Steps", dur: "2:50" },
+      { title: "Lateral Movement Drills", dur: "1:48" },
+      { title: "Speed & Precision Training", dur: "3:22" },
+      { title: "Footwork in Partner Work", dur: "4:05" },
+    ],
+    musicality: [
+      { title: "Finding the 1 — Timing Basics", dur: "2:10" },
+      { title: "Dancing to the Derecho", dur: "3:35" },
+      { title: "Accenting the Bongo", dur: "2:55" },
+      { title: "Slow Motion & Breaks", dur: "3:42" },
+      { title: "Interpreting Guitar Riffs", dur: "2:28" },
+      { title: "Full Song Breakdown", dur: "5:45" },
+    ],
+  };
+
+  for (const [cat, items] of Object.entries(categories)) {
+    const grid = document.getElementById(`grid-${cat}`);
+    for (const item of items) {
+      grid.innerHTML += `
+        <div class="vcard vcard-placeholder">
+          <div class="vcard-thumb">
+            <span class="vcard-duration">${item.dur}</span>
+          </div>
+          <div class="vcard-body">
+            <p class="vcard-title">${item.title}</p>
+            <p class="vcard-meta">coming soon</p>
+          </div>
+        </div>`;
+    }
+  }
+});
+</script>
+{% endblock %}

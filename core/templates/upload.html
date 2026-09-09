@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Upload — BachataAI{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1>Upload</h1>
+    <p class="subtitle">Drop a dance video to analyze movement</p>
+  </div>
+</div>
+
+<div id="drop-zone" class="drop-zone">
+  <div class="drop-zone-inner">
+    <p class="drop-text">Drop video here or click to browse</p>
+    <p class="drop-formats">MP4, MOV, AVI, WebM</p>
+    <input type="file" id="file-input" accept="video/*" hidden>
+  </div>
+</div>
+
+<div id="upload-progress" class="upload-progress hidden">
+  <div class="progress-info">
+    <span id="upload-filename"></span>
+    <span id="upload-percent">0%</span>
+  </div>
+  <div class="progress-bar">
+    <div id="progress-fill" class="progress-fill"></div>
+  </div>
+</div>
+
+<div id="upload-result" class="upload-result hidden">
+  <div class="result-card success">
+    <span class="result-icon">&#10003;</span>
+    <div>
+      <p class="result-title">Uploaded</p>
+      <p class="result-detail" id="result-detail"></p>
+    </div>
+    <a id="result-link" href="/videos" class="btn btn-primary">View Videos</a>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/upload.js') }}"></script>
+{% endblock %}
