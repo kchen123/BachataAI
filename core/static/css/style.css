@@ -825,3 +825,34 @@ body {
 
 .vcard:hover .vcard-analyze { opacity: 1; }
 .vcard-analyze:hover { color: var(--accent); }
+
+/* ── Video Card Progress Bar ─────────────────────────────────────────── */
+
+.vcard-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 20px;
+  background: rgba(0, 0, 0, 0.75);
+  z-index: 2;
+}
+
+.vcard-progress-bar {
+  height: 100%;
+  background: var(--accent);
+  opacity: 0.6;
+  transition: width 0.5s ease;
+}
+
+.vcard-progress-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: 0.3px;
+}

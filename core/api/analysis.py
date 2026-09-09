@@ -1,8 +1,8 @@
-"""API routes for pose analysis — trigger, progress (SSE), results."""
+"""API routes for pose analysis — trigger, progress, results."""
 
 import json
 import threading
-from flask import Blueprint, request, jsonify, Response
+from flask import Blueprint, request, jsonify
 from core.domains.analysis import (
     run_pose_estimation, get_analysis, get_latest_analysis,
     get_joint_frames, get_frame_landmarks, ANGLE_DEFINITIONS, LANDMARK_NAMES,
@@ -10,8 +10,8 @@ from core.domains.analysis import (
 
 analysis_bp = Blueprint("analysis", __name__)
 
-# In-memory progress tracking for SSE
-_progress = {}  # analysis_id -> {"current": n, "total": t, "status": "running"|"done"|"error"}
+# In-memory progress tracking keyed by video_id
+_progress = {}  # video_id -> {"current": n, "total": t, "status": "running"|"done"|"error"}
 
 
 @analysis_bp.route("/api/videos/<int:video_id>/analyze", methods=["POST"])
@@ -22,31 +22,40 @@ def api_run_analysis(video_id):
     if video is None:
         return jsonify({"error": "video not found"}), 404
 
-    # Create analysis record first
-    from core.adapters import AnalysesAdapter, get_repo
-    aa = AnalysesAdapter(get_repo())
-    analysis = aa.create(video_id=video_id)
-    analysis_id = analysis["id"]
-    _progress[analysis_id] = {"current": 0, "total": video["frame_count"], "status": "running"}
+    _progress[video_id] = {"current": 0, "total": video["frame_count"], "status": "running"}
 
     def _run():
         try:
             def on_progress(frame, total):
-                _progress[analysis_id] = {"current": frame, "total": total, "status": "running"}
+                _progress[video_id] = {"current": frame, "total": total, "status": "running"}
 
             run_pose_estimation(video_id, on_progress=on_progress)
-            _progress[analysis_id]["status"] = "done"
+            _progress[video_id]["status"] = "done"
         except Exception as e:
-            _progress[analysis_id]["status"] = "error"
-            _progress[analysis_id]["error"] = str(e)
-
-    # Delete the analysis we just created — run_pose_estimation creates its own
-    aa.delete(analysis_id)
+            _progress[video_id]["status"] = "error"
+            _progress[video_id]["error"] = str(e)
 
     thread = threading.Thread(target=_run, daemon=True)
     thread.start()
 
     return jsonify({"status": "started", "video_id": video_id}), 202
+
+
+@analysis_bp.route("/api/videos/<int:video_id>/progress", methods=["GET"])
+def api_get_progress(video_id):
+    """Get frame-level progress for a running analysis."""
+    p = _progress.get(video_id)
+    if p and p["status"] == "running":
+        total = p.get("total", 1) or 1
+        current = p.get("current", 0)
+        pct = round(current / total * 100, 1)
+        return jsonify({
+            "status": "running",
+            "current": current,
+            "total": total,
+            "percent": pct,
+        })
+    return jsonify({"status": "idle"})
 
 
 @analysis_bp.route("/api/videos/<int:video_id>/analysis", methods=["GET"])
@@ -99,7 +108,6 @@ def api_get_angles(analysis_id):
         lm = f["landmarks"]
         if isinstance(lm, str):
             lm = json.loads(lm)
-        # Convert string keys to int
         lm = {int(k): v for k, v in lm.items()} if lm else {}
         for angle_name, (a, b, c) in ANGLE_DEFINITIONS.items():
             if a in lm and b in lm and c in lm:
@@ -115,11 +123,9 @@ def api_get_angles(analysis_id):
 
 @analysis_bp.route("/api/meta/landmarks", methods=["GET"])
 def api_landmark_names():
-    """Return landmark index -> name mapping."""
     return jsonify(LANDMARK_NAMES)
 
 
 @analysis_bp.route("/api/meta/angles", methods=["GET"])
 def api_angle_definitions():
-    """Return angle definitions."""
     return jsonify({k: list(v) for k, v in ANGLE_DEFINITIONS.items()})

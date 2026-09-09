@@ -220,7 +220,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function pollModalAnalysis(videoId) {
     if (modalPollInterval) clearInterval(modalPollInterval);
+    const progressFillEl = document.getElementById("modal-progress-fill");
+    const progressText = modalProgress.querySelector(".modal-progress-text");
     modalPollInterval = setInterval(async () => {
+      // Fetch frame-level progress
+      const pr = await fetch(`/api/videos/${videoId}/progress`);
+      if (pr.ok) {
+        const p = await pr.json();
+        if (p.status === "running") {
+          progressFillEl.style.width = p.percent + "%";
+          progressFillEl.style.animation = "none";
+          progressText.textContent = `Analyzing frames... ${p.percent}% (${p.current} / ${p.total})`;
+        }
+      }
+      // Check if done
       const r = await fetch(`/api/videos/${videoId}/analysis`);
       if (!r.ok) return;
       const a = await r.json();
@@ -235,9 +248,10 @@ document.addEventListener("DOMContentLoaded", () => {
       } else if (a.status === "error") {
         clearInterval(modalPollInterval);
         modalPollInterval = null;
-        modalProgress.querySelector(".modal-progress-text").textContent = "Analysis failed";
+        progressText.textContent = "Analysis failed";
+        progressFillEl.style.background = "var(--danger, #f87171)";
       }
-    }, 3000);
+    }, 2000);
   }
 
   function closePlayer() {
@@ -264,9 +278,15 @@ document.addEventListener("DOMContentLoaded", () => {
     return `${m}:${s.toString().padStart(2, "0")}`;
   }
 
-  function badgeHtml(status) {
+  function badgeHtml(status, pct) {
     if (status === "done") return `<span class="vcard-badge badge-done">Analyzed</span>`;
-    if (status === "running") return `<span class="vcard-badge badge-processing">Processing...</span>`;
+    if (status === "running") {
+      const p = pct != null ? pct : 0;
+      return `<div class="vcard-progress">
+        <div class="vcard-progress-bar" style="width:${p}%"></div>
+        <span class="vcard-progress-text">${pct != null ? p + '%' : 'Starting...'}</span>
+      </div>`;
+    }
     if (status === "error") return `<span class="vcard-badge badge-error">Error</span>`;
     return "";
   }
@@ -290,9 +310,9 @@ document.addEventListener("DOMContentLoaded", () => {
         <div class="vcard-thumb">
           <video src="${src}#t=0.5" muted preload="metadata"></video>
           <span class="vcard-duration">${dur}</span>
-          ${badgeHtml(v.analysis_status)}
+          <span class="vcard-badge-slot">${badgeHtml(v.analysis_status)}</span>
           <button class="vcard-delete" title="Delete">&times;</button>
-          ${!v.analysis_status ? `<button class="vcard-analyze" title="Run Pose Analysis">
+          ${(!v.analysis_status || v.analysis_status === "error") ? `<button class="vcard-analyze" title="Run Pose Analysis">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20v-6M6 20V10M18 20V4"/></svg>
           </button>` : ""}
           <div class="vcard-overlay">
@@ -318,10 +338,19 @@ document.addEventListener("DOMContentLoaded", () => {
         analyzeBtn.addEventListener("click", async (e) => {
           e.stopPropagation();
           await fetch(`/api/videos/${v.id}/analyze`, { method: "POST" });
-          v.analysis_status = "running";
-          loadMyVideos();
-          // Poll for completion
+          // Update badge immediately
+          const badgeSlot = card.querySelector(".vcard-badge-slot");
+          badgeSlot.innerHTML = badgeHtml("running", 0);
+          analyzeBtn.remove();
+          // Poll for progress
           const poll = setInterval(async () => {
+            const pr = await fetch(`/api/videos/${v.id}/progress`);
+            if (pr.ok) {
+              const p = await pr.json();
+              if (p.status === "running") {
+                badgeSlot.innerHTML = badgeHtml("running", p.percent);
+              }
+            }
             const r = await fetch(`/api/videos/${v.id}/analysis`);
             if (!r.ok) return;
             const a = await r.json();
@@ -329,7 +358,7 @@ document.addEventListener("DOMContentLoaded", () => {
               clearInterval(poll);
               loadMyVideos();
             }
-          }, 3000);
+          }, 2000);
         });
       }
 
