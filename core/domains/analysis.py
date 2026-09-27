@@ -1,56 +1,42 @@
-"""Analysis domain — run MediaPipe pose estimation on a video."""
+"""Analysis domain — run YOLO26 pose estimation on a video."""
 
 import math
 import cv2
-import urllib.request
-from pathlib import Path
 from core.adapters import AnalysesAdapter, JointFramesAdapter, get_repo
 from core.domains.videos import video_filepath, get_video
 
-# MediaPipe Tasks API (1.0+)
-import mediapipe as mp
-from mediapipe.tasks import python as mp_python
-from mediapipe.tasks.python import vision
 
-# Model will be auto-downloaded on first use
-_MODEL_DIR = Path(__file__).resolve().parent.parent.parent / "models"
-_MODEL_PATH = _MODEL_DIR / "pose_landmarker_heavy.task"
-_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/latest/pose_landmarker_heavy.task"
+# COCO 17 keypoints from YOLO26-Pose
+LANDMARK_NAMES = {
+    0: "nose",
+    1: "left_eye",
+    2: "right_eye",
+    3: "left_ear",
+    4: "right_ear",
+    5: "left_shoulder",
+    6: "right_shoulder",
+    7: "left_elbow",
+    8: "right_elbow",
+    9: "left_wrist",
+    10: "right_wrist",
+    11: "left_hip",
+    12: "right_hip",
+    13: "left_knee",
+    14: "right_knee",
+    15: "left_ankle",
+    16: "right_ankle",
+}
 
-
-def _ensure_model():
-    """Download the pose landmarker model if not present."""
-    if _MODEL_PATH.exists():
-        return str(_MODEL_PATH)
-    _MODEL_DIR.mkdir(parents=True, exist_ok=True)
-    print(f"Downloading pose model to {_MODEL_PATH}...")
-    urllib.request.urlretrieve(_MODEL_URL, str(_MODEL_PATH))
-    return str(_MODEL_PATH)
-
-
-# MediaPipe landmark indices for key joints
-LANDMARK_NAMES = {i: name for i, name in enumerate([
-    "nose", "left_eye_inner", "left_eye", "left_eye_outer",
-    "right_eye_inner", "right_eye", "right_eye_outer",
-    "left_ear", "right_ear", "mouth_left", "mouth_right",
-    "left_shoulder", "right_shoulder", "left_elbow", "right_elbow",
-    "left_wrist", "right_wrist", "left_pinky", "right_pinky",
-    "left_index", "right_index", "left_thumb", "right_thumb",
-    "left_hip", "right_hip", "left_knee", "right_knee",
-    "left_ankle", "right_ankle", "left_heel", "right_heel",
-    "left_foot_index", "right_foot_index",
-])}
-
-# Joint angle definitions: (point_a, vertex, point_b)
+# Joint angle definitions using COCO indices: (point_a, vertex, point_b)
 ANGLE_DEFINITIONS = {
-    "left_elbow": (11, 13, 15),    # shoulder -> elbow -> wrist
-    "right_elbow": (12, 14, 16),
-    "left_shoulder": (13, 11, 23),  # elbow -> shoulder -> hip
-    "right_shoulder": (14, 12, 24),
-    "left_hip": (11, 23, 25),      # shoulder -> hip -> knee
-    "right_hip": (12, 24, 26),
-    "left_knee": (23, 25, 27),     # hip -> knee -> ankle
-    "right_knee": (24, 26, 28),
+    "left_elbow": (5, 7, 9),       # shoulder -> elbow -> wrist
+    "right_elbow": (6, 8, 10),
+    "left_shoulder": (7, 5, 11),    # elbow -> shoulder -> hip
+    "right_shoulder": (8, 6, 12),
+    "left_hip": (5, 11, 13),       # shoulder -> hip -> knee
+    "right_hip": (6, 12, 14),
+    "left_knee": (11, 13, 15),     # hip -> knee -> ankle
+    "right_knee": (12, 14, 16),
 }
 
 
@@ -67,11 +53,14 @@ def _calc_angle(a, b, c) -> float:
     return math.degrees(math.acos(cos_angle))
 
 
-def run_pose_estimation(video_id: int, on_progress=None):
-    """Run MediaPipe on every frame of a video. Returns analysis dict.
+def _get_model():
+    """Load YOLO26 pose model (auto-downloads on first use)."""
+    from ultralytics import YOLO
+    return YOLO("yolo26x-pose.pt")
 
-    on_progress(frame_num, total_frames) is called per frame for SSE.
-    """
+
+def run_pose_estimation(video_id: int, on_progress=None):
+    """Run YOLO26 pose estimation on every frame of a video."""
     video = get_video(video_id)
     if video is None:
         raise ValueError("Video not found")
@@ -80,7 +69,7 @@ def run_pose_estimation(video_id: int, on_progress=None):
     aa = AnalysesAdapter(repo)
     ja = JointFramesAdapter(repo)
 
-    analysis = aa.create(video_id=video_id)
+    analysis = aa.create(video_id=video_id, model="yolo26x-pose")
     aa.set_status(analysis["id"], "running")
 
     filepath = str(video_filepath(video))
@@ -91,17 +80,7 @@ def run_pose_estimation(video_id: int, on_progress=None):
     batch = []
     all_angles = {name: [] for name in ANGLE_DEFINITIONS}
 
-    # Set up MediaPipe Tasks PoseLandmarker
-    model_path = _ensure_model()
-    base_options = mp_python.BaseOptions(model_asset_path=model_path)
-    options = vision.PoseLandmarkerOptions(
-        base_options=base_options,
-        running_mode=vision.RunningMode.VIDEO,
-        num_poses=1,
-        min_pose_detection_confidence=0.5,
-        min_tracking_confidence=0.5,
-    )
-    landmarker = vision.PoseLandmarker.create_from_options(options)
+    model = _get_model()
 
     try:
         frame_num = 0
@@ -110,27 +89,35 @@ def run_pose_estimation(video_id: int, on_progress=None):
             if not ret:
                 break
 
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-            timestamp_ms = int(frame_num * 1000 / fps)
-            results = landmarker.detect_for_video(mp_image, timestamp_ms)
+            # Run YOLO26 pose on frame
+            results = model(frame, verbose=False)
+            h, w = frame.shape[:2]
 
             landmarks = {}
-            if results.pose_landmarks and len(results.pose_landmarks) > 0:
-                pose_lms = results.pose_landmarks[0]
-                for i, lm in enumerate(pose_lms):
-                    landmarks[i] = {
-                        "x": round(lm.x, 5),
-                        "y": round(lm.y, 5),
-                        "z": round(lm.z, 5),
-                        "visibility": round(lm.visibility, 3),
-                    }
+            if results and results[0].keypoints is not None:
+                kpts = results[0].keypoints
+                if kpts.xy is not None and len(kpts.xy) > 0:
+                    # Take the first detected person
+                    xy = kpts.xy[0]       # shape: (17, 2)
+                    conf = kpts.conf[0] if kpts.conf is not None else None
 
-                # Calculate angles for this frame
-                for angle_name, (a, b, c) in ANGLE_DEFINITIONS.items():
-                    if a in landmarks and b in landmarks and c in landmarks:
-                        angle = _calc_angle(landmarks[a], landmarks[b], landmarks[c])
-                        all_angles[angle_name].append(round(angle, 1))
+                    for i in range(len(xy)):
+                        x_px, y_px = float(xy[i][0]), float(xy[i][1])
+                        vis = float(conf[i]) if conf is not None else 1.0
+                        # Normalize to 0-1 like MediaPipe
+                        landmarks[i] = {
+                            "x": round(x_px / w, 5),
+                            "y": round(y_px / h, 5),
+                            "z": 0.0,
+                            "visibility": round(vis, 3),
+                        }
+
+                    # Calculate angles
+                    for angle_name, (a, b, c) in ANGLE_DEFINITIONS.items():
+                        if a in landmarks and b in landmarks and c in landmarks:
+                            if landmarks[a]["visibility"] > 0.3 and landmarks[b]["visibility"] > 0.3 and landmarks[c]["visibility"] > 0.3:
+                                angle = _calc_angle(landmarks[a], landmarks[b], landmarks[c])
+                                all_angles[angle_name].append(round(angle, 1))
 
             timestamp_sec = round(frame_num / fps, 4)
             batch.append({
@@ -139,7 +126,6 @@ def run_pose_estimation(video_id: int, on_progress=None):
                 "landmarks": landmarks,
             })
 
-            # Flush in batches of 30
             if len(batch) >= 30:
                 ja.bulk_insert(analysis["id"], batch)
                 batch = []
@@ -148,15 +134,16 @@ def run_pose_estimation(video_id: int, on_progress=None):
                 on_progress(frame_num, total_frames)
 
             frame_num += 1
+    except Exception:
+        aa.set_status(analysis["id"], "error")
+        cap.release()
+        raise
     finally:
-        landmarker.close()
         cap.release()
 
-    # Flush remaining
     if batch:
         ja.bulk_insert(analysis["id"], batch)
 
-    # Build summary
     summary = {}
     for angle_name, values in all_angles.items():
         if values:

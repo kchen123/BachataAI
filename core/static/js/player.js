@@ -3,14 +3,16 @@
  * Reusable: call SkeletonPlayer(elements) to create an instance.
  */
 
+// COCO 17-keypoint skeleton connections (YOLO26-Pose)
 const POSE_CONNECTIONS = [
-  [11, 12], [11, 13], [13, 15], [12, 14], [14, 16],
-  [11, 23], [12, 24], [23, 24],
-  [23, 25], [25, 27], [24, 26], [26, 28],
-  [27, 29], [29, 31], [28, 30], [30, 32],
-  [0, 1], [1, 2], [2, 3], [0, 4], [4, 5], [5, 6],
-  [9, 10], [15, 17], [15, 19], [15, 21],
-  [16, 18], [16, 20], [16, 22],
+  [0, 1], [0, 2], [1, 3], [2, 4],           // face: nose-eyes-ears
+  [5, 6],                                     // shoulders
+  [5, 7], [7, 9],                            // left arm
+  [6, 8], [8, 10],                           // right arm
+  [5, 11], [6, 12],                          // torso
+  [11, 12],                                   // hips
+  [11, 13], [13, 15],                        // left leg
+  [12, 14], [14, 16],                        // right leg
 ];
 
 /**
@@ -135,10 +137,16 @@ function SkeletonPlayer(els) {
         slider.value = 0;
       }
       if (summary) buildSummary(summary);
-      requestAnimationFrame(() => {
+      // Wait for video metadata so canvas gets proper dimensions
+      function draw() {
         resizeCanvas();
         updateFrame(0);
-      });
+      }
+      if (video.readyState >= 1) {
+        requestAnimationFrame(draw);
+      } else {
+        video.addEventListener("loadedmetadata", () => requestAnimationFrame(draw), { once: true });
+      }
     },
     destroy() {
       allFrames = [];

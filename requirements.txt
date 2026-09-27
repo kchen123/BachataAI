@@ -1,6 +1,6 @@
 flask
 psycopg2-binary
-mediapipe
+ultralytics
 opencv-python-headless
 numpy
 google-cloud-storage
