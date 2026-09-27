@@ -11,6 +11,11 @@ def index():
     return render_template("videos.html")
 
 
+@pages_bp.route("/pose")
+def pose_page():
+    return render_template("pose.html")
+
+
 @pages_bp.route("/analysis/<int:video_id>")
 def analysis_page(video_id):
     return render_template("analysis.html", video_id=video_id)

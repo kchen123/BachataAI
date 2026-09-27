@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Pose — BachataAI{% endblock %}
+
+{% block content %}
+<div class="topbar">
+  <div class="topbar-tabs">
+    <span class="topbar-label">Pose Viewer</span>
+  </div>
+</div>
+
+<div class="pose-layout">
+  <!-- Left: video list -->
+  <div class="pose-sidebar">
+    <div class="pose-list-header">Analyzed Videos</div>
+    <div id="pose-video-list" class="pose-video-list">
+      <div class="loading-spinner">Loading...</div>
+    </div>
+  </div>
+
+  <!-- Right: viewer -->
+  <div class="pose-viewer">
+    <div id="pose-empty" class="empty-state">
+      <p>Select a video to view pose annotations</p>
+    </div>
+
+    <div id="pose-content" class="hidden">
+      <div class="player-container">
+        <video id="pose-video" controls>
+          <source id="pose-source" src="" type="video/mp4">
+        </video>
+        <canvas id="pose-canvas"></canvas>
+      </div>
+      <div class="frame-scrubber">
+        <input type="range" id="pose-slider" min="0" max="100" value="0">
+        <div class="frame-info">
+          <span id="pose-frame-num">Frame 0</span>
+          <span id="pose-frame-time">0.00s</span>
+        </div>
+      </div>
+
+      <div class="pose-summary-section">
+        <h2>Joint Angles</h2>
+        <div id="pose-summary" class="summary-grid"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/player.js') }}"></script>
+<script>
+document.addEventListener("DOMContentLoaded", async () => {
+  const listEl = document.getElementById("pose-video-list");
+  const emptyEl = document.getElementById("pose-empty");
+  const contentEl = document.getElementById("pose-content");
+  const videoEl = document.getElementById("pose-video");
+  let currentPlayer = null;
+
+  // Load videos that have a completed analysis
+  const vRes = await fetch("/api/videos");
+  const videos = await vRes.json();
+  const analyzed = [];
+
+  for (const v of videos) {
+    if (v.analysis_status === "done") analyzed.push(v);
+  }
+
+  if (!analyzed.length) {
+    listEl.innerHTML = '<div class="pose-list-empty">No analyzed videos yet.<br>Run an analysis from the Videos page first.</div>';
+    return;
+  }
+
+  listEl.innerHTML = "";
+  for (const v of analyzed) {
+    const item = document.createElement("button");
+    item.className = "pose-list-item";
+    item.dataset.videoId = v.id;
+    item.innerHTML = `
+      <span class="pose-list-name">${v.original_name}</span>
+      <span class="pose-list-meta">${Math.round(v.duration_sec)}s</span>
+    `;
+    item.addEventListener("click", () => loadVideo(v, item));
+    listEl.appendChild(item);
+  }
+
+  async function loadVideo(v, itemEl) {
+    // Highlight active item
+    listEl.querySelectorAll(".pose-list-item").forEach(el => el.classList.remove("active"));
+    itemEl.classList.add("active");
+
+    // Destroy previous player
+    if (currentPlayer) currentPlayer.destroy();
+
+    // Set video source
+    document.getElementById("pose-source").src = v.gcs_url || `/uploads/${v.filename}`;
+    videoEl.load();
+
+    // Get saved analysis
+    const aRes = await fetch(`/api/videos/${v.id}/analysis`);
+    const analysis = await aRes.json();
+
+    emptyEl.classList.add("hidden");
+    contentEl.classList.remove("hidden");
+
+    // Create skeleton player with saved frames
+    currentPlayer = SkeletonPlayer({
+      video: videoEl,
+      canvas: document.getElementById("pose-canvas"),
+      slider: document.getElementById("pose-slider"),
+      frameNumEl: document.getElementById("pose-frame-num"),
+      frameTimeEl: document.getElementById("pose-frame-time"),
+      summaryGrid: document.getElementById("pose-summary"),
+    });
+
+    const summary = typeof analysis.summary === "string"
+      ? JSON.parse(analysis.summary)
+      : analysis.summary;
+
+    await currentPlayer.loadAnalysis(analysis.id, summary);
+  }
+});
+</script>
+{% endblock %}
