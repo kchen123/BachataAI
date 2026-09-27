@@ -1,0 +1,218 @@
+/* =====================================================================
+   BachataAI — Unified Theme System
+   Ported from PaperApp with shared design tokens.
+   ===================================================================== */
+
+:root {
+  /* Page & surface */
+  --bg-page: #171b22;
+  --bg-card: #20252e;
+  --bg-card-hover: #272d37;
+  --bg-elevated: #252b35;
+  --bg-input: #1b2028;
+  --bg-subtle: #222833;
+
+  /* Borders */
+  --border: #343b47;
+  --border-light: #2a313c;
+
+  /* Text */
+  --text-primary: #d1d4dc;
+  --text-secondary: #878c95;
+  --text-muted: #545862;
+  --btn-text: #ffffff;
+
+  /* Accent — PaperApp orange */
+  --accent: #ff8800;
+  --accent-hover: #cc6e00;
+  --accent-bg: rgba(255,136,0,0.12);
+
+  /* Semantic colors */
+  --green: #00aa46;
+  --red: #e04040;
+  --amber: #e8a317;
+  --green-bg: rgba(0,170,70,0.1);
+  --red-bg: rgba(224,64,64,0.1);
+  --amber-bg: rgba(232,163,23,0.1);
+
+  /* Terminal log palette */
+  --term-bg: #0b0d10;
+  --term-text: #c9ced8;
+  --term-dim: #5a616e;
+
+  /* Muted semantic */
+  --accent-muted: #cc6e00;
+  --green-muted: #1a6b3a;
+  --red-muted: #b33232;
+  --amber-muted: #c07a00;
+  --yellow: #e8a317;
+  --blue: #5b9bd5;
+  --error: #ef4444;
+  --neutral-bg: rgba(120, 120, 120, 0.15);
+  --neutral-border: rgba(120, 120, 120, 0.35);
+
+  /* Shared sizing */
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+  --radius-xl: 8px;
+  --radius-pill: 10px;
+  --radius-full: 50%;
+  --card-radius: 8px;
+  --transition: 0.25s ease;
+  --bar-h-sm: 40px;
+  --bar-h-md: 44px;
+  --bar-h-lg: 48px;
+  --bar-pad-x: 16px;
+  --bar-gap: 10px;
+  --bar-radius: 14px;
+  --control-h-sm: 28px;
+  --control-h-md: 32px;
+  --control-h-lg: 36px;
+  --icon-btn-size: 32px;
+
+  /* Overlay & shadow */
+  --overlay-bg: rgba(0,0,0,0.6);
+  --shadow: 0 10px 28px rgba(0,0,0,0.26);
+
+  /* Dark tints (layered surfaces / inset panels) */
+  --tint-1: rgba(0, 0, 0, 0.15);
+  --tint-2: rgba(0, 0, 0, 0.2);
+  --tint-3: rgba(0, 0, 0, 0.25);
+  --tint-4: rgba(0, 0, 0, 0.3);
+  --tint-5: rgba(0, 0, 0, 0.35);
+  --tint-heavy: rgba(0, 0, 0, 0.5);
+
+  /* Light highlights */
+  --highlight-1: rgba(255, 255, 255, 0.03);
+  --highlight-2: rgba(255, 255, 255, 0.04);
+  --bg-card-mixed: color-mix(in srgb, var(--bg-card) 92%, var(--bg-elevated));
+  --shadow-card-inset: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+
+  /* Tags & buttons */
+  --tag-bg: rgba(255,136,0,0.15);
+  --tag-color: #ffaa44;
+  --btn-delete-bg: rgba(224,64,64,0.15);
+  --btn-delete-color: #ef4444;
+  --btn-cancel-bg: #222730;
+  --btn-cancel-color: #d1d4dc;
+
+  /* Charts */
+  --chart-grid: #2a2e37;
+  --chart-axis: #878c95;
+  --chart-tooltip-bg: #1a1e27;
+  --chart-tooltip-border: #2a2e37;
+  --chart-tooltip-shadow: 0 2px 12px rgba(0,0,0,0.4);
+
+  /* Shared fonts */
+  --sans: Inter, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+
+  /* Sidebar — always-dark Bloomberg panel */
+  --sidebar-bg: #0d0d0d;
+  --sidebar-bg-header: #080808;
+  --sidebar-border: #262626;
+  --sidebar-text: #b0b0b0;
+  --sidebar-text-dim: #5a5a5a;
+  --sidebar-accent: #ff8c00;
+  --sidebar-accent-bg: rgba(255, 140, 0, 0.10);
+  --sidebar-hover: #181818;
+
+  /* ── Legacy aliases (backward compat) ── */
+  --bg: var(--bg-page);
+  --bg-raised: var(--bg-card);
+  --bg-surface: var(--bg-elevated);
+  --bg-hover: rgba(255,136,0,0.06);
+  --border-subtle: var(--border-light);
+  --text: var(--text-primary);
+  --text-2: var(--text-secondary);
+  --text-3: var(--text-muted);
+  --accent-dim: var(--accent-bg);
+  --radius: var(--card-radius);
+  --sidebar-w: 150px;
+
+  /* Spacing */
+  --u-sp-1: 4px;
+  --u-sp-2: 8px;
+  --u-sp-3: 12px;
+  --u-sp-4: 16px;
+  --u-sp-5: 24px;
+  --u-sp-6: 32px;
+}
+
+/* ---- Flat button & select reset ---- */
+button, select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  outline: none;
+}
+
+button {
+  background: var(--bg-card);
+  color: var(--btn-text);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
+}
+
+button:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--text-muted);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.2);
+}
+
+button:active {
+  background: var(--bg-elevated);
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.08);
+}
+
+button:focus-visible, select:focus-visible {
+  box-shadow: 0 0 0 2px var(--accent-bg);
+}
+
+select {
+  background: var(--bg-card);
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 24px;
+}
+
+/* Global error banner */
+#global-error-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: var(--red);
+  color: #fff;
+  padding: 8px 16px;
+  font-size: 13px;
+  z-index: 9999;
+  display: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+#global-error-banner.active {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+#global-error-banner .msg {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#global-error-banner .dismiss {
+  cursor: pointer;
+  margin-left: 12px;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 4px;
+  user-select: none;
+}

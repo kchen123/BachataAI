@@ -1,0 +1,79 @@
+{# Global error banner #}
+<div id="global-error-banner" role="alert" aria-live="polite">
+  <span class="msg"></span>
+  <span class="dismiss" onclick="this.parentElement.classList.remove('active')">×</span>
+</div>
+
+<nav id="sidebarMenu" class="sidebar">
+  <div class="sidebar-header">
+    <a href="/" class="sidebar-title-link">
+      <span class="sidebar-title-mark">B</span>
+      <span class="sidebar-status-dot" title="system live"></span>
+      <span class="sidebar-title">BACHATAAI</span>
+    </a>
+  </div>
+
+  <div class="sidebar-sections">
+
+    <div class="sidebar-section" data-section="studio">
+      <div class="section-label" data-toggle="studio">
+        <span class="section-label-text">Studio</span>
+      </div>
+      <ul class="sidebar-nav section-body">
+        <li><a href="/videos" class="nav-link" data-path="/videos"><span class="nav-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></span><span class="nav-text">Videos</span></a></li>
+      </ul>
+    </div>
+
+    <div class="sidebar-section" data-section="analysis">
+      <div class="section-label" data-toggle="analysis">
+        <span class="section-label-text">Analysis</span>
+      </div>
+      <ul class="sidebar-nav section-body">
+        <li><a href="/videos" class="nav-link" data-path="/analysis"><span class="nav-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span><span class="nav-text">Pose</span></a></li>
+      </ul>
+    </div>
+
+  </div>
+</nav>
+
+<script>
+  // Highlight active nav link based on current path
+  (function() {
+    const path = window.location.pathname;
+    // Also treat "/" as "/videos"
+    const normalized = path === '/' ? '/videos' : path;
+    document.querySelectorAll('.nav-link[data-path]').forEach(link => {
+      if (link.dataset.path === normalized || normalized.startsWith(link.dataset.path + '/')) link.classList.add('active');
+    });
+  })();
+
+  // Collapse / expand sidebar — click on empty space
+  (function() {
+    const sidebar = document.getElementById('sidebarMenu');
+    const stored = localStorage.getItem('sidebar-collapsed');
+    if (stored === '1') sidebar.classList.add('collapsed');
+
+    sidebar.addEventListener('click', (e) => {
+      const interactive = e.target.closest('a, button, .section-label, select, input');
+      if (interactive) return;
+      sidebar.classList.toggle('collapsed');
+      localStorage.setItem('sidebar-collapsed', sidebar.classList.contains('collapsed') ? '1' : '0');
+      window.dispatchEvent(new Event('sidebar-toggle'));
+    });
+  })();
+
+  // Collapsible sections
+  (function() {
+    document.querySelectorAll('.section-label[data-toggle]').forEach(label => {
+      const key = label.dataset.toggle;
+      const section = label.closest('.sidebar-section');
+      if (localStorage.getItem('section-' + key) === '0') {
+        section.classList.add('section-collapsed');
+      }
+      label.addEventListener('click', () => {
+        section.classList.toggle('section-collapsed');
+        localStorage.setItem('section-' + key, section.classList.contains('section-collapsed') ? '0' : '1');
+      });
+    });
+  })();
+</script>
