@@ -431,23 +431,17 @@ async function playVideo(videoId, url, title) {
   poseLoading = true;
   poseHasAnalysis = false;
 
-  // Fetch analysis data from GCS
+  // Check if analysis exists (lightweight, no pose data yet)
   try {
     const res = await fetch('/api/videos/' + videoId + '/analysis');
     if (res.ok) {
       const analysis = await res.json();
       if (analysis.status === 'done') {
         videoFps = analysis.fps || 30;
-        const poseRes = await fetch('/api/videos/' + videoId + '/pose-data');
-        if (poseRes.ok) {
-          const poseData = await poseRes.json();
-          poseFrames = poseData.frames;
-          poseHasAnalysis = poseFrames && poseFrames.length > 0;
-          console.log('Loaded ' + poseFrames.length + ' pose frames');
-        }
+        poseHasAnalysis = true;
       }
     }
-  } catch (e) { console.log('No pose data:', e); }
+  } catch (e) {}
   poseLoading = false;
 
   // Show re-run button if analysis exists
@@ -586,7 +580,7 @@ async function triggerAnalysis(videoId, sampleRate, resolution) {
   });
 })();
 
-function togglePose() {
+async function togglePose() {
   poseVisible = document.getElementById('poseToggle').checked;
   if (!poseVisible) {
     const canvas = document.getElementById('poseCanvas');
@@ -601,7 +595,23 @@ function togglePose() {
     poseVisible = false;
     openAnalyzeModal(false);
   } else {
-    drawCurrentPose();
+    // Load pose data if not loaded yet
+    if (!poseFrames) {
+      document.getElementById('poseToggle').disabled = true;
+      try {
+        const poseRes = await fetch('/api/videos/' + currentVideoId + '/pose-data');
+        if (poseRes.ok) {
+          const poseData = await poseRes.json();
+          poseFrames = poseData.frames;
+        }
+      } catch (e) {}
+      document.getElementById('poseToggle').disabled = false;
+    }
+    if (poseFrames && poseFrames.length > 0) {
+      drawCurrentPose();
+      const player = document.getElementById('videoPlayer');
+      if (!player.paused) startPoseLoop();
+    }
   }
 }
 
