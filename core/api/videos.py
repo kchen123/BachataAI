@@ -102,20 +102,45 @@ def api_create_video():
 
 @videos_bp.route("/api/videos/upload", methods=["POST"])
 def api_upload_video():
-    import os
-    from pathlib import Path
+    import os, uuid, tempfile, cv2
+    from core.adapters.storage import upload_blob
+
     f = request.files.get("file")
     if not f or not f.filename:
         return jsonify({"error": "no file"}), 400
-    upload_dir = Path(__file__).resolve().parent.parent.parent / "uploads"
-    upload_dir.mkdir(exist_ok=True)
-    filename = f"{_uid()}_{int(__import__('time').time())}_{f.filename}"
-    filepath = upload_dir / filename
-    f.save(str(filepath))
+
+    ext = os.path.splitext(f.filename)[1].lower()
+    allowed = {".mp4", ".mov", ".avi", ".webm", ".mkv"}
+    if ext not in allowed:
+        return jsonify({"error": f"Unsupported format: {ext}"}), 400
+
+    content_types = {".mp4": "video/mp4", ".mov": "video/quicktime",
+                     ".avi": "video/x-msvideo", ".webm": "video/webm", ".mkv": "video/x-matroska"}
+
+    # Save to temp, probe, upload to GCS
+    filename = f"{uuid.uuid4().hex}{ext}"
+    with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+        tmp_path = tmp.name
+        f.save(tmp_path)
+
+    try:
+        cap = cv2.VideoCapture(tmp_path)
+        fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        duration_sec = round(frame_count / fps, 2) if fps > 0 else 0
+        cap.release()
+
+        gcs_url = upload_blob(filename, tmp_path, content_types.get(ext, "video/mp4"))
+    finally:
+        os.unlink(tmp_path)
+
     folder_id = request.form.get("folder_id", type=int)
     title = os.path.splitext(f.filename)[0]
     repo = get_repo()
-    video = VideosAdapter(repo).create(title, _uid(), folder_id, filename=filename)
+    video = VideosAdapter(repo).create(title, _uid(), folder_id, filename=filename, gcs_url=gcs_url)
+    video = repo.update("bachata.videos", video["id"], {
+        "duration_sec": duration_sec, "fps": round(fps, 2), "frame_count": frame_count,
+    })
     return jsonify(_serialize(video)), 201
 
 
