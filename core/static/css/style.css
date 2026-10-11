@@ -393,6 +393,13 @@
 }
 .files-modal input:focus { border-color: var(--accent); }
 
+.analyze-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
 .files-modal-actions {
   display: flex;
   gap: 8px;

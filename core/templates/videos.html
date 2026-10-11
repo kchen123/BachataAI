@@ -134,6 +134,18 @@
   </div>
 </div>
 
+<!-- Analyze Confirm Modal -->
+<div class="modal-overlay" id="analyzeModal" onclick="if(event.target===this)closeAnalyzeModal()">
+  <div class="files-modal">
+    <h3>Run Pose Estimation</h3>
+    <p class="analyze-desc">No pose data found for this video. Run GPU-accelerated skeleton analysis? This may take a few minutes.</p>
+    <div class="files-modal-actions">
+      <button class="btn btn-sm" onclick="closeAnalyzeModal()">Cancel</button>
+      <button class="btn btn-sm btn-accent" onclick="confirmAnalysis()">Analyze</button>
+    </div>
+  </div>
+</div>
+
 <!-- Account Modal -->
 <div class="modal-overlay" id="accountModal" onclick="if(event.target===this)this.classList.remove('open')">
   <div class="account-modal">
@@ -359,6 +371,15 @@ function closeVideo() {
   document.getElementById('videoModal').classList.remove('open');
 }
 
+function closeAnalyzeModal() {
+  document.getElementById('analyzeModal').classList.remove('open');
+}
+
+function confirmAnalysis() {
+  closeAnalyzeModal();
+  triggerAnalysis(currentVideoId);
+}
+
 async function triggerAnalysis(videoId) {
   // Close video modal
   closeVideo();
@@ -421,9 +442,7 @@ function togglePose() {
   } else if (!poseFrames || poseFrames.length === 0) {
     document.getElementById('poseToggle').checked = false;
     poseVisible = false;
-    if (confirm('No pose data yet. Run pose estimation? This may take a few minutes.')) {
-      triggerAnalysis(currentVideoId);
-    }
+    document.getElementById('analyzeModal').classList.add('open');
   } else {
     drawCurrentPose();
   }
