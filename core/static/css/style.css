@@ -687,3 +687,36 @@
 .file-card[draggable="true"]:active {
   cursor: grabbing;
 }
+
+/* ── Processing State ───────────────────────────────────────────────── */
+
+.file-card.processing {
+  border-color: var(--amber);
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+.processing-bar {
+  width: 100%;
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  margin-top: 6px;
+  overflow: hidden;
+}
+
+.processing-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+
+.processing-eta {
+  display: block;
+  font-size: 9px;
+  color: var(--amber);
+  margin-top: 4px;
+  letter-spacing: 0.5px;
+}

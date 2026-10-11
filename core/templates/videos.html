@@ -306,6 +306,7 @@ let poseFrames = null;
 let poseAnimId = null;
 let poseVisible = false;
 let videoFps = 30;
+let currentVideoId = null;
 
 const SKELETON_CONNECTIONS = [
   [0,1],[0,2],[1,3],[2,4],           // face
@@ -317,6 +318,7 @@ const SKELETON_CONNECTIONS = [
 
 async function playVideo(videoId, url, title) {
   if (!url) return;
+  currentVideoId = videoId;
   document.getElementById('videoTitle').textContent = title;
   const player = document.getElementById('videoPlayer');
   player.src = url;
@@ -357,11 +359,71 @@ function closeVideo() {
   document.getElementById('videoModal').classList.remove('open');
 }
 
+async function triggerAnalysis(videoId) {
+  // Close video modal
+  closeVideo();
+
+  // Show processing on the card
+  const card = document.querySelector('.file-card[data-type="video"][data-id="' + videoId + '"]');
+  if (card) {
+    card.classList.add('processing');
+    const nameEl = card.querySelector('.file-card-name');
+    const origText = nameEl.textContent;
+    nameEl.innerHTML = origText + '<div class="processing-bar"><div class="processing-fill" id="pFill' + videoId + '"></div></div><span class="processing-eta" id="pEta' + videoId + '">Starting GPU...</span>';
+  }
+
+  // Trigger analysis
+  const res = await fetch('/api/videos/' + videoId + '/analyze', { method: 'POST' });
+  if (!res.ok) {
+    if (card) card.classList.remove('processing');
+    return;
+  }
+
+  // Poll progress
+  const startTime = Date.now();
+  const poll = setInterval(async () => {
+    const pRes = await fetch('/api/videos/' + videoId + '/progress');
+    const p = await pRes.json();
+    const fill = document.getElementById('pFill' + videoId);
+    const eta = document.getElementById('pEta' + videoId);
+    if (fill) fill.style.width = p.percent + '%';
+
+    if (p.percent > 5 && eta) {
+      const elapsed = (Date.now() - startTime) / 1000;
+      const remaining = Math.round(elapsed / p.percent * (100 - p.percent));
+      const min = Math.floor(remaining / 60);
+      const sec = remaining % 60;
+      eta.textContent = p.step === 'calling GPU' ? 'Analyzing...' : (min > 0 ? min + 'm ' + sec + 's left' : sec + 's left');
+    }
+
+    if (p.status === 'done' || p.status === 'error') {
+      clearInterval(poll);
+      if (eta) eta.textContent = p.status === 'done' ? 'Done!' : 'Error';
+      setTimeout(() => {
+        if (card) {
+          card.classList.remove('processing');
+          const nameEl = card.querySelector('.file-card-name');
+          const bar = card.querySelector('.processing-bar');
+          const etaEl = card.querySelector('.processing-eta');
+          if (bar) bar.remove();
+          if (etaEl) etaEl.remove();
+        }
+      }, 2000);
+    }
+  }, 2000);
+}
+
 function togglePose() {
   poseVisible = document.getElementById('poseToggle').checked;
   if (!poseVisible) {
     const canvas = document.getElementById('poseCanvas');
     canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+  } else if (!poseFrames || poseFrames.length === 0) {
+    document.getElementById('poseToggle').checked = false;
+    poseVisible = false;
+    if (confirm('No pose data yet. Run pose estimation? This may take a few minutes.')) {
+      triggerAnalysis(currentVideoId);
+    }
   } else {
     drawCurrentPose();
   }
