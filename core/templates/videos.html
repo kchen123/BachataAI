@@ -334,7 +334,7 @@ function sortItems() {
 
 // Restore saved preferences
 (function() {
-  const view = localStorage.getItem('fileView') || 'grid';
+  const view = localStorage.getItem('fileView') || 'list';
   setView(view);
   const sort = localStorage.getItem('fileSort');
   if (sort) {
