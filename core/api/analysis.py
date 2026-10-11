@@ -112,31 +112,18 @@ def _run_analysis(video_id, analysis_id, gcs_blob, frame_count, sample_every_n=1
         if video_id in _cancel:
             raise RuntimeError("Cancelled by user")
 
-        # Parse for summary only (angles)
-        _log(video_id, "Computing joint angle summary...", 75)
-        data = resp.json()
-        pose_frames = data["frames"]
-        total = len(pose_frames)
+        _log(video_id, "Saving summary...", 90)
 
-        all_angles = {n: [] for n in ANGLE_DEFS}
-        for f in pose_frames:
-            lm = {int(k): v for k, v in f["keypoints"].items()}
-            for name, (a, b, c) in ANGLE_DEFS.items():
-                if a in lm and b in lm and c in lm:
-                    if lm[a]["visibility"] > 0.3 and lm[b]["visibility"] > 0.3 and lm[c]["visibility"] > 0.3:
-                        all_angles[name].append(round(_calc_angle(lm[a], lm[b], lm[c]), 1))
-
-        summary = {}
-        for name, vals in all_angles.items():
-            if vals:
-                summary[name] = {
-                    "min": min(vals), "max": max(vals),
-                    "avg": round(sum(vals) / len(vals), 1),
-                    "range": round(max(vals) - min(vals), 1),
-                }
-        summary["total_frames"] = data["frame_count"]
-        summary["frames_with_pose"] = total
-        summary["pose_gcs_path"] = pose_gcs_path
+        # Don't parse the full response — it can be 100MB+ for long videos
+        # Just store the GCS path and basic metadata
+        content_size = len(resp.content)
+        summary = {
+            "total_frames": frame_count,
+            "pose_gcs_path": pose_gcs_path,
+            "pose_size_kb": content_size // 1024,
+            "sample_every_n": sample_every_n,
+            "resolution": resolution,
+        }
 
         repo = Repository()
         AnalysesAdapter(repo).set_summary(analysis_id, summary)
