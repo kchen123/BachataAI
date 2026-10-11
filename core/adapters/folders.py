@@ -22,6 +22,9 @@ class FoldersAdapter(BaseAdapter):
     def rename(self, folder_id: int, name: str) -> dict | None:
         return self.update(folder_id, name=name)
 
+    def move(self, folder_id: int, parent_id: int | None) -> dict | None:
+        return self.update(folder_id, parent_id=parent_id)
+
     def get_breadcrumbs(self, folder_id: int) -> list[dict]:
         sql = """
         WITH RECURSIVE crumbs AS (

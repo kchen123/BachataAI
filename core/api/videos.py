@@ -75,6 +75,14 @@ def api_rename_folder(folder_id):
     return jsonify(_serialize(folder)) if folder else ("", 404)
 
 
+@videos_bp.route("/api/folders/<int:folder_id>/move", methods=["PATCH"])
+def api_move_folder(folder_id):
+    body = request.get_json()
+    repo = get_repo()
+    folder = FoldersAdapter(repo).move(folder_id, body.get("folder_id"))
+    return jsonify(_serialize(folder)) if folder else ("", 404)
+
+
 @videos_bp.route("/api/folders/<int:folder_id>", methods=["DELETE"])
 def api_delete_folder(folder_id):
     repo = get_repo()

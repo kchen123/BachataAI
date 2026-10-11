@@ -37,11 +37,11 @@
 
   <div class="files-grid" id="filesGrid">
     {% for f in folders %}
-    <div class="file-card" data-type="folder" data-id="{{ f.id }}"
+    <div class="file-card" data-type="folder" data-id="{{ f.id }}" draggable="true"
+         ondragstart="onDragStart(event)"
          onclick="window.location.href='/folder/{{ f.id }}'"
-         ondragover="event.preventDefault(); this.classList.add('drag-over')"
-         ondragleave="this.classList.remove('drag-over')"
-         ondrop="onDropToFolder(event, {{ f.id }})">
+         ondragover="onDragOver(event)" ondragleave="this.classList.remove('drag-over')"
+         ondrop="onDrop(event, {{ f.id }})">
       <button class="file-card-menu" onclick="event.stopPropagation(); toggleDropdown(this);">&vellip;</button>
       <div class="file-dropdown">
         <button onclick="event.stopPropagation(); startRename('folder', {{ f.id }}, '{{ f.name }}')">Rename</button>
@@ -449,23 +449,39 @@ document.addEventListener('keydown', function(e) {
 function onDragStart(e) {
   const card = e.target.closest('.file-card');
   e.dataTransfer.setData('text/plain', card.dataset.id);
+  e.dataTransfer.setData('drag-type', card.dataset.type);
   e.dataTransfer.effectAllowed = 'move';
   card.style.opacity = '0.4';
   setTimeout(() => card.style.opacity = '', 300);
 }
 
-async function onDropToFolder(e, folderId) {
+function onDragOver(e) {
   e.preventDefault();
+  e.currentTarget.classList.add('drag-over');
+}
+
+async function onDrop(e, targetFolderId) {
+  e.preventDefault();
+  e.stopPropagation();
   e.currentTarget.classList.remove('drag-over');
-  const videoId = e.dataTransfer.getData('text/plain');
-  if (!videoId) return;
-  const res = await fetch('/api/videos/' + videoId + '/move', {
+  const dragId = e.dataTransfer.getData('text/plain');
+  const dragType = e.dataTransfer.getData('drag-type');
+  if (!dragId) return;
+
+  // Don't drop folder into itself
+  if (dragType === 'folder' && parseInt(dragId) === targetFolderId) return;
+
+  const url = dragType === 'folder'
+    ? '/api/folders/' + dragId + '/move'
+    : '/api/videos/' + dragId + '/move';
+
+  const res = await fetch(url, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ folder_id: folderId }),
+    body: JSON.stringify({ folder_id: targetFolderId }),
   });
   if (res.ok) {
-    const card = document.querySelector('.file-card[data-type="video"][data-id="' + videoId + '"]');
+    const card = document.querySelector('.file-card[data-type="' + dragType + '"][data-id="' + dragId + '"]');
     if (card) card.remove();
   }
 }
