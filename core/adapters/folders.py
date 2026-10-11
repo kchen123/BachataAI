@@ -28,15 +28,15 @@ class FoldersAdapter(BaseAdapter):
     def get_breadcrumbs(self, folder_id: int) -> list[dict]:
         sql = """
         WITH RECURSIVE crumbs AS (
-            SELECT id, name, parent_id
+            SELECT id, name, parent_id, 0 AS depth
               FROM bachata.folders
              WHERE id = %s
             UNION ALL
-            SELECT f.id, f.name, f.parent_id
+            SELECT f.id, f.name, f.parent_id, c.depth + 1
               FROM bachata.folders f
               JOIN crumbs c ON c.parent_id = f.id
         )
-        SELECT id, name FROM crumbs ORDER BY id
+        SELECT id, name FROM crumbs ORDER BY depth DESC
         """
         rows = self.repo.execute(sql, [folder_id], fetch="all")
         return [{"id": r[0], "name": r[1]} for r in (rows or [])]
