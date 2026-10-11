@@ -141,6 +141,7 @@
         <input type="checkbox" id="poseToggle" onchange="togglePose()">
         <span>Skeleton</span>
       </label>
+      <button class="btn btn-sm pose-rerun hidden" id="poseRerun" onclick="openAnalyzeModal(true)">Re-run</button>
       <button class="video-modal-close" onclick="closeVideo()">&times;</button>
     </div>
     <div class="video-wrapper">
@@ -150,11 +151,29 @@
   </div>
 </div>
 
-<!-- Analyze Confirm Modal -->
+<!-- Analyze Config Modal -->
 <div class="modal-overlay" id="analyzeModal" onclick="if(event.target===this)closeAnalyzeModal()">
   <div class="files-modal">
-    <h3>Run Pose Estimation</h3>
-    <p class="analyze-desc">No pose data found for this video. Run GPU-accelerated skeleton analysis? This may take a few minutes.</p>
+    <h3 id="analyzeTitle">Run Pose Estimation</h3>
+    <p class="analyze-desc" id="analyzeDesc">Run GPU-accelerated skeleton analysis on this video.</p>
+    <div class="analyze-config">
+      <div class="analyze-row">
+        <label>Sample rate</label>
+        <select id="cfgSampleRate">
+          <option value="1" selected>Every frame (best accuracy)</option>
+          <option value="2">Every 2nd frame</option>
+          <option value="5">Every 5th frame (faster)</option>
+          <option value="10">Every 10th frame (fastest)</option>
+        </select>
+      </div>
+      <div class="analyze-row">
+        <label>Resolution</label>
+        <select id="cfgResolution">
+          <option value="1280" selected>1280px (best accuracy)</option>
+          <option value="640">640px (faster)</option>
+        </select>
+      </div>
+    </div>
     <div class="files-modal-actions">
       <button class="btn btn-sm" onclick="closeAnalyzeModal()">Cancel</button>
       <button class="btn btn-sm btn-accent" onclick="confirmAnalysis()">Analyze</button>
@@ -424,6 +443,11 @@ async function playVideo(videoId, url, title) {
   } catch (e) { console.log('No pose data:', e); }
   poseLoading = false;
 
+  // Show re-run button if analysis exists
+  const rerunBtn = document.getElementById('poseRerun');
+  if (poseHasAnalysis) rerunBtn.classList.remove('hidden');
+  else rerunBtn.classList.add('hidden');
+
   // Start drawing loop
   player.addEventListener('play', startPoseLoop);
   player.addEventListener('pause', stopPoseLoop);
@@ -444,13 +468,28 @@ function closeVideo() {
   document.getElementById('videoModal').classList.remove('open');
 }
 
+function openAnalyzeModal(isRerun) {
+  const title = document.getElementById('analyzeTitle');
+  const desc = document.getElementById('analyzeDesc');
+  if (isRerun) {
+    title.textContent = 'Re-run Pose Estimation';
+    desc.textContent = 'Re-analyze this video with new settings. Previous results will be replaced.';
+  } else {
+    title.textContent = 'Run Pose Estimation';
+    desc.textContent = 'Run GPU-accelerated skeleton analysis on this video.';
+  }
+  document.getElementById('analyzeModal').classList.add('open');
+}
+
 function closeAnalyzeModal() {
   document.getElementById('analyzeModal').classList.remove('open');
 }
 
 function confirmAnalysis() {
+  const sampleRate = document.getElementById('cfgSampleRate').value;
+  const resolution = document.getElementById('cfgResolution').value;
   closeAnalyzeModal();
-  triggerAnalysis(currentVideoId);
+  triggerAnalysis(currentVideoId, parseInt(sampleRate), parseInt(resolution));
 }
 
 function showProcessingCard(videoId, label) {
@@ -497,11 +536,19 @@ function pollProgress(videoId) {
   }, 5000);
 }
 
-async function triggerAnalysis(videoId) {
+async function triggerAnalysis(videoId, sampleRate, resolution) {
   closeVideo();
   showProcessingCard(videoId, 'Starting GPU...');
 
-  const res = await fetch('/api/videos/' + videoId + '/analyze', { method: 'POST' });
+  const body = {};
+  if (sampleRate) body.sample_every_n = sampleRate;
+  if (resolution) body.resolution = resolution;
+
+  const res = await fetch('/api/videos/' + videoId + '/analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
   if (!res.ok) {
     const card = document.querySelector('.file-card[data-type="video"][data-id="' + videoId + '"]');
     if (card) card.classList.remove('processing');
@@ -539,7 +586,7 @@ function togglePose() {
   } else if (!poseHasAnalysis) {
     document.getElementById('poseToggle').checked = false;
     poseVisible = false;
-    document.getElementById('analyzeModal').classList.add('open');
+    openAnalyzeModal(false);
   } else {
     drawCurrentPose();
   }

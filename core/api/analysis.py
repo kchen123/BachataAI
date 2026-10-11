@@ -57,17 +57,19 @@ def _log(video_id, msg, pct=None):
     _progress[video_id] = p
 
 
-def _run_analysis(video_id, analysis_id, gcs_blob, frame_count):
+def _run_analysis(video_id, analysis_id, gcs_blob, frame_count, sample_every_n=1, resolution=1280):
     """Background thread: call GPU pose service, save results to DB."""
     try:
         _progress[video_id] = {"status": "running", "step": "starting", "percent": 0, "log": []}
-        _log(video_id, "Requesting GPU instance...", 0)
+        _log(video_id, f"Config: every {sample_every_n} frame(s), {resolution}px resolution", 0)
+        _log(video_id, "Requesting GPU instance...", 2)
 
         import time
         for attempt in range(10):
             resp = requests.post(
                 f"{POSE_SERVICE_URL}/predict/video",
-                json={"gcs_bucket": "bachataai-videos", "gcs_blob": gcs_blob, "sample_every_n": 1},
+                json={"gcs_bucket": "bachataai-videos", "gcs_blob": gcs_blob,
+                      "sample_every_n": sample_every_n, "resolution": resolution},
                 headers=_get_auth_headers(),
                 timeout=1800,
             )
@@ -156,12 +158,17 @@ def api_run_analysis(video_id):
     if existing and existing["status"] == "running":
         return jsonify({"error": "analysis already running"}), 409
 
+    body = request.get_json(silent=True) or {}
+    sample_every_n = body.get("sample_every_n", 1)
+    resolution = body.get("resolution", 1280)
+
     analysis = AnalysesAdapter(repo).create(video_id=video_id, model="yolo26x-pose")
     AnalysesAdapter(repo).set_status(analysis["id"], "running")
 
     thread = threading.Thread(
         target=_run_analysis,
-        args=(video_id, analysis["id"], video["filename"], video.get("frame_count", 0)),
+        args=(video_id, analysis["id"], video["filename"], video.get("frame_count", 0),
+              sample_every_n, resolution),
         daemon=True,
     )
     thread.start()

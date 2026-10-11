@@ -488,6 +488,40 @@
   margin-bottom: 16px;
 }
 
+.analyze-config {
+  margin-bottom: 16px;
+}
+
+.analyze-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.analyze-row label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.analyze-row select {
+  width: 200px;
+  padding: 6px 24px 6px 10px;
+  font-size: 11px;
+  background: var(--bg-input);
+}
+
+.pose-rerun {
+  margin-left: 8px;
+  margin-right: 4px;
+  font-size: 9px;
+  padding: 3px 8px;
+  color: var(--text-muted);
+  border-color: var(--border);
+}
+.pose-rerun:hover { color: var(--accent); border-color: var(--accent); }
+
 .files-modal-actions {
   display: flex;
   gap: 8px;
