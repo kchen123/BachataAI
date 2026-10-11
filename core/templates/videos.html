@@ -794,47 +794,58 @@ function handleUploadFiles(files) {
   }
 }
 
-function uploadSingleFile(file, idx, onDone) {
+async function uploadSingleFile(file, idx, onDone) {
   const box = document.getElementById('uploadProgress');
   const row = document.createElement('div');
   row.className = 'upload-row';
   row.innerHTML = '<div class="upload-row-info"><span class="upload-row-name">' + file.name + '</span><span class="upload-row-pct" id="uPct' + idx + '">0%</span></div><div class="upload-progress-bar"><div class="upload-progress-fill" id="uFill' + idx + '"></div></div>';
   box.appendChild(row);
 
-  const xhr = new XMLHttpRequest();
-  const formData = new FormData();
-  formData.append('file', file);
-  if (FOLDER_ID) formData.append('folder_id', FOLDER_ID);
+  const pctEl = document.getElementById('uPct' + idx);
+  const fillEl = document.getElementById('uFill' + idx);
 
-  xhr.upload.addEventListener('progress', (e) => {
-    if (e.lengthComputable) {
-      const pct = Math.round((e.loaded / e.total) * 100);
-      document.getElementById('uFill' + idx).style.width = pct + '%';
-      document.getElementById('uPct' + idx).textContent = pct + '%';
-    }
-  });
+  try {
+    // Step 1: Get signed upload URL from Flask
+    const body = { filename: file.name };
+    if (FOLDER_ID) body.folder_id = FOLDER_ID;
+    const urlRes = await fetch('/api/videos/upload-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!urlRes.ok) throw new Error('Failed to get upload URL');
+    const { upload_url, content_type } = await urlRes.json();
 
-  xhr.addEventListener('load', () => {
-    const pctEl = document.getElementById('uPct' + idx);
-    const fillEl = document.getElementById('uFill' + idx);
-    if (xhr.status === 201) {
-      pctEl.textContent = 'Done';
-      fillEl.style.background = 'var(--green)';
-    } else {
-      pctEl.textContent = 'Failed';
-      fillEl.style.background = 'var(--red)';
-    }
-    onDone();
-  });
+    // Step 2: Upload directly to GCS with progress
+    const xhr = new XMLHttpRequest();
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable) {
+        const pct = Math.round((e.loaded / e.total) * 100);
+        fillEl.style.width = pct + '%';
+        pctEl.textContent = pct + '%';
+      }
+    });
 
-  xhr.addEventListener('error', () => {
-    document.getElementById('uPct' + idx).textContent = 'Failed';
-    document.getElementById('uFill' + idx).style.background = 'var(--red)';
-    onDone();
-  });
-
-  xhr.open('POST', '/api/videos/upload');
-  xhr.send(formData);
+    await new Promise((resolve, reject) => {
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          pctEl.textContent = 'Done';
+          fillEl.style.background = 'var(--green)';
+          resolve();
+        } else {
+          reject(new Error('GCS upload failed: ' + xhr.status));
+        }
+      });
+      xhr.addEventListener('error', () => reject(new Error('Upload error')));
+      xhr.open('PUT', upload_url);
+      xhr.setRequestHeader('Content-Type', content_type);
+      xhr.send(file);
+    });
+  } catch (e) {
+    pctEl.textContent = 'Failed';
+    fillEl.style.background = 'var(--red)';
+  }
+  onDone();
 }
 </script>
 {% endblock %}

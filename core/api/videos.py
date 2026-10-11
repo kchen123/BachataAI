@@ -100,8 +100,53 @@ def api_create_video():
     return jsonify(_serialize(video)), 201
 
 
+@videos_bp.route("/api/videos/upload-url", methods=["POST"])
+def api_get_upload_url():
+    """Get a signed URL for direct browser-to-GCS upload."""
+    import os, uuid
+    from google.cloud import storage
+
+    body = request.get_json()
+    original_name = body.get("filename", "video.mp4")
+    ext = os.path.splitext(original_name)[1].lower()
+    allowed = {".mp4", ".mov", ".avi", ".webm", ".mkv"}
+    if ext not in allowed:
+        return jsonify({"error": f"Unsupported format: {ext}"}), 400
+
+    content_types = {".mp4": "video/mp4", ".mov": "video/quicktime",
+                     ".avi": "video/x-msvideo", ".webm": "video/webm", ".mkv": "video/x-matroska"}
+
+    filename = f"{uuid.uuid4().hex}{ext}"
+    ct = content_types.get(ext, "video/mp4")
+
+    client = storage.Client()
+    bucket = client.bucket("bachataai-videos")
+    blob = bucket.blob(filename)
+    upload_url = blob.generate_signed_url(
+        version="v4",
+        expiration=3600,
+        method="PUT",
+        content_type=ct,
+    )
+
+    gcs_url = f"https://storage.googleapis.com/bachataai-videos/{filename}"
+
+    # Create DB record
+    folder_id = body.get("folder_id")
+    title = os.path.splitext(original_name)[0]
+    repo = get_repo()
+    video = VideosAdapter(repo).create(title, _uid(), folder_id, filename=filename, gcs_url=gcs_url)
+
+    return jsonify({
+        "upload_url": upload_url,
+        "content_type": ct,
+        "video": _serialize(video),
+    }), 200
+
+
 @videos_bp.route("/api/videos/upload", methods=["POST"])
 def api_upload_video():
+    """Fallback: direct upload through Flask for small files."""
     import os, uuid, tempfile, cv2
     from core.adapters.storage import upload_blob
 
@@ -117,7 +162,6 @@ def api_upload_video():
     content_types = {".mp4": "video/mp4", ".mov": "video/quicktime",
                      ".avi": "video/x-msvideo", ".webm": "video/webm", ".mkv": "video/x-matroska"}
 
-    # Save to temp, probe, upload to GCS
     filename = f"{uuid.uuid4().hex}{ext}"
     with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
         tmp_path = tmp.name
