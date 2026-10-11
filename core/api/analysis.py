@@ -50,15 +50,27 @@ def _calc_angle(a, b, c):
 def _run_analysis(video_id, analysis_id, gcs_blob, frame_count):
     """Background thread: call GPU pose service, save results to DB."""
     try:
-        _progress[video_id] = {"status": "running", "step": "calling GPU", "percent": 0}
+        _progress[video_id] = {"status": "running", "step": "waiting for GPU", "percent": 0}
 
-        resp = requests.post(
-            f"{POSE_SERVICE_URL}/predict/video",
-            json={"gcs_bucket": "bachataai-videos", "gcs_blob": gcs_blob, "sample_every_n": 5},
-            headers=_get_auth_headers(),
-            timeout=1800,
-        )
-        resp.raise_for_status()
+        import time
+        for attempt in range(10):
+            resp = requests.post(
+                f"{POSE_SERVICE_URL}/predict/video",
+                json={"gcs_bucket": "bachataai-videos", "gcs_blob": gcs_blob, "sample_every_n": 5},
+                headers=_get_auth_headers(),
+                timeout=1800,
+            )
+            if resp.status_code == 429:
+                wait = 15 * (attempt + 1)
+                _progress[video_id] = {"status": "running", "step": f"GPU busy, retrying in {wait}s", "percent": 0}
+                time.sleep(wait)
+                continue
+            resp.raise_for_status()
+            break
+        else:
+            raise RuntimeError("GPU service busy after 10 retries")
+
+        _progress[video_id] = {"status": "running", "step": "calling GPU", "percent": 10}
         data = resp.json()
         pose_frames = data["frames"]
         total = len(pose_frames)
