@@ -1,6 +1,7 @@
 flask
 psycopg2-binary
-ultralytics
 opencv-python-headless
 numpy
 google-cloud-storage
+requests
+google-auth

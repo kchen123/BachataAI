@@ -26,3 +26,6 @@ class VideosAdapter(BaseAdapter):
 
     def rename(self, video_id: int, title: str) -> dict | None:
         return self.update(video_id, title=title)
+
+    def move(self, video_id: int, folder_id: int | None) -> dict | None:
+        return self.update(video_id, folder_id=folder_id)

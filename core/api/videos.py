@@ -5,6 +5,7 @@ from flask import Blueprint, render_template, request, jsonify, abort, session
 from core.adapters.repository import get_repo
 from core.adapters.folders import FoldersAdapter
 from core.adapters.videos import VideosAdapter
+from core.adapters.users import UsersAdapter
 
 
 def _serialize(row: dict) -> dict:
@@ -15,6 +16,10 @@ def _serialize(row: dict) -> dict:
 
 def _uid() -> int:
     return session["user_id"]
+
+
+def _current_user(repo) -> dict:
+    return UsersAdapter(repo).get(_uid())
 
 
 videos_bp = Blueprint("videos", __name__)
@@ -29,9 +34,10 @@ def index():
     fa, va = FoldersAdapter(repo), VideosAdapter(repo)
     folders = fa.list_root(uid)
     videos = va.list_unfiled(uid)
+    user = _current_user(repo)
     return render_template("videos.html",
                            folder=None, breadcrumbs=[],
-                           folders=folders, videos=videos)
+                           folders=folders, videos=videos, user=user)
 
 
 @videos_bp.route("/folder/<int:folder_id>")
@@ -45,9 +51,10 @@ def folder_view(folder_id):
     folders = fa.list_children(uid, folder_id)
     videos = va.list_by_folder(uid, folder_id)
     breadcrumbs = fa.get_breadcrumbs(folder_id)
+    user = _current_user(repo)
     return render_template("videos.html",
                            folder=folder, breadcrumbs=breadcrumbs,
-                           folders=folders, videos=videos)
+                           folders=folders, videos=videos, user=user)
 
 
 # ── Folder CRUD API ────────────────────────────────────────────────────────────
@@ -90,6 +97,14 @@ def api_rename_video(video_id):
     body = request.get_json()
     repo = get_repo()
     video = VideosAdapter(repo).rename(video_id, body["title"])
+    return jsonify(_serialize(video)) if video else ("", 404)
+
+
+@videos_bp.route("/api/videos/<int:video_id>/move", methods=["PATCH"])
+def api_move_video(video_id):
+    body = request.get_json()
+    repo = get_repo()
+    video = VideosAdapter(repo).move(video_id, body.get("folder_id"))
     return jsonify(_serialize(video)) if video else ("", 404)
 
 

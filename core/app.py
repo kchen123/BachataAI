@@ -20,14 +20,23 @@ def _run_migrations():
 
 
 def _seed_admin():
-    """Ensure default admin user exists."""
+    """Ensure default admin user and starter folders exist."""
     from core.adapters.repository import Repository
     from core.adapters.users import UsersAdapter
+    from core.adapters.folders import FoldersAdapter
     with Repository() as repo:
         users = UsersAdapter(repo)
-        if not users.get_by_username("admin"):
-            users.create("admin", "admin", display_name="Admin", role="admin")
+        user = users.get_by_username("admin")
+        if not user:
+            user = users.create("admin", "admin", display_name="Admin", email="test@gmail.com", role="admin")
             print("Seeded admin user.")
+
+        fa = FoldersAdapter(repo)
+        existing = fa.list_root(user["id"])
+        if not existing:
+            for name in ["Musicality", "Isolation", "Footwork", "Sensual", "Basics", "Turns"]:
+                fa.create(name, user["id"])
+            print("Seeded default folders.")
 
 
 def create_app():

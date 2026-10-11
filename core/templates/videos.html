@@ -11,9 +11,9 @@
     <span class="time">--:--:--</span>
     <span class="tz">ET</span>
   </div>
-  <a href="/logout" class="statusbar-logout" title="Sign out">
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-  </a>
+  <button class="statusbar-logout" title="Account" onclick="document.getElementById('accountModal').classList.add('open')">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+  </button>
 </div>
 
 <div class="files-container">
@@ -37,7 +37,11 @@
 
   <div class="files-grid" id="filesGrid">
     {% for f in folders %}
-    <div class="file-card" data-type="folder" data-id="{{ f.id }}" onclick="window.location.href='/folder/{{ f.id }}'">
+    <div class="file-card" data-type="folder" data-id="{{ f.id }}"
+         onclick="window.location.href='/folder/{{ f.id }}'"
+         ondragover="event.preventDefault(); this.classList.add('drag-over')"
+         ondragleave="this.classList.remove('drag-over')"
+         ondrop="onDropToFolder(event, {{ f.id }})">
       <button class="file-card-menu" onclick="event.stopPropagation(); toggleDropdown(this);">&vellip;</button>
       <div class="file-dropdown">
         <button onclick="event.stopPropagation(); startRename('folder', {{ f.id }}, '{{ f.name }}')">Rename</button>
@@ -49,7 +53,9 @@
     {% endfor %}
 
     {% for v in videos %}
-    <div class="file-card" data-type="video" data-id="{{ v.id }}">
+    <div class="file-card" data-type="video" data-id="{{ v.id }}" draggable="true"
+         ondragstart="onDragStart(event)"
+         onclick="playVideo('{{ v.gcs_url|e }}', '{{ v.title|e }}')">
       <button class="file-card-menu" onclick="event.stopPropagation(); toggleDropdown(this);">&vellip;</button>
       <div class="file-dropdown">
         <button onclick="event.stopPropagation(); startRename('video', {{ v.id }}, '{{ v.title }}')">Rename</button>
@@ -75,6 +81,30 @@
     <div class="files-modal-actions">
       <button class="btn btn-sm" onclick="closeModal()">Cancel</button>
       <button class="btn btn-sm btn-accent" id="modalConfirm">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- Video Player Modal -->
+<div class="modal-overlay" id="videoModal" onclick="if(event.target===this)closeVideo()">
+  <div class="video-modal">
+    <div class="video-modal-header">
+      <span class="video-modal-title" id="videoTitle"></span>
+      <button class="video-modal-close" onclick="closeVideo()">&times;</button>
+    </div>
+    <video id="videoPlayer" controls autoplay></video>
+  </div>
+</div>
+
+<!-- Account Modal -->
+<div class="modal-overlay" id="accountModal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="account-modal">
+    <div class="account-modal-header">
+      <button class="account-modal-close" onclick="document.getElementById('accountModal').classList.remove('open')">&times;</button>
+    </div>
+    <div class="account-modal-body"></div>
+    <div class="account-modal-footer">
+      <a href="/logout" class="btn btn-sm btn-danger">Logout</a>
     </div>
   </div>
 </div>
@@ -210,5 +240,52 @@ function confirmDelete(type, id, name) {
 document.getElementById('filesModal').addEventListener('click', function(e) {
   if (e.target === this) closeModal();
 });
+
+// ── Video Player ──
+function playVideo(url, title) {
+  if (!url) return;
+  document.getElementById('videoTitle').textContent = title;
+  const player = document.getElementById('videoPlayer');
+  player.src = url;
+  document.getElementById('videoModal').classList.add('open');
+}
+
+function closeVideo() {
+  const player = document.getElementById('videoPlayer');
+  player.pause();
+  player.src = '';
+  document.getElementById('videoModal').classList.remove('open');
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && document.getElementById('videoModal').classList.contains('open')) {
+    closeVideo();
+  }
+});
+
+// ── Drag & Drop ──
+function onDragStart(e) {
+  const card = e.target.closest('.file-card');
+  e.dataTransfer.setData('text/plain', card.dataset.id);
+  e.dataTransfer.effectAllowed = 'move';
+  card.style.opacity = '0.4';
+  setTimeout(() => card.style.opacity = '', 300);
+}
+
+async function onDropToFolder(e, folderId) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  const videoId = e.dataTransfer.getData('text/plain');
+  if (!videoId) return;
+  const res = await fetch('/api/videos/' + videoId + '/move', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ folder_id: folderId }),
+  });
+  if (res.ok) {
+    const card = document.querySelector('.file-card[data-type="video"][data-id="' + videoId + '"]');
+    if (card) card.remove();
+  }
+}
 </script>
 {% endblock %}
