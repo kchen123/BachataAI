@@ -43,6 +43,7 @@ def _seed_admin():
 def create_app():
     app = Flask(__name__, template_folder="templates", static_folder="static")
     app.secret_key = "bachata-dev-key"
+    app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024 * 1024  # 2GB
 
     _run_migrations()
     _seed_admin()
