@@ -158,11 +158,18 @@ def api_run_analysis(video_id):
     if existing and existing["status"] == "running":
         return jsonify({"error": "analysis already running"}), 409
 
+    # Delete old analyses for this video
+    aa = AnalysesAdapter(repo)
+    old = aa.select(video_id=video_id)
+    for o in old:
+        repo.execute("DELETE FROM bachata.joint_frames WHERE analysis_id = %s", [o["id"]])
+        aa.delete(o["id"])
+
     body = request.get_json(silent=True) or {}
     sample_every_n = body.get("sample_every_n", 1)
     resolution = body.get("resolution", 1280)
 
-    analysis = AnalysesAdapter(repo).create(video_id=video_id, model="yolo26x-pose")
+    analysis = aa.create(video_id=video_id, model="yolo26x-pose")
     AnalysesAdapter(repo).set_status(analysis["id"], "running")
 
     thread = threading.Thread(
