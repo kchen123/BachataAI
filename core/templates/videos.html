@@ -30,6 +30,18 @@
       {% endfor %}
     </div>
     <div class="files-toolbar">
+      <select class="btn btn-sm" id="sortSelect" onchange="sortItems()">
+        <option value="name-asc">Name A-Z</option>
+        <option value="name-desc">Name Z-A</option>
+        <option value="date-desc">Newest first</option>
+        <option value="date-asc">Oldest first</option>
+      </select>
+      <button class="btn btn-sm view-btn" id="viewGrid" onclick="setView('grid')" title="Grid view">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="1" y="1" width="9" height="9" rx="1"/><rect x="14" y="1" width="9" height="9" rx="1"/><rect x="1" y="14" width="9" height="9" rx="1"/><rect x="14" y="14" width="9" height="9" rx="1"/></svg>
+      </button>
+      <button class="btn btn-sm view-btn" id="viewList" onclick="setView('list')" title="List view">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="1" y="2" width="22" height="3" rx="1"/><rect x="1" y="10" width="22" height="3" rx="1"/><rect x="1" y="18" width="22" height="3" rx="1"/></svg>
+      </button>
       <button class="btn btn-sm" onclick="openModal('folder')">+ Folder</button>
       <button class="btn btn-sm" onclick="document.getElementById('uploadModal').classList.add('open')">+ Video</button>
     </div>
@@ -37,7 +49,7 @@
 
   <div class="files-grid" id="filesGrid">
     {% for f in folders %}
-    <div class="file-card" data-type="folder" data-id="{{ f.id }}" draggable="true"
+    <div class="file-card" data-type="folder" data-id="{{ f.id }}" data-name="{{ f.name|lower }}" data-date="{{ f.created_at }}" draggable="true"
          ondragstart="onDragStart(event)"
          onclick="window.location.href='/folder/{{ f.id }}'"
          ondragover="onDragOver(event)" ondragleave="this.classList.remove('drag-over')"
@@ -47,13 +59,15 @@
         <button onclick="event.stopPropagation(); startRename('folder', {{ f.id }}, '{{ f.name }}')">Rename</button>
         <button class="danger" onclick="event.stopPropagation(); confirmDelete('folder', {{ f.id }}, '{{ f.name }}')">Delete</button>
       </div>
-      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      <svg class="file-card-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
       <span class="file-card-name">{{ f.name }}</span>
+      <span class="file-card-meta">Folder</span>
+      <span class="file-card-date">{{ f.created_at.strftime('%b %d, %Y') if f.created_at else '' }}</span>
     </div>
     {% endfor %}
 
     {% for v in videos %}
-    <div class="file-card" data-type="video" data-id="{{ v.id }}" draggable="true"
+    <div class="file-card" data-type="video" data-id="{{ v.id }}" data-name="{{ v.title|lower }}" data-date="{{ v.created_at }}" draggable="true"
          ondragstart="onDragStart(event)"
          onclick="playVideo({{ v.id }}, '{{ v.gcs_url|e }}', '{{ v.title|e }}')">
       <button class="file-card-menu" onclick="event.stopPropagation(); toggleDropdown(this);">&vellip;</button>
@@ -61,8 +75,10 @@
         <button onclick="event.stopPropagation(); startRename('video', {{ v.id }}, '{{ v.title }}')">Rename</button>
         <button class="danger" onclick="event.stopPropagation(); confirmDelete('video', {{ v.id }}, '{{ v.title }}')">Delete</button>
       </div>
-      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#64c8ff" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+      <svg class="file-card-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#64c8ff" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
       <span class="file-card-name">{{ v.title }}</span>
+      <span class="file-card-meta">{{ v.duration_sec|int // 60 }}:{{ '%02d' % (v.duration_sec|int % 60) if v.duration_sec else '--' }}</span>
+      <span class="file-card-date">{{ v.created_at.strftime('%b %d, %Y') if v.created_at else '' }}</span>
     </div>
     {% endfor %}
 
@@ -277,6 +293,55 @@ document.getElementById('modalConfirm').addEventListener('click', async () => {
 
   closeModal();
 });
+
+// ── View Toggle ──
+function setView(mode) {
+  const grid = document.getElementById('filesGrid');
+  grid.classList.remove('view-grid', 'view-list');
+  grid.classList.add('view-' + mode);
+  document.getElementById('viewGrid').classList.toggle('active', mode === 'grid');
+  document.getElementById('viewList').classList.toggle('active', mode === 'list');
+  localStorage.setItem('fileView', mode);
+}
+
+// ── Sort ──
+function sortItems() {
+  const grid = document.getElementById('filesGrid');
+  const cards = [...grid.querySelectorAll('.file-card')];
+  const val = document.getElementById('sortSelect').value;
+  const [key, dir] = val.split('-');
+
+  // Separate folders and videos, sort each
+  const folders = cards.filter(c => c.dataset.type === 'folder');
+  const videos = cards.filter(c => c.dataset.type === 'video');
+
+  const sorter = (a, b) => {
+    let av, bv;
+    if (key === 'name') { av = a.dataset.name; bv = b.dataset.name; }
+    else { av = a.dataset.date || ''; bv = b.dataset.date || ''; }
+    const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+    return dir === 'asc' ? cmp : -cmp;
+  };
+
+  folders.sort(sorter);
+  videos.sort(sorter);
+
+  // Re-append in order (folders first)
+  folders.forEach(c => grid.appendChild(c));
+  videos.forEach(c => grid.appendChild(c));
+  localStorage.setItem('fileSort', val);
+}
+
+// Restore saved preferences
+(function() {
+  const view = localStorage.getItem('fileView') || 'grid';
+  setView(view);
+  const sort = localStorage.getItem('fileSort');
+  if (sort) {
+    document.getElementById('sortSelect').value = sort;
+    sortItems();
+  }
+})();
 
 // ── Dropdown ──
 function toggleDropdown(btn) {
