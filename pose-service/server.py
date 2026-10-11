@@ -68,7 +68,7 @@ def predict_video(req: PredictRequest):
 
             if frame_num % req.sample_every_n == 0:
                 h, w = frame.shape[:2]
-                results = MODEL(frame, verbose=False)
+                results = MODEL(frame, verbose=False, imgsz=1280)
 
                 keypoints = {}
                 if results and results[0].keypoints is not None:

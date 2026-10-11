@@ -67,7 +67,7 @@ def _run_analysis(video_id, analysis_id, gcs_blob, frame_count):
         for attempt in range(10):
             resp = requests.post(
                 f"{POSE_SERVICE_URL}/predict/video",
-                json={"gcs_bucket": "bachataai-videos", "gcs_blob": gcs_blob, "sample_every_n": 5},
+                json={"gcs_bucket": "bachataai-videos", "gcs_blob": gcs_blob, "sample_every_n": 1},
                 headers=_get_auth_headers(),
                 timeout=1800,
             )
