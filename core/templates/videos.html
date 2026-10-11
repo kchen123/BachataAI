@@ -137,12 +137,14 @@
   <div class="video-modal">
     <div class="video-modal-header">
       <span class="video-modal-title" id="videoTitle"></span>
-      <label class="pose-toggle">
-        <input type="checkbox" id="poseToggle" onchange="togglePose()">
-        <span>Skeleton</span>
-      </label>
-      <button class="btn btn-sm pose-rerun hidden" id="poseRerun" onclick="openAnalyzeModal(true)">Re-run</button>
-      <button class="video-modal-close" onclick="closeVideo()">&times;</button>
+      <div class="video-header-controls">
+        <label class="pose-toggle">
+          <input type="checkbox" id="poseToggle" onchange="togglePose()">
+          <span>Skeleton</span>
+        </label>
+        <button class="btn btn-sm video-header-btn hidden" id="poseRerun" onclick="openAnalyzeModal(true)">Re-run</button>
+        <button class="btn btn-sm video-header-btn video-close-btn" onclick="closeVideo()">&times;</button>
+      </div>
     </div>
     <div class="video-wrapper">
       <video id="videoPlayer" controls autoplay></video>
@@ -154,29 +156,31 @@
 <!-- Analyze Config Modal -->
 <div class="modal-overlay" id="analyzeModal" onclick="if(event.target===this)closeAnalyzeModal()">
   <div class="files-modal">
-    <h3 id="analyzeTitle">Run Pose Estimation</h3>
-    <p class="analyze-desc" id="analyzeDesc">Run GPU-accelerated skeleton analysis on this video.</p>
+    <h3 id="analyzeTitle">Pose Estimation</h3>
+    <p class="analyze-desc" id="analyzeDesc">GPU-accelerated skeleton analysis using YOLO26x-Pose.</p>
     <div class="analyze-config">
       <div class="analyze-row">
-        <label>Sample rate</label>
+        <span class="analyze-label">Sampling</span>
         <select id="cfgSampleRate">
-          <option value="1" selected>Every frame (best accuracy)</option>
+          <option value="1" selected>Every frame</option>
           <option value="2">Every 2nd frame</option>
-          <option value="5">Every 5th frame (faster)</option>
-          <option value="10">Every 10th frame (fastest)</option>
+          <option value="5">Every 5th frame</option>
+          <option value="10">Every 10th frame</option>
         </select>
+        <span class="analyze-hint">Lower = more accurate, slower</span>
       </div>
       <div class="analyze-row">
-        <label>Resolution</label>
+        <span class="analyze-label">Resolution</span>
         <select id="cfgResolution">
-          <option value="1280" selected>1280px (best accuracy)</option>
-          <option value="640">640px (faster)</option>
+          <option value="1280" selected>1280px</option>
+          <option value="640">640px</option>
         </select>
+        <span class="analyze-hint">Higher = better detail</span>
       </div>
     </div>
     <div class="files-modal-actions">
       <button class="btn btn-sm" onclick="closeAnalyzeModal()">Cancel</button>
-      <button class="btn btn-sm btn-accent" onclick="confirmAnalysis()">Analyze</button>
+      <button class="btn btn-sm btn-accent" onclick="confirmAnalysis()">Run Analysis</button>
     </div>
   </div>
 </div>
