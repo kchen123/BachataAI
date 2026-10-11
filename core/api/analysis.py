@@ -105,6 +105,7 @@ def _run_analysis(video_id, analysis_id, gcs_blob, frame_count, sample_every_n=1
         bucket = _gcs().bucket(GCS_BUCKET)
         blob = bucket.blob(pose_gcs_path)
         blob.upload_from_string(resp.content, content_type="application/json")
+        blob.make_public()
 
         _log(video_id, f"Pose data saved to GCS ({len(resp.content) // 1024}KB)", 70)
 
@@ -246,12 +247,10 @@ def api_get_analysis(video_id):
     video = VideosAdapter(repo).get(video_id)
     if video:
         analysis["fps"] = video.get("fps", 30)
-    # Add signed URL for pose data
+    # Add public URL for pose data
     if analysis.get("summary") and analysis["summary"].get("pose_gcs_path"):
         path = analysis["summary"]["pose_gcs_path"]
-        blob = _gcs().bucket(GCS_BUCKET).blob(path)
-        if blob.exists():
-            analysis["pose_url"] = blob.generate_signed_url(expiration=3600)
+        analysis["pose_url"] = f"https://storage.googleapis.com/{GCS_BUCKET}/{path}"
     return jsonify(analysis)
 
 
