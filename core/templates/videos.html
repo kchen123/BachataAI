@@ -436,14 +436,14 @@ async function playVideo(videoId, url, title) {
     const res = await fetch('/api/videos/' + videoId + '/analysis');
     if (res.ok) {
       const analysis = await res.json();
-      if (analysis.status === 'done' && analysis.pose_url) {
+      if (analysis.status === 'done') {
         videoFps = analysis.fps || 30;
-        const poseRes = await fetch(analysis.pose_url);
+        const poseRes = await fetch('/api/videos/' + videoId + '/pose-data');
         if (poseRes.ok) {
           const poseData = await poseRes.json();
           poseFrames = poseData.frames;
           poseHasAnalysis = poseFrames && poseFrames.length > 0;
-          console.log('Loaded ' + poseFrames.length + ' pose frames from GCS');
+          console.log('Loaded ' + poseFrames.length + ' pose frames');
         }
       }
     }

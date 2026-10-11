@@ -241,7 +241,20 @@ def api_get_analysis(video_id):
     return jsonify(analysis)
 
 
-@analysis_bp.route("/api/analyses/<int:analysis_id>/frames", methods=["GET"])
-def api_get_frames(analysis_id):
-    """Legacy endpoint — returns empty for GCS-based analyses."""
-    return jsonify([])
+@analysis_bp.route("/api/videos/<int:video_id>/pose-data", methods=["GET"])
+def api_get_pose_data(video_id):
+    """Proxy pose data from GCS to avoid CORS issues."""
+    repo = get_repo()
+    analysis = AnalysesAdapter(repo).get_by_video(video_id)
+    if not analysis or analysis["status"] != "done":
+        return jsonify({"error": "no pose data"}), 404
+    summary = analysis.get("summary")
+    if isinstance(summary, str):
+        summary = json.loads(summary)
+    path = summary.get("pose_gcs_path") if summary else None
+    if not path:
+        return jsonify({"error": "no pose file"}), 404
+    blob = _gcs().bucket(GCS_BUCKET).blob(path)
+    data = blob.download_as_bytes()
+    from flask import Response
+    return Response(data, content_type="application/json")
