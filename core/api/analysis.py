@@ -129,7 +129,7 @@ def _run_analysis(video_id, analysis_id, gcs_blob, frame_count, sample_every_n=1
         AnalysesAdapter(repo).set_summary(analysis_id, summary)
         repo.close()
 
-        _log(video_id, f"Complete — {total} frames, {len(summary)-3} joint angles", 100)
+        _log(video_id, f"Complete — pose data saved ({content_size // 1024}KB)", 100)
         _progress[video_id]["status"] = "done"
 
     except Exception as e:
