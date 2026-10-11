@@ -7,18 +7,29 @@ import threading
 import requests
 import google.auth.transport.requests
 import google.oauth2.id_token
+from google.cloud import storage
 from flask import Blueprint, request, jsonify
 from core.adapters.repository import get_repo, Repository
-from core.adapters.analyses import AnalysesAdapter, JointFramesAdapter
+from core.adapters.analyses import AnalysesAdapter
 from core.adapters.videos import VideosAdapter
 
 analysis_bp = Blueprint("analysis", __name__)
 
 POSE_SERVICE_URL = os.environ.get("POSE_SERVICE_URL", "http://localhost:8080")
+GCS_BUCKET = "bachataai-videos"
 
 # In-memory progress tracking
 _progress = {}
-_cancel = set()  # video_ids that should be cancelled
+_cancel = set()
+
+_gcs_client = None
+
+
+def _gcs():
+    global _gcs_client
+    if _gcs_client is None:
+        _gcs_client = storage.Client()
+    return _gcs_client
 
 
 def _get_auth_headers():
@@ -49,7 +60,6 @@ def _calc_angle(a, b, c):
 
 
 def _log(video_id, msg, pct=None):
-    """Append a log line and update percent."""
     p = _progress.get(video_id, {"status": "running", "log": [], "percent": 0})
     p["log"].append(msg)
     p["step"] = msg
@@ -59,7 +69,7 @@ def _log(video_id, msg, pct=None):
 
 
 def _run_analysis(video_id, analysis_id, gcs_blob, frame_count, sample_every_n=1, resolution=1280):
-    """Background thread: call GPU pose service, save results to DB."""
+    """Background thread: call GPU pose service, save results to GCS."""
     try:
         _progress[video_id] = {"status": "running", "step": "starting", "percent": 0, "log": []}
         _cancel.discard(video_id)
@@ -70,10 +80,10 @@ def _run_analysis(video_id, analysis_id, gcs_blob, frame_count, sample_every_n=1
         for attempt in range(10):
             resp = requests.post(
                 f"{POSE_SERVICE_URL}/predict/video",
-                json={"gcs_bucket": "bachataai-videos", "gcs_blob": gcs_blob,
+                json={"gcs_bucket": GCS_BUCKET, "gcs_blob": gcs_blob,
                       "sample_every_n": sample_every_n, "resolution": resolution},
                 headers=_get_auth_headers(),
-                timeout=1800,
+                timeout=3600,
             )
             if resp.status_code == 429:
                 wait = 15 * (attempt + 1)
@@ -85,44 +95,35 @@ def _run_analysis(video_id, analysis_id, gcs_blob, frame_count, sample_every_n=1
         else:
             raise RuntimeError("GPU service busy after 10 retries")
 
-        _log(video_id, "GPU running YOLO26x-Pose inference...", 10)
+        if video_id in _cancel:
+            raise RuntimeError("Cancelled by user")
+
+        _log(video_id, "GPU inference complete, downloading results...", 50)
+
+        # Stream response directly to GCS instead of loading all into memory
+        pose_gcs_path = f"poses/{video_id}.json"
+        bucket = _gcs().bucket(GCS_BUCKET)
+        blob = bucket.blob(pose_gcs_path)
+        blob.upload_from_string(resp.content, content_type="application/json")
+
+        _log(video_id, f"Pose data saved to GCS ({len(resp.content) // 1024}KB)", 70)
+
+        if video_id in _cancel:
+            raise RuntimeError("Cancelled by user")
+
+        # Parse for summary only (angles)
+        _log(video_id, "Computing joint angle summary...", 75)
         data = resp.json()
         pose_frames = data["frames"]
         total = len(pose_frames)
-        if video_id in _cancel:
-            raise RuntimeError("Cancelled by user")
-        _log(video_id, f"Inference complete — {total} frames analyzed", 50)
-        _log(video_id, "Saving keypoints to database...", 55)
-
-        repo = Repository()
-        aa = AnalysesAdapter(repo)
-        ja = JointFramesAdapter(repo)
 
         all_angles = {n: [] for n in ANGLE_DEFS}
-        batch = []
-        for i, f in enumerate(pose_frames):
+        for f in pose_frames:
             lm = {int(k): v for k, v in f["keypoints"].items()}
             for name, (a, b, c) in ANGLE_DEFS.items():
                 if a in lm and b in lm and c in lm:
                     if lm[a]["visibility"] > 0.3 and lm[b]["visibility"] > 0.3 and lm[c]["visibility"] > 0.3:
                         all_angles[name].append(round(_calc_angle(lm[a], lm[b], lm[c]), 1))
-            batch.append({
-                "frame_num": f["frame_num"],
-                "timestamp_sec": f["timestamp_sec"],
-                "landmarks": lm,
-            })
-            if len(batch) >= 100:
-                ja.bulk_insert(analysis_id, batch)
-                batch = []
-                pct = 55 + int((i / total) * 40)
-                _log(video_id, f"Saved {i+1}/{total} frames", pct)
-                if video_id in _cancel:
-                    raise RuntimeError("Cancelled by user")
-
-        if batch:
-            ja.bulk_insert(analysis_id, batch)
-
-        _log(video_id, "Computing joint angle summary...", 96)
 
         summary = {}
         for name, vals in all_angles.items():
@@ -134,10 +135,13 @@ def _run_analysis(video_id, analysis_id, gcs_blob, frame_count, sample_every_n=1
                 }
         summary["total_frames"] = data["frame_count"]
         summary["frames_with_pose"] = total
+        summary["pose_gcs_path"] = pose_gcs_path
 
-        aa.set_summary(analysis_id, summary)
+        repo = Repository()
+        AnalysesAdapter(repo).set_summary(analysis_id, summary)
         repo.close()
-        _log(video_id, f"Complete — {total} frames, {len(summary)-2} joint angles", 100)
+
+        _log(video_id, f"Complete — {total} frames, {len(summary)-3} joint angles", 100)
         _progress[video_id]["status"] = "done"
 
     except Exception as e:
@@ -145,9 +149,13 @@ def _run_analysis(video_id, analysis_id, gcs_blob, frame_count, sample_every_n=1
         _cancel.discard(video_id)
         try:
             repo = Repository()
-            # Clean up on cancel
             if cancelled:
-                repo.execute("DELETE FROM bachata.joint_frames WHERE analysis_id = %s", [analysis_id])
+                # Clean up GCS file and DB record
+                try:
+                    bucket = _gcs().bucket(GCS_BUCKET)
+                    bucket.blob(f"poses/{video_id}.json").delete()
+                except Exception:
+                    pass
                 repo.execute("DELETE FROM bachata.analyses WHERE id = %s", [analysis_id])
             else:
                 AnalysesAdapter(repo).set_status(analysis_id, "error")
@@ -169,16 +177,23 @@ def api_run_analysis(video_id):
     if not video.get("filename"):
         return jsonify({"error": "video has no file"}), 400
 
-    # Check if already running
     existing = AnalysesAdapter(repo).get_by_video(video_id)
     if existing and existing["status"] == "running":
         return jsonify({"error": "analysis already running"}), 409
 
-    # Delete old analyses for this video
+    # Delete old analyses
     aa = AnalysesAdapter(repo)
     old = aa.select(video_id=video_id)
     for o in old:
-        repo.execute("DELETE FROM bachata.joint_frames WHERE analysis_id = %s", [o["id"]])
+        # Delete old GCS pose file
+        try:
+            s = o.get("summary")
+            if isinstance(s, str):
+                s = json.loads(s)
+            if s and s.get("pose_gcs_path"):
+                _gcs().bucket(GCS_BUCKET).blob(s["pose_gcs_path"]).delete()
+        except Exception:
+            pass
         aa.delete(o["id"])
 
     body = request.get_json(silent=True) or {}
@@ -186,7 +201,7 @@ def api_run_analysis(video_id):
     resolution = body.get("resolution", 1280)
 
     analysis = aa.create(video_id=video_id, model="yolo26x-pose")
-    AnalysesAdapter(repo).set_status(analysis["id"], "running")
+    aa.set_status(analysis["id"], "running")
 
     thread = threading.Thread(
         target=_run_analysis,
@@ -210,7 +225,6 @@ def api_get_progress(video_id):
     p = _progress.get(video_id)
     if p:
         return jsonify(p)
-    # Check DB for completed analysis
     repo = get_repo()
     analysis = AnalysesAdapter(repo).get_by_video(video_id)
     if analysis and analysis["status"] == "done":
@@ -232,18 +246,16 @@ def api_get_analysis(video_id):
     video = VideosAdapter(repo).get(video_id)
     if video:
         analysis["fps"] = video.get("fps", 30)
+    # Add signed URL for pose data
+    if analysis.get("summary") and analysis["summary"].get("pose_gcs_path"):
+        path = analysis["summary"]["pose_gcs_path"]
+        blob = _gcs().bucket(GCS_BUCKET).blob(path)
+        if blob.exists():
+            analysis["pose_url"] = blob.generate_signed_url(expiration=3600)
     return jsonify(analysis)
 
 
 @analysis_bp.route("/api/analyses/<int:analysis_id>/frames", methods=["GET"])
 def api_get_frames(analysis_id):
-    repo = get_repo()
-    frames = JointFramesAdapter(repo).get_by_analysis(analysis_id)
-    sample = request.args.get("sample", type=int)
-    if sample and len(frames) > sample:
-        step = len(frames) // sample
-        frames = frames[::step][:sample]
-    for f in frames:
-        if isinstance(f.get("landmarks"), str):
-            f["landmarks"] = json.loads(f["landmarks"])
-    return jsonify(frames)
+    """Legacy endpoint — returns empty for GCS-based analyses."""
+    return jsonify([])
