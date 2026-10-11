@@ -652,8 +652,9 @@ function drawCurrentPose() {
     if (f.timestamp_sec > currentTime + 1) break;
   }
 
-  if (!closest || !closest.landmarks) return;
-  const lm = typeof closest.landmarks === 'string' ? JSON.parse(closest.landmarks) : closest.landmarks;
+  const rawLm = closest.keypoints || closest.landmarks;
+  if (!closest || !rawLm) return;
+  const lm = typeof rawLm === 'string' ? JSON.parse(rawLm) : rawLm;
 
   // Draw skeleton
   const w = canvas.width;
