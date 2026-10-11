@@ -384,6 +384,8 @@ let poseAnimId = null;
 let poseVisible = false;
 let videoFps = 30;
 let currentVideoId = null;
+let poseLoading = true;  // true while fetching analysis data
+let poseHasAnalysis = false;
 
 const SKELETON_CONNECTIONS = [
   [0,1],[0,2],[1,3],[2,4],           // face
@@ -401,20 +403,26 @@ async function playVideo(videoId, url, title) {
   player.src = url;
   document.getElementById('videoModal').classList.add('open');
   poseFrames = null;
+  poseLoading = true;
+  poseHasAnalysis = false;
 
   // Fetch analysis data
   try {
     const res = await fetch('/api/videos/' + videoId + '/analysis');
     if (res.ok) {
       const analysis = await res.json();
-      videoFps = analysis.fps || 30;
-      const framesRes = await fetch('/api/analyses/' + analysis.id + '/frames?sample=3000');
-      if (framesRes.ok) {
-        poseFrames = await framesRes.json();
-        console.log('Loaded ' + poseFrames.length + ' pose frames');
+      if (analysis.status === 'done') {
+        videoFps = analysis.fps || 30;
+        const framesRes = await fetch('/api/analyses/' + analysis.id + '/frames?sample=3000');
+        if (framesRes.ok) {
+          poseFrames = await framesRes.json();
+          poseHasAnalysis = poseFrames.length > 0;
+          console.log('Loaded ' + poseFrames.length + ' pose frames');
+        }
       }
     }
   } catch (e) { console.log('No pose data:', e); }
+  poseLoading = false;
 
   // Start drawing loop
   player.addEventListener('play', startPoseLoop);
@@ -504,7 +512,12 @@ function togglePose() {
   if (!poseVisible) {
     const canvas = document.getElementById('poseCanvas');
     canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
-  } else if (!poseFrames || poseFrames.length === 0) {
+  } else if (poseLoading) {
+    document.getElementById('poseToggle').checked = false;
+    poseVisible = false;
+    // Still loading, try again shortly
+    setTimeout(() => { document.getElementById('poseToggle').click(); }, 500);
+  } else if (!poseHasAnalysis) {
     document.getElementById('poseToggle').checked = false;
     poseVisible = false;
     document.getElementById('analyzeModal').classList.add('open');
