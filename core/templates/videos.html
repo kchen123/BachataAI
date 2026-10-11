@@ -1,425 +1,214 @@
 {% extends "base.html" %}
-{% block title %}Videos — BachataAI{% endblock %}
+{% block title %}Videos{% endblock %}
 
 {% block content %}
-<div class="topbar">
-  <div class="topbar-tabs">
-    <button class="topbar-tab active" data-tab="myvideos">My Videos</button>
-    <button class="topbar-tab" data-tab="basics">Basics</button>
-    <button class="topbar-tab" data-tab="sensual">Sensual</button>
-    <button class="topbar-tab" data-tab="footwork">Footwork</button>
-    <button class="topbar-tab" data-tab="musicality">Musicality</button>
+<div class="statusbar">
+  <div class="brand">
+    <span class="pulse" title="live"></span>
+    <span class="ticker">BACHATA&middot;AI/VIDEOS</span>
   </div>
-  <button class="account-btn" title="Account">
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-  </button>
+  <div class="clock" id="mainClock">
+    <span class="time">--:--:--</span>
+    <span class="tz">ET</span>
+  </div>
+  <a href="/logout" class="statusbar-logout" title="Sign out">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+  </a>
 </div>
 
-<div id="tab-myvideos" class="tab-panel active">
-  <div id="drop-zone" class="drop-zone drop-zone-compact">
-    <div class="drop-zone-inner">
-      <p class="drop-text">Drop video here or click to browse</p>
-      <p class="drop-formats">MP4, MOV, AVI, WebM</p>
-      <input type="file" id="file-input" accept="video/*" hidden>
+<div class="files-container">
+  <div class="files-bar">
+    <div class="files-breadcrumbs">
+      {% for bc in breadcrumbs %}
+      {% if loop.first %}<a href="/">Videos</a>{% endif %}
+      <span class="bc-sep">&rsaquo;</span>
+      {% if loop.last %}
+      <span class="bc-current">{{ bc.name }}</span>
+      {% else %}
+      <a href="/folder/{{ bc.id }}">{{ bc.name }}</a>
+      {% endif %}
+      {% endfor %}
+    </div>
+    <div class="files-toolbar">
+      <button class="btn btn-sm" onclick="openModal('folder')">+ Folder</button>
+      <button class="btn btn-sm" onclick="openModal('video')">+ Video</button>
     </div>
   </div>
-  <div id="upload-progress" class="upload-progress hidden">
-    <div class="progress-info">
-      <span id="upload-filename"></span>
-      <span id="upload-percent">0%</span>
-    </div>
-    <div class="progress-bar">
-      <div id="progress-fill" class="progress-fill"></div>
-    </div>
-  </div>
-  <div class="vgrid" id="grid-myvideos" style="margin-top: 16px;"></div>
-</div>
 
-<div id="tab-basics" class="tab-panel">
-  <div class="vgrid" id="grid-basics"></div>
-</div>
-<div id="tab-sensual" class="tab-panel">
-  <div class="vgrid" id="grid-sensual"></div>
-</div>
-<div id="tab-footwork" class="tab-panel">
-  <div class="vgrid" id="grid-footwork"></div>
-</div>
-<div id="tab-musicality" class="tab-panel">
-  <div class="vgrid" id="grid-musicality"></div>
-</div>
-
-<!-- Video player modal -->
-<div id="video-modal" class="video-modal hidden">
-  <div class="video-modal-backdrop"></div>
-  <div class="video-modal-content">
-    <div class="video-modal-header">
-      <span id="modal-title" class="video-modal-title"></span>
-      <button id="modal-close" class="video-modal-close">&times;</button>
-    </div>
-    <div class="player-container">
-      <video id="modal-player" controls autoplay></video>
-      <canvas id="modal-skeleton-canvas"></canvas>
-    </div>
-    <!-- Analysis panel -->
-    <div id="modal-analysis" class="modal-analysis hidden">
-      <div class="frame-scrubber">
-        <input type="range" id="modal-frame-slider" min="0" max="100" value="0">
-        <div class="frame-info">
-          <span id="modal-frame-num">Frame 0</span>
-          <span id="modal-frame-time">0.00s</span>
-        </div>
+  <div class="files-grid" id="filesGrid">
+    {% for f in folders %}
+    <div class="file-card" data-type="folder" data-id="{{ f.id }}" onclick="window.location.href='/folder/{{ f.id }}'">
+      <button class="file-card-menu" onclick="event.stopPropagation(); toggleDropdown(this);">&vellip;</button>
+      <div class="file-dropdown">
+        <button onclick="event.stopPropagation(); startRename('folder', {{ f.id }}, '{{ f.name }}')">Rename</button>
+        <button class="danger" onclick="event.stopPropagation(); confirmDelete('folder', {{ f.id }}, '{{ f.name }}')">Delete</button>
       </div>
-      <div id="modal-summary-grid" class="summary-grid"></div>
-      <details class="modal-charts-details">
-        <summary>Joint Angles Over Time</summary>
-        <div class="angle-selector" id="modal-angle-selector"></div>
-        <div class="chart-container">
-          <canvas id="modal-angle-chart"></canvas>
-        </div>
-      </details>
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      <span class="file-card-name">{{ f.name }}</span>
     </div>
-    <!-- Analysis progress (while processing) -->
-    <div id="modal-analysis-progress" class="modal-analysis-progress hidden">
-      <div class="progress-bar">
-        <div id="modal-progress-fill" class="progress-fill progress-fill-pulse"></div>
+    {% endfor %}
+
+    {% for v in videos %}
+    <div class="file-card" data-type="video" data-id="{{ v.id }}">
+      <button class="file-card-menu" onclick="event.stopPropagation(); toggleDropdown(this);">&vellip;</button>
+      <div class="file-dropdown">
+        <button onclick="event.stopPropagation(); startRename('video', {{ v.id }}, '{{ v.title }}')">Rename</button>
+        <button class="danger" onclick="event.stopPropagation(); confirmDelete('video', {{ v.id }}, '{{ v.title }}')">Delete</button>
       </div>
-      <p class="modal-progress-text">Analyzing frames...</p>
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#64c8ff" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+      <span class="file-card-name">{{ v.title }}</span>
+    </div>
+    {% endfor %}
+
+    {% if not folders and not videos %}
+    <div class="files-empty">This folder is empty</div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="filesModal">
+  <div class="files-modal">
+    <h3 id="modalTitle">New Folder</h3>
+    <input type="text" id="modalInput" placeholder="Name" autocomplete="off"
+           onkeydown="if(event.key==='Enter')document.getElementById('modalConfirm').click();">
+    <div class="files-modal-actions">
+      <button class="btn btn-sm" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-sm btn-accent" id="modalConfirm">Create</button>
     </div>
   </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/player.js') }}"></script>
-<script src="{{ url_for('static', filename='js/charts.js') }}"></script>
 <script>
-document.addEventListener("DOMContentLoaded", () => {
-  // ── Tab switching ───────────────────────────────────────────────────
-  const tabs = document.querySelectorAll(".topbar-tab");
-  const panels = document.querySelectorAll(".tab-panel");
+(function() {
+  // Clock
+  function hms() {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York", hour: "numeric", minute: "numeric",
+      second: "numeric", hour12: false,
+    }).formatToParts(new Date());
+    const g = t => (parts.find(p => p.type === t) || {}).value || "00";
+    const p = n => String(n).padStart(2, "0");
+    return p(+g("hour")) + ":" + g("minute") + ":" + g("second");
+  }
+  const el = document.querySelector("#mainClock .time");
+  if (el) { const tick = () => { el.textContent = hms(); }; tick(); setInterval(tick, 1000); }
+})();
 
-  tabs.forEach(tab => {
-    tab.addEventListener("click", () => {
-      tabs.forEach(t => t.classList.remove("active"));
-      panels.forEach(p => p.classList.remove("active"));
-      tab.classList.add("active");
-      document.getElementById(`tab-${tab.dataset.tab}`).classList.add("active");
+const FOLDER_ID = {{ folder.id if folder else 'null' }};
+
+// ── Modal ──
+let modalMode = null;
+let renameId = null;
+let renameType = null;
+
+function openModal(mode, id, currentName) {
+  modalMode = mode;
+  renameId = id || null;
+  const title = document.getElementById('modalTitle');
+  const input = document.getElementById('modalInput');
+  const confirm = document.getElementById('modalConfirm');
+
+  if (mode === 'folder') {
+    title.textContent = 'New Folder';
+    input.placeholder = 'Folder name';
+    input.value = '';
+    confirm.textContent = 'Create';
+  } else if (mode === 'video') {
+    title.textContent = 'New Video';
+    input.placeholder = 'Video title';
+    input.value = '';
+    confirm.textContent = 'Create';
+  } else if (mode === 'rename') {
+    title.textContent = renameType === 'video' ? 'Rename Video' : 'Rename Folder';
+    input.placeholder = 'New name';
+    input.value = currentName || '';
+    confirm.textContent = 'Save';
+  }
+
+  document.getElementById('filesModal').classList.add('open');
+  setTimeout(() => input.focus(), 50);
+}
+
+function closeModal() {
+  document.getElementById('filesModal').classList.remove('open');
+  modalMode = null;
+  renameId = null;
+}
+
+document.getElementById('modalConfirm').addEventListener('click', async () => {
+  const value = document.getElementById('modalInput').value.trim();
+  if (!value) return;
+
+  if (modalMode === 'folder') {
+    const body = { name: value };
+    if (FOLDER_ID) body.parent_id = FOLDER_ID;
+    const res = await fetch('/api/folders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
     });
+    if (res.ok) window.location.reload();
+  } else if (modalMode === 'video') {
+    const body = { title: value };
+    if (FOLDER_ID) body.folder_id = FOLDER_ID;
+    const res = await fetch('/api/videos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) window.location.reload();
+  } else if (modalMode === 'rename') {
+    const url = renameType === 'video'
+      ? '/api/videos/' + renameId
+      : '/api/folders/' + renameId;
+    const body = renameType === 'video' ? { title: value } : { name: value };
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) window.location.reload();
+  }
+
+  closeModal();
+});
+
+// ── Dropdown ──
+function toggleDropdown(btn) {
+  document.querySelectorAll('.file-dropdown.open').forEach(d => d.classList.remove('open'));
+  btn.nextElementSibling.classList.toggle('open');
+}
+document.addEventListener('click', () => {
+  document.querySelectorAll('.file-dropdown.open').forEach(d => d.classList.remove('open'));
+});
+
+function startRename(type, id, currentName) {
+  document.querySelectorAll('.file-dropdown.open').forEach(d => d.classList.remove('open'));
+  renameType = type;
+  openModal('rename', id, currentName);
+}
+
+function confirmDelete(type, id, name) {
+  document.querySelectorAll('.file-dropdown.open').forEach(d => d.classList.remove('open'));
+  if (!confirm('Delete "' + name + '"?')) return;
+  const url = type === 'folder' ? '/api/folders/' + id : '/api/videos/' + id;
+  fetch(url, { method: 'DELETE' }).then(res => {
+    if (res.ok) {
+      const card = document.querySelector('.file-card[data-type="' + type + '"][data-id="' + id + '"]');
+      if (card) card.remove();
+      if (!document.querySelector('.file-card')) {
+        document.getElementById('filesGrid').innerHTML = '<div class="files-empty">This folder is empty</div>';
+      }
+    }
   });
+}
 
-  // ── Upload ──────────────────────────────────────────────────────────
-  const dropZone = document.getElementById("drop-zone");
-  const fileInput = document.getElementById("file-input");
-  const progressBox = document.getElementById("upload-progress");
-  const progressFill = document.getElementById("progress-fill");
-  const uploadFilename = document.getElementById("upload-filename");
-  const uploadPercent = document.getElementById("upload-percent");
-
-  dropZone.addEventListener("click", () => fileInput.click());
-  fileInput.addEventListener("change", () => {
-    if (fileInput.files.length) uploadFile(fileInput.files[0]);
-  });
-
-  dropZone.addEventListener("dragover", (e) => { e.preventDefault(); dropZone.classList.add("drag-over"); });
-  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag-over"));
-  dropZone.addEventListener("drop", (e) => {
-    e.preventDefault();
-    dropZone.classList.remove("drag-over");
-    if (e.dataTransfer.files.length) uploadFile(e.dataTransfer.files[0]);
-  });
-
-  function uploadFile(file) {
-    progressBox.classList.remove("hidden");
-    uploadFilename.textContent = file.name;
-    uploadPercent.textContent = "0%";
-    progressFill.style.width = "0%";
-    progressFill.style.background = "";
-
-    const xhr = new XMLHttpRequest();
-    const formData = new FormData();
-    formData.append("file", file);
-
-    xhr.upload.addEventListener("progress", (e) => {
-      if (e.lengthComputable) {
-        const pct = Math.round((e.loaded / e.total) * 100);
-        progressFill.style.width = pct + "%";
-        uploadPercent.textContent = pct + "%";
-      }
-    });
-
-    xhr.addEventListener("load", () => {
-      if (xhr.status === 201) {
-        progressBox.classList.add("hidden");
-        loadMyVideos();
-      } else {
-        const err = xhr.responseText ? JSON.parse(xhr.responseText).error : xhr.status;
-        uploadPercent.textContent = `Upload failed: ${err}`;
-        progressFill.style.background = "var(--danger)";
-      }
-    });
-
-    xhr.addEventListener("error", () => {
-      uploadPercent.textContent = "Upload failed";
-      progressFill.style.background = "var(--danger)";
-    });
-
-    xhr.open("POST", "/api/videos");
-    xhr.send(formData);
-  }
-
-  // ── Video player modal ───────────────────────────────────────────────
-  const modal = document.getElementById("video-modal");
-  const modalPlayer = document.getElementById("modal-player");
-  const modalTitle = document.getElementById("modal-title");
-  const modalClose = document.getElementById("modal-close");
-  const modalBackdrop = modal.querySelector(".video-modal-backdrop");
-  const modalAnalysis = document.getElementById("modal-analysis");
-  const modalProgress = document.getElementById("modal-analysis-progress");
-
-  let skeletonPlayer = null;
-  let angleCharts = null;
-  let modalPollInterval = null;
-
-  async function openPlayer(video) {
-    const src = video.gcs_url || `/uploads/${video.filename}`;
-    modalTitle.textContent = video.original_name;
-    modalPlayer.src = src;
-    modalAnalysis.classList.add("hidden");
-    modalProgress.classList.add("hidden");
-    modal.classList.remove("hidden");
-
-    // Clean up previous
-    if (skeletonPlayer) { skeletonPlayer.destroy(); skeletonPlayer = null; }
-    if (angleCharts) { angleCharts.destroy(); angleCharts = null; }
-
-    // Set up skeleton player
-    skeletonPlayer = SkeletonPlayer({
-      video: modalPlayer,
-      canvas: document.getElementById("modal-skeleton-canvas"),
-      slider: document.getElementById("modal-frame-slider"),
-      frameNumEl: document.getElementById("modal-frame-num"),
-      frameTimeEl: document.getElementById("modal-frame-time"),
-      summaryGrid: document.getElementById("modal-summary-grid"),
-    });
-
-    angleCharts = AngleChartController(
-      document.getElementById("modal-angle-chart"),
-      document.getElementById("modal-angle-selector"),
-    );
-
-    // Check for analysis
-    if (video.analysis_status === "done" && video.analysis_id) {
-      modalAnalysis.classList.remove("hidden");
-      await skeletonPlayer.loadAnalysis(video.analysis_id, video.analysis_summary);
-      await angleCharts.loadAngles(video.analysis_id);
-    } else if (video.analysis_status === "running") {
-      modalProgress.classList.remove("hidden");
-      pollModalAnalysis(video.id);
-    }
-  }
-
-  function pollModalAnalysis(videoId) {
-    if (modalPollInterval) clearInterval(modalPollInterval);
-    const progressFillEl = document.getElementById("modal-progress-fill");
-    const progressText = modalProgress.querySelector(".modal-progress-text");
-    modalPollInterval = setInterval(async () => {
-      // Fetch frame-level progress
-      const pr = await fetch(`/api/videos/${videoId}/progress`);
-      if (pr.ok) {
-        const p = await pr.json();
-        if (p.status === "running") {
-          progressFillEl.style.width = p.percent + "%";
-          progressFillEl.style.animation = "none";
-          progressText.textContent = `Analyzing frames... ${p.percent}% (${p.current} / ${p.total})`;
-        }
-      }
-      // Check if done
-      const r = await fetch(`/api/videos/${videoId}/analysis`);
-      if (!r.ok) return;
-      const a = await r.json();
-      if (a.status === "done") {
-        clearInterval(modalPollInterval);
-        modalPollInterval = null;
-        modalProgress.classList.add("hidden");
-        modalAnalysis.classList.remove("hidden");
-        await skeletonPlayer.loadAnalysis(a.id, a.summary);
-        await angleCharts.loadAngles(a.id);
-        loadMyVideos();
-      } else if (a.status === "error") {
-        clearInterval(modalPollInterval);
-        modalPollInterval = null;
-        progressText.textContent = "Analysis failed";
-        progressFillEl.style.background = "var(--danger, #f87171)";
-      }
-    }, 2000);
-  }
-
-  function closePlayer() {
-    modal.classList.add("hidden");
-    modalPlayer.pause();
-    modalPlayer.src = "";
-    if (skeletonPlayer) { skeletonPlayer.destroy(); skeletonPlayer = null; }
-    if (angleCharts) { angleCharts.destroy(); angleCharts = null; }
-    if (modalPollInterval) { clearInterval(modalPollInterval); modalPollInterval = null; }
-  }
-
-  modalClose.addEventListener("click", closePlayer);
-  modalBackdrop.addEventListener("click", closePlayer);
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") closePlayer();
-  });
-
-  // ── My Videos grid ──────────────────────────────────────────────────
-  const myGrid = document.getElementById("grid-myvideos");
-
-  function formatDuration(sec) {
-    const m = Math.floor(sec / 60);
-    const s = Math.floor(sec % 60);
-    return `${m}:${s.toString().padStart(2, "0")}`;
-  }
-
-  function badgeHtml(status, pct) {
-    if (status === "done") return `<span class="vcard-badge badge-done">Analyzed</span>`;
-    if (status === "running") {
-      const p = pct != null ? pct : 0;
-      return `<div class="vcard-progress">
-        <div class="vcard-progress-bar" style="width:${p}%"></div>
-        <span class="vcard-progress-text">${pct != null ? p + '%' : 'Starting...'}</span>
-      </div>`;
-    }
-    if (status === "error") return `<span class="vcard-badge badge-error">Error</span>`;
-    return "";
-  }
-
-  async function loadMyVideos() {
-    const res = await fetch("/api/videos");
-    const videos = await res.json();
-    myGrid.innerHTML = "";
-
-    if (!videos.length) {
-      myGrid.innerHTML = `<div class="empty-state"><p>No videos yet. Upload one above!</p></div>`;
-      return;
-    }
-
-    for (const v of videos) {
-      const src = v.gcs_url || `/uploads/${v.filename}`;
-      const dur = v.duration_sec ? formatDuration(v.duration_sec) : "";
-      const card = document.createElement("div");
-      card.className = "vcard";
-      card.innerHTML = `
-        <div class="vcard-thumb">
-          <video src="${src}#t=0.5" muted preload="metadata"></video>
-          <span class="vcard-duration">${dur}</span>
-          <span class="vcard-badge-slot">${badgeHtml(v.analysis_status)}</span>
-          <button class="vcard-delete" title="Delete">&times;</button>
-          ${(!v.analysis_status || v.analysis_status === "error") ? `<button class="vcard-analyze" title="Run Pose Analysis">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20v-6M6 20V10M18 20V4"/></svg>
-          </button>` : ""}
-          <div class="vcard-overlay">
-            <button class="vcard-play">&#9654;</button>
-          </div>
-        </div>
-        <div class="vcard-body">
-          <p class="vcard-title">${v.original_name}</p>
-          <p class="vcard-meta">${v.fps} fps &middot; ${v.frame_count} frames</p>
-        </div>`;
-
-      card.addEventListener("click", () => openPlayer(v));
-
-      card.querySelector(".vcard-delete").addEventListener("click", async (e) => {
-        e.stopPropagation();
-        if (!confirm("Delete this video?")) return;
-        await fetch(`/api/videos/${v.id}`, { method: "DELETE" });
-        loadMyVideos();
-      });
-
-      const analyzeBtn = card.querySelector(".vcard-analyze");
-      if (analyzeBtn) {
-        analyzeBtn.addEventListener("click", async (e) => {
-          e.stopPropagation();
-          await fetch(`/api/videos/${v.id}/analyze`, { method: "POST" });
-          // Update badge immediately
-          const badgeSlot = card.querySelector(".vcard-badge-slot");
-          badgeSlot.innerHTML = badgeHtml("running", 0);
-          analyzeBtn.remove();
-          // Poll for progress
-          const poll = setInterval(async () => {
-            const pr = await fetch(`/api/videos/${v.id}/progress`);
-            if (pr.ok) {
-              const p = await pr.json();
-              if (p.status === "running") {
-                badgeSlot.innerHTML = badgeHtml("running", p.percent);
-              }
-            }
-            const r = await fetch(`/api/videos/${v.id}/analysis`);
-            if (!r.ok) return;
-            const a = await r.json();
-            if (a.status === "done" || a.status === "error") {
-              clearInterval(poll);
-              loadMyVideos();
-            }
-          }, 2000);
-        });
-      }
-
-      card.style.cursor = "pointer";
-      myGrid.appendChild(card);
-    }
-  }
-
-  loadMyVideos();
-
-  // ── Placeholder cards ───────────────────────────────────────────────
-  const categories = {
-    basics: [
-      { title: "Body Movement Fundamentals", dur: "3:24" },
-      { title: "Basic Step — Open & Closed", dur: "2:48" },
-      { title: "Lead & Follow Turns", dur: "4:12" },
-      { title: "Frame & Posture", dur: "2:15" },
-      { title: "Weight Transfer Drills", dur: "1:55" },
-      { title: "Simple Combos for Beginners", dur: "3:40" },
-    ],
-    sensual: [
-      { title: "Wave Technique — Isolation", dur: "3:52" },
-      { title: "Body Rolls & Flow", dur: "4:30" },
-      { title: "Headrolls — Lead & Follow", dur: "2:18" },
-      { title: "Cambre & Dips", dur: "3:05" },
-      { title: "Connection in Close Hold", dur: "2:44" },
-      { title: "Sensual Combo Breakdown", dur: "5:10" },
-    ],
-    footwork: [
-      { title: "Basic Footwork Patterns", dur: "2:30" },
-      { title: "Dominican Footwork", dur: "3:15" },
-      { title: "Syncopation & Double Steps", dur: "2:50" },
-      { title: "Lateral Movement Drills", dur: "1:48" },
-      { title: "Speed & Precision Training", dur: "3:22" },
-      { title: "Footwork in Partner Work", dur: "4:05" },
-    ],
-    musicality: [
-      { title: "Finding the 1 — Timing Basics", dur: "2:10" },
-      { title: "Dancing to the Derecho", dur: "3:35" },
-      { title: "Accenting the Bongo", dur: "2:55" },
-      { title: "Slow Motion & Breaks", dur: "3:42" },
-      { title: "Interpreting Guitar Riffs", dur: "2:28" },
-      { title: "Full Song Breakdown", dur: "5:45" },
-    ],
-  };
-
-  for (const [cat, items] of Object.entries(categories)) {
-    const grid = document.getElementById(`grid-${cat}`);
-    for (const item of items) {
-      grid.innerHTML += `
-        <div class="vcard vcard-placeholder">
-          <div class="vcard-thumb">
-            <span class="vcard-duration">${item.dur}</span>
-          </div>
-          <div class="vcard-body">
-            <p class="vcard-title">${item.title}</p>
-            <p class="vcard-meta">coming soon</p>
-          </div>
-        </div>`;
-    }
-  }
+// Close modal on overlay click
+document.getElementById('filesModal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
 });
 </script>
 {% endblock %}

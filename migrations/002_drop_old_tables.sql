@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS bachata.joint_frames CASCADE;
+DROP TABLE IF EXISTS bachata.analyses CASCADE;
+DROP TABLE IF EXISTS bachata.videos CASCADE;
+DROP TABLE IF EXISTS bachata.folders CASCADE;

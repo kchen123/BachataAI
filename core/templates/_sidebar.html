@@ -8,8 +8,7 @@
   <div class="sidebar-header">
     <a href="/" class="sidebar-title-link">
       <span class="sidebar-title-mark">B</span>
-      <span class="sidebar-status-dot" title="system live"></span>
-      <span class="sidebar-title">BACHATAAI</span>
+<span class="sidebar-title">BACHATA AI</span>
     </a>
   </div>
 
@@ -20,16 +19,7 @@
         <span class="section-label-text">Studio</span>
       </div>
       <ul class="sidebar-nav section-body">
-        <li><a href="/videos" class="nav-link" data-path="/videos"><span class="nav-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></span><span class="nav-text">Videos</span></a></li>
-      </ul>
-    </div>
-
-    <div class="sidebar-section" data-section="analysis">
-      <div class="section-label" data-toggle="analysis">
-        <span class="section-label-text">Analysis</span>
-      </div>
-      <ul class="sidebar-nav section-body">
-        <li><a href="/pose" class="nav-link" data-path="/pose"><span class="nav-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span><span class="nav-text">Pose</span></a></li>
+        <li><a href="/" class="nav-link" data-path="/"><span class="nav-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></span><span class="nav-text">Videos</span></a></li>
       </ul>
     </div>
 
@@ -40,8 +30,7 @@
   // Highlight active nav link based on current path
   (function() {
     const path = window.location.pathname;
-    // Also treat "/" as "/videos"
-    const normalized = path === '/' ? '/videos' : path;
+    const normalized = path;
     document.querySelectorAll('.nav-link[data-path]').forEach(link => {
       if (link.dataset.path === normalized || normalized.startsWith(link.dataset.path + '/')) link.classList.add('active');
     });

@@ -7,23 +7,22 @@ class VideosAdapter(BaseAdapter):
 
     TABLE = "bachata.videos"
 
-    def list_all(self) -> list[dict]:
-        return self.select(order_by="created_at DESC")
+    def list_by_folder(self, folder_id: int) -> list[dict]:
+        return self.select(order_by="title", folder_id=folder_id)
 
-    def get_by_id(self, video_id: int) -> dict | None:
-        return self.get(video_id)
+    def list_unfiled(self) -> list[dict]:
+        return self.select(order_by="title", folder_id=None)
 
-    def create(self, filename: str, original_name: str,
-               duration_sec: float, fps: float, frame_count: int,
-               gcs_url: str | None = None) -> dict:
-        return self.add(
-            filename=filename,
-            original_name=original_name,
-            duration_sec=duration_sec,
-            fps=fps,
-            frame_count=frame_count,
-            gcs_url=gcs_url,
-        )
+    def create(self, title: str, folder_id: int | None = None,
+               filename: str | None = None, gcs_url: str | None = None) -> dict:
+        data = {"title": title}
+        if folder_id is not None:
+            data["folder_id"] = folder_id
+        if filename is not None:
+            data["filename"] = filename
+        if gcs_url is not None:
+            data["gcs_url"] = gcs_url
+        return self.add(**data)
 
-    def set_status(self, video_id: int, status: str) -> dict | None:
-        return self.update(video_id, status=status)
+    def rename(self, video_id: int, title: str) -> dict | None:
+        return self.update(video_id, title=title)
