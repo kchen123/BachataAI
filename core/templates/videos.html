@@ -459,7 +459,7 @@ function showProcessingCard(videoId, label) {
   card.classList.add('processing');
   const nameEl = card.querySelector('.file-card-name');
   const origText = nameEl.textContent;
-  nameEl.innerHTML = origText + '<div class="processing-bar"><div class="processing-fill" id="pFill' + videoId + '"></div></div><span class="processing-eta" id="pEta' + videoId + '">' + label + '</span>';
+  nameEl.innerHTML = origText + '<div class="processing-bar"><div class="processing-fill" id="pFill' + videoId + '"></div></div><div class="processing-log" id="pLog' + videoId + '"><span class="log-line">' + label + '</span></div>';
 }
 
 function pollProgress(videoId) {
@@ -468,31 +468,31 @@ function pollProgress(videoId) {
     const pRes = await fetch('/api/videos/' + videoId + '/progress');
     const p = await pRes.json();
     const fill = document.getElementById('pFill' + videoId);
-    const eta = document.getElementById('pEta' + videoId);
+    const logEl = document.getElementById('pLog' + videoId);
     if (fill) fill.style.width = p.percent + '%';
 
-    if (p.percent > 5 && eta) {
-      const elapsed = (Date.now() - startTime) / 1000;
-      const remaining = Math.round(elapsed / p.percent * (100 - p.percent));
-      const min = Math.floor(remaining / 60);
-      const sec = remaining % 60;
-      if (p.step && p.step.startsWith('GPU busy')) { eta.textContent = p.step; }
-      else { eta.textContent = p.step === 'calling GPU' ? 'Analyzing...' : (min > 0 ? min + 'm ' + sec + 's left' : sec + 's left'); }
+    if (logEl && p.log) {
+      logEl.innerHTML = p.log.map(l => '<span class="log-line">' + l + '</span>').join('');
+      logEl.scrollTop = logEl.scrollHeight;
+    } else if (logEl && p.step) {
+      logEl.innerHTML = '<span class="log-line">' + p.step + '</span>';
     }
 
     if (p.status === 'done' || p.status === 'error') {
       clearInterval(poll);
-      if (eta) eta.textContent = p.status === 'done' ? 'Done!' : (p.error || 'Error — GPU maxed out, try again later');
+      if (p.status === 'error' && logEl) {
+        logEl.innerHTML += '<span class="log-line log-error">' + (p.error || 'GPU maxed out, try again later') + '</span>';
+      }
       const card = document.querySelector('.file-card[data-type="video"][data-id="' + videoId + '"]');
       setTimeout(() => {
         if (card) {
           card.classList.remove('processing');
           const bar = card.querySelector('.processing-bar');
-          const etaEl = card.querySelector('.processing-eta');
+          const log = card.querySelector('.processing-log');
           if (bar) bar.remove();
-          if (etaEl) etaEl.remove();
+          if (log) log.remove();
         }
-      }, 2000);
+      }, 3000);
     }
   }, 5000);
 }

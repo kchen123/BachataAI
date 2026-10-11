@@ -47,10 +47,21 @@ def _calc_angle(a, b, c):
     return math.degrees(math.acos(max(-1, min(1, dot / (m1 * m2)))))
 
 
+def _log(video_id, msg, pct=None):
+    """Append a log line and update percent."""
+    p = _progress.get(video_id, {"status": "running", "log": [], "percent": 0})
+    p["log"].append(msg)
+    p["step"] = msg
+    if pct is not None:
+        p["percent"] = pct
+    _progress[video_id] = p
+
+
 def _run_analysis(video_id, analysis_id, gcs_blob, frame_count):
     """Background thread: call GPU pose service, save results to DB."""
     try:
-        _progress[video_id] = {"status": "running", "step": "waiting for GPU", "percent": 0}
+        _progress[video_id] = {"status": "running", "step": "starting", "percent": 0, "log": []}
+        _log(video_id, "Requesting GPU instance...", 0)
 
         import time
         for attempt in range(10):
@@ -62,7 +73,7 @@ def _run_analysis(video_id, analysis_id, gcs_blob, frame_count):
             )
             if resp.status_code == 429:
                 wait = 15 * (attempt + 1)
-                _progress[video_id] = {"status": "running", "step": f"GPU busy, retrying in {wait}s", "percent": 0}
+                _log(video_id, f"GPU busy — retrying in {wait}s (attempt {attempt+1}/10)")
                 time.sleep(wait)
                 continue
             resp.raise_for_status()
@@ -70,12 +81,12 @@ def _run_analysis(video_id, analysis_id, gcs_blob, frame_count):
         else:
             raise RuntimeError("GPU service busy after 10 retries")
 
-        _progress[video_id] = {"status": "running", "step": "calling GPU", "percent": 10}
+        _log(video_id, "GPU running YOLO26x-Pose inference...", 10)
         data = resp.json()
         pose_frames = data["frames"]
         total = len(pose_frames)
-
-        _progress[video_id] = {"status": "running", "step": "saving", "percent": 50}
+        _log(video_id, f"Inference complete — {total} frames analyzed", 50)
+        _log(video_id, "Saving keypoints to database...", 55)
 
         repo = Repository()
         aa = AnalysesAdapter(repo)
@@ -97,11 +108,13 @@ def _run_analysis(video_id, analysis_id, gcs_blob, frame_count):
             if len(batch) >= 100:
                 ja.bulk_insert(analysis_id, batch)
                 batch = []
-                pct = 50 + int((i / total) * 50)
-                _progress[video_id] = {"status": "running", "step": "saving", "percent": pct}
+                pct = 55 + int((i / total) * 40)
+                _log(video_id, f"Saved {i+1}/{total} frames", pct)
 
         if batch:
             ja.bulk_insert(analysis_id, batch)
+
+        _log(video_id, "Computing joint angle summary...", 96)
 
         summary = {}
         for name, vals in all_angles.items():
@@ -116,7 +129,8 @@ def _run_analysis(video_id, analysis_id, gcs_blob, frame_count):
 
         aa.set_summary(analysis_id, summary)
         repo.close()
-        _progress[video_id] = {"status": "done", "percent": 100}
+        _log(video_id, f"Complete — {total} frames, {len(summary)-2} joint angles", 100)
+        _progress[video_id]["status"] = "done"
 
     except Exception as e:
         try:
