@@ -54,15 +54,15 @@
          onclick="window.location.href='/folder/{{ f.id }}'"
          ondragover="onDragOver(event)" ondragleave="this.classList.remove('drag-over')"
          ondrop="onDrop(event, {{ f.id }})">
+      <svg class="file-card-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      <span class="file-card-name">{{ f.name }}</span>
+      <span class="file-card-meta">Folder</span>
+      <span class="file-card-date">{{ f.created_at.strftime('%b %d, %Y') if f.created_at else '' }}</span>
       <button class="file-card-menu" onclick="event.stopPropagation(); toggleDropdown(this);">&vellip;</button>
       <div class="file-dropdown">
         <button onclick="event.stopPropagation(); startRename('folder', {{ f.id }}, '{{ f.name }}')">Rename</button>
         <button class="danger" onclick="event.stopPropagation(); confirmDelete('folder', {{ f.id }}, '{{ f.name }}')">Delete</button>
       </div>
-      <svg class="file-card-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-      <span class="file-card-name">{{ f.name }}</span>
-      <span class="file-card-meta">Folder</span>
-      <span class="file-card-date">{{ f.created_at.strftime('%b %d, %Y') if f.created_at else '' }}</span>
     </div>
     {% endfor %}
 
@@ -70,15 +70,15 @@
     <div class="file-card" data-type="video" data-id="{{ v.id }}" data-name="{{ v.title|lower }}" data-date="{{ v.created_at }}" draggable="true"
          ondragstart="onDragStart(event)"
          onclick="playVideo({{ v.id }}, '{{ v.gcs_url|e }}', '{{ v.title|e }}')">
+      <svg class="file-card-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#64c8ff" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+      <span class="file-card-name">{{ v.title }}</span>
+      <span class="file-card-meta">{{ v.duration_sec|int // 60 }}:{{ '%02d' % (v.duration_sec|int % 60) if v.duration_sec else '--' }}</span>
+      <span class="file-card-date">{{ v.created_at.strftime('%b %d, %Y') if v.created_at else '' }}</span>
       <button class="file-card-menu" onclick="event.stopPropagation(); toggleDropdown(this);">&vellip;</button>
       <div class="file-dropdown">
         <button onclick="event.stopPropagation(); startRename('video', {{ v.id }}, '{{ v.title }}')">Rename</button>
         <button class="danger" onclick="event.stopPropagation(); confirmDelete('video', {{ v.id }}, '{{ v.title }}')">Delete</button>
       </div>
-      <svg class="file-card-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#64c8ff" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
-      <span class="file-card-name">{{ v.title }}</span>
-      <span class="file-card-meta">{{ v.duration_sec|int // 60 }}:{{ '%02d' % (v.duration_sec|int % 60) if v.duration_sec else '--' }}</span>
-      <span class="file-card-date">{{ v.created_at.strftime('%b %d, %Y') if v.created_at else '' }}</span>
     </div>
     {% endfor %}
 
@@ -453,27 +453,16 @@ function confirmAnalysis() {
   triggerAnalysis(currentVideoId);
 }
 
-async function triggerAnalysis(videoId) {
-  // Close video modal
-  closeVideo();
-
-  // Show processing on the card
+function showProcessingCard(videoId, label) {
   const card = document.querySelector('.file-card[data-type="video"][data-id="' + videoId + '"]');
-  if (card) {
-    card.classList.add('processing');
-    const nameEl = card.querySelector('.file-card-name');
-    const origText = nameEl.textContent;
-    nameEl.innerHTML = origText + '<div class="processing-bar"><div class="processing-fill" id="pFill' + videoId + '"></div></div><span class="processing-eta" id="pEta' + videoId + '">Starting GPU...</span>';
-  }
+  if (!card || card.classList.contains('processing')) return;
+  card.classList.add('processing');
+  const nameEl = card.querySelector('.file-card-name');
+  const origText = nameEl.textContent;
+  nameEl.innerHTML = origText + '<div class="processing-bar"><div class="processing-fill" id="pFill' + videoId + '"></div></div><span class="processing-eta" id="pEta' + videoId + '">' + label + '</span>';
+}
 
-  // Trigger analysis
-  const res = await fetch('/api/videos/' + videoId + '/analyze', { method: 'POST' });
-  if (!res.ok) {
-    if (card) card.classList.remove('processing');
-    return;
-  }
-
-  // Poll progress
+function pollProgress(videoId) {
   const startTime = Date.now();
   const poll = setInterval(async () => {
     const pRes = await fetch('/api/videos/' + videoId + '/progress');
@@ -494,10 +483,10 @@ async function triggerAnalysis(videoId) {
     if (p.status === 'done' || p.status === 'error') {
       clearInterval(poll);
       if (eta) eta.textContent = p.status === 'done' ? 'Done!' : (p.error || 'Error — GPU maxed out, try again later');
+      const card = document.querySelector('.file-card[data-type="video"][data-id="' + videoId + '"]');
       setTimeout(() => {
         if (card) {
           card.classList.remove('processing');
-          const nameEl = card.querySelector('.file-card-name');
           const bar = card.querySelector('.processing-bar');
           const etaEl = card.querySelector('.processing-eta');
           if (bar) bar.remove();
@@ -507,6 +496,35 @@ async function triggerAnalysis(videoId) {
     }
   }, 2000);
 }
+
+async function triggerAnalysis(videoId) {
+  closeVideo();
+  showProcessingCard(videoId, 'Starting GPU...');
+
+  const res = await fetch('/api/videos/' + videoId + '/analyze', { method: 'POST' });
+  if (!res.ok) {
+    const card = document.querySelector('.file-card[data-type="video"][data-id="' + videoId + '"]');
+    if (card) card.classList.remove('processing');
+    return;
+  }
+
+  pollProgress(videoId);
+}
+
+// Resume polling for any running analyses on page load
+(function resumeRunningAnalyses() {
+  document.querySelectorAll('.file-card[data-type="video"]').forEach(async (card) => {
+    const videoId = card.dataset.id;
+    try {
+      const res = await fetch('/api/videos/' + videoId + '/progress');
+      const p = await res.json();
+      if (p.status === 'running') {
+        showProcessingCard(videoId, p.step || 'Processing...');
+        pollProgress(videoId);
+      }
+    } catch (e) {}
+  });
+})();
 
 function togglePose() {
   poseVisible = document.getElementById('poseToggle').checked;

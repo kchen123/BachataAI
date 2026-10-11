@@ -322,7 +322,12 @@
   position: static;
   opacity: 0;
   flex-shrink: 0;
-  margin-left: auto;
+}
+
+.files-grid.view-list .file-dropdown {
+  position: absolute;
+  right: 4px;
+  top: 28px;
 }
 
 .files-grid.view-list .file-card:hover .file-card-menu { opacity: 1; }
