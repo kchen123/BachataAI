@@ -320,7 +320,7 @@
 
 .files-grid.view-list .file-card-menu {
   position: static;
-  opacity: 0;
+  opacity: 1;
   flex-shrink: 0;
 }
 
