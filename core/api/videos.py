@@ -92,6 +92,25 @@ def api_create_video():
     return jsonify(_serialize(video)), 201
 
 
+@videos_bp.route("/api/videos/upload", methods=["POST"])
+def api_upload_video():
+    import os
+    from pathlib import Path
+    f = request.files.get("file")
+    if not f or not f.filename:
+        return jsonify({"error": "no file"}), 400
+    upload_dir = Path(__file__).resolve().parent.parent.parent / "uploads"
+    upload_dir.mkdir(exist_ok=True)
+    filename = f"{_uid()}_{int(__import__('time').time())}_{f.filename}"
+    filepath = upload_dir / filename
+    f.save(str(filepath))
+    folder_id = request.form.get("folder_id", type=int)
+    title = os.path.splitext(f.filename)[0]
+    repo = get_repo()
+    video = VideosAdapter(repo).create(title, _uid(), folder_id, filename=filename)
+    return jsonify(_serialize(video)), 201
+
+
 @videos_bp.route("/api/videos/<int:video_id>", methods=["PATCH"])
 def api_rename_video(video_id):
     body = request.get_json()
@@ -113,3 +132,19 @@ def api_delete_video(video_id):
     repo = get_repo()
     ok = VideosAdapter(repo).delete(video_id)
     return ("", 204) if ok else ("", 404)
+
+
+# ── Account API ────────────────────────────────────────────────────────────────
+
+@videos_bp.route("/api/account", methods=["PATCH"])
+def api_update_account():
+    body = request.get_json()
+    repo = get_repo()
+    allowed = {"username", "display_name", "email", "role"}
+    data = {k: v for k, v in body.items() if k in allowed and v}
+    if not data:
+        return ("", 400)
+    user = UsersAdapter(repo).update_profile(_uid(), data)
+    if user:
+        session["username"] = user["username"]
+    return jsonify(_serialize(user)) if user else ("", 404)

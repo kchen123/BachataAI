@@ -31,7 +31,7 @@
     </div>
     <div class="files-toolbar">
       <button class="btn btn-sm" onclick="openModal('folder')">+ Folder</button>
-      <button class="btn btn-sm" onclick="openModal('video')">+ Video</button>
+      <button class="btn btn-sm" onclick="document.getElementById('uploadModal').classList.add('open')">+ Video</button>
     </div>
   </div>
 
@@ -55,7 +55,7 @@
     {% for v in videos %}
     <div class="file-card" data-type="video" data-id="{{ v.id }}" draggable="true"
          ondragstart="onDragStart(event)"
-         onclick="playVideo('{{ v.gcs_url|e }}', '{{ v.title|e }}')">
+         onclick="playVideo({{ v.id }}, '{{ v.gcs_url|e }}', '{{ v.title|e }}')">
       <button class="file-card-menu" onclick="event.stopPropagation(); toggleDropdown(this);">&vellip;</button>
       <div class="file-dropdown">
         <button onclick="event.stopPropagation(); startRename('video', {{ v.id }}, '{{ v.title }}')">Rename</button>
@@ -85,14 +85,52 @@
   </div>
 </div>
 
+<!-- Upload Modal -->
+<div class="modal-overlay" id="uploadModal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="upload-modal">
+    <div class="upload-modal-header">
+      <span>UPLOAD VIDEO</span>
+      <button class="account-modal-close" onclick="document.getElementById('uploadModal').classList.remove('open')">&times;</button>
+    </div>
+    <div class="upload-modal-body">
+      <div class="upload-drop" id="uploadDrop"
+           onclick="document.getElementById('uploadFile').click()"
+           ondragover="event.preventDefault(); this.classList.add('drag-over')"
+           ondragleave="this.classList.remove('drag-over')"
+           ondrop="event.preventDefault(); this.classList.remove('drag-over'); handleUploadFile(event.dataTransfer.files[0])">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <p class="upload-drop-text">Drop video here or click to browse</p>
+        <p class="upload-drop-formats">MP4, MOV, AVI, WebM</p>
+        <input type="file" id="uploadFile" accept="video/*" hidden onchange="handleUploadFile(this.files[0])">
+      </div>
+      <div class="upload-progress-box hidden" id="uploadProgress">
+        <div class="upload-progress-info">
+          <span id="uploadName"></span>
+          <span id="uploadPct">0%</span>
+        </div>
+        <div class="upload-progress-bar">
+          <div class="upload-progress-fill" id="uploadFill"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Video Player Modal -->
 <div class="modal-overlay" id="videoModal" onclick="if(event.target===this)closeVideo()">
   <div class="video-modal">
     <div class="video-modal-header">
       <span class="video-modal-title" id="videoTitle"></span>
+      <label class="pose-toggle">
+        <input type="checkbox" id="poseToggle" checked onchange="togglePose()">
+        <span>Skeleton</span>
+      </label>
       <button class="video-modal-close" onclick="closeVideo()">&times;</button>
     </div>
-    <video id="videoPlayer" controls autoplay></video>
+    <div class="video-wrapper">
+      <video id="videoPlayer" controls autoplay></video>
+      <canvas id="poseCanvas"></canvas>
+    </div>
   </div>
 </div>
 
@@ -102,8 +140,30 @@
     <div class="account-modal-header">
       <button class="account-modal-close" onclick="document.getElementById('accountModal').classList.remove('open')">&times;</button>
     </div>
-    <div class="account-modal-body"></div>
+    <div class="account-modal-body" id="accountBody">
+      <div class="account-field" data-field="username">
+        <span class="account-label">Username</span>
+        <span class="account-value accent">{{ user.username }}</span>
+      </div>
+      <div class="account-field" data-field="display_name">
+        <span class="account-label">Display Name</span>
+        <span class="account-value">{{ user.display_name or '—' }}</span>
+      </div>
+      <div class="account-field" data-field="email">
+        <span class="account-label">Email</span>
+        <span class="account-value">{{ user.email or '—' }}</span>
+      </div>
+      <div class="account-field" data-field="role">
+        <span class="account-label">Role</span>
+        <span class="account-value">{{ user.role }}</span>
+      </div>
+      <div class="account-field">
+        <span class="account-label">Joined</span>
+        <span class="account-value">{{ user.created_at.strftime('%b %d, %Y') if user.created_at else '—' }}</span>
+      </div>
+    </div>
     <div class="account-modal-footer">
+      <button class="btn btn-sm" id="accountEditBtn" onclick="toggleAccountEdit()">Edit</button>
       <a href="/logout" class="btn btn-sm btn-danger">Logout</a>
     </div>
   </div>
@@ -241,20 +301,142 @@ document.getElementById('filesModal').addEventListener('click', function(e) {
   if (e.target === this) closeModal();
 });
 
-// ── Video Player ──
-function playVideo(url, title) {
+// ── Video Player with Pose Skeleton ──
+let poseFrames = null;
+let poseAnimId = null;
+let poseVisible = true;
+let videoFps = 30;
+
+const SKELETON_CONNECTIONS = [
+  [0,1],[0,2],[1,3],[2,4],           // face
+  [5,6],                             // shoulders
+  [5,7],[7,9],[6,8],[8,10],          // arms
+  [5,11],[6,12],[11,12],             // torso
+  [11,13],[13,15],[12,14],[14,16],   // legs
+];
+
+async function playVideo(videoId, url, title) {
   if (!url) return;
   document.getElementById('videoTitle').textContent = title;
   const player = document.getElementById('videoPlayer');
   player.src = url;
   document.getElementById('videoModal').classList.add('open');
+  poseFrames = null;
+
+  // Fetch analysis data
+  try {
+    const res = await fetch('/api/videos/' + videoId + '/analysis');
+    if (res.ok) {
+      const analysis = await res.json();
+      videoFps = analysis.fps || 30;
+      const framesRes = await fetch('/api/analyses/' + analysis.id + '/frames?sample=3000');
+      if (framesRes.ok) {
+        poseFrames = await framesRes.json();
+        console.log('Loaded ' + poseFrames.length + ' pose frames');
+      }
+    }
+  } catch (e) { console.log('No pose data:', e); }
+
+  // Start drawing loop
+  player.addEventListener('play', startPoseLoop);
+  player.addEventListener('pause', stopPoseLoop);
+  player.addEventListener('seeked', drawCurrentPose);
 }
 
 function closeVideo() {
+  stopPoseLoop();
   const player = document.getElementById('videoPlayer');
+  player.removeEventListener('play', startPoseLoop);
+  player.removeEventListener('pause', stopPoseLoop);
+  player.removeEventListener('seeked', drawCurrentPose);
   player.pause();
   player.src = '';
+  poseFrames = null;
+  const canvas = document.getElementById('poseCanvas');
+  canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
   document.getElementById('videoModal').classList.remove('open');
+}
+
+function togglePose() {
+  poseVisible = document.getElementById('poseToggle').checked;
+  if (!poseVisible) {
+    const canvas = document.getElementById('poseCanvas');
+    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+  } else {
+    drawCurrentPose();
+  }
+}
+
+function startPoseLoop() {
+  if (poseAnimId) return;
+  function loop() {
+    drawCurrentPose();
+    poseAnimId = requestAnimationFrame(loop);
+  }
+  loop();
+}
+
+function stopPoseLoop() {
+  if (poseAnimId) { cancelAnimationFrame(poseAnimId); poseAnimId = null; }
+}
+
+function drawCurrentPose() {
+  if (!poseFrames || !poseVisible) return;
+  const player = document.getElementById('videoPlayer');
+  const canvas = document.getElementById('poseCanvas');
+  const ctx = canvas.getContext('2d');
+
+  // Match canvas to video display size
+  const rect = player.getBoundingClientRect();
+  canvas.width = rect.width;
+  canvas.height = rect.height;
+  canvas.style.width = rect.width + 'px';
+  canvas.style.height = rect.height + 'px';
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Find closest frame
+  const currentTime = player.currentTime;
+  let closest = poseFrames[0];
+  let minDiff = Infinity;
+  for (const f of poseFrames) {
+    const diff = Math.abs(f.timestamp_sec - currentTime);
+    if (diff < minDiff) { minDiff = diff; closest = f; }
+    if (f.timestamp_sec > currentTime + 1) break;
+  }
+
+  if (!closest || !closest.landmarks) return;
+  const lm = typeof closest.landmarks === 'string' ? JSON.parse(closest.landmarks) : closest.landmarks;
+
+  // Draw skeleton
+  const w = canvas.width;
+  const h = canvas.height;
+
+  // Draw connections
+  ctx.strokeStyle = '#00ff88';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#00ff88';
+  ctx.shadowBlur = 4;
+  for (const [a, b] of SKELETON_CONNECTIONS) {
+    const pa = lm[a] || lm[String(a)];
+    const pb = lm[b] || lm[String(b)];
+    if (!pa || !pb) continue;
+    if (pa.visibility < 0.3 || pb.visibility < 0.3) continue;
+    ctx.beginPath();
+    ctx.moveTo(pa.x * w, pa.y * h);
+    ctx.lineTo(pb.x * w, pb.y * h);
+    ctx.stroke();
+  }
+
+  // Draw keypoints
+  ctx.shadowBlur = 0;
+  for (let i = 0; i < 17; i++) {
+    const p = lm[i] || lm[String(i)];
+    if (!p || p.visibility < 0.3) continue;
+    ctx.fillStyle = '#ff8800';
+    ctx.beginPath();
+    ctx.arc(p.x * w, p.y * h, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }
 
 document.addEventListener('keydown', function(e) {
@@ -286,6 +468,89 @@ async function onDropToFolder(e, folderId) {
     const card = document.querySelector('.file-card[data-type="video"][data-id="' + videoId + '"]');
     if (card) card.remove();
   }
+}
+
+// ── Account Edit ──
+let accountEditing = false;
+
+function toggleAccountEdit() {
+  const btn = document.getElementById('accountEditBtn');
+  const body = document.getElementById('accountBody');
+
+  if (!accountEditing) {
+    // Switch to edit mode
+    accountEditing = true;
+    btn.textContent = 'Save';
+    btn.classList.add('btn-accent');
+
+    body.querySelectorAll('.account-field[data-field]').forEach(field => {
+      const key = field.dataset.field;
+      const valEl = field.querySelector('.account-value');
+      const current = valEl.textContent.trim();
+      const val = current === '—' ? '' : current;
+      valEl.innerHTML = '<input type="text" class="account-input" data-key="' + key + '" value="' + val.replace(/"/g, '&quot;') + '">';
+    });
+  } else {
+    // Save
+    const data = {};
+    body.querySelectorAll('.account-input').forEach(input => {
+      data[input.dataset.key] = input.value.trim();
+    });
+
+    fetch('/api/account', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }).then(res => {
+      if (res.ok) window.location.reload();
+    });
+  }
+}
+
+// ── Upload ──
+function handleUploadFile(file) {
+  if (!file) return;
+  const progressBox = document.getElementById('uploadProgress');
+  const nameEl = document.getElementById('uploadName');
+  const pctEl = document.getElementById('uploadPct');
+  const fillEl = document.getElementById('uploadFill');
+  const dropEl = document.getElementById('uploadDrop');
+
+  dropEl.classList.add('hidden');
+  progressBox.classList.remove('hidden');
+  nameEl.textContent = file.name;
+  pctEl.textContent = '0%';
+  fillEl.style.width = '0%';
+
+  const xhr = new XMLHttpRequest();
+  const formData = new FormData();
+  formData.append('file', file);
+  if (FOLDER_ID) formData.append('folder_id', FOLDER_ID);
+
+  xhr.upload.addEventListener('progress', (e) => {
+    if (e.lengthComputable) {
+      const pct = Math.round((e.loaded / e.total) * 100);
+      fillEl.style.width = pct + '%';
+      pctEl.textContent = pct + '%';
+    }
+  });
+
+  xhr.addEventListener('load', () => {
+    if (xhr.status === 201) {
+      window.location.reload();
+    } else {
+      pctEl.textContent = 'Upload failed';
+      fillEl.style.background = 'var(--red)';
+    }
+  });
+
+  xhr.addEventListener('error', () => {
+    pctEl.textContent = 'Upload failed';
+    fillEl.style.background = 'var(--red)';
+  });
+
+  xhr.open('POST', '/api/videos/upload');
+  xhr.send(formData);
 }
 </script>
 {% endblock %}

@@ -22,3 +22,4 @@ Thumbs.db
 # Uploads
 uploads/
 yolo26x-pose.pt
+*.mp4

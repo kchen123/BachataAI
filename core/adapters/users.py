@@ -13,13 +13,20 @@ class UsersAdapter(BaseAdapter):
         return rows[0] if rows else None
 
     def create(self, username: str, password: str,
-               display_name: str | None = None, role: str = "user") -> dict:
-        return self.add(
-            username=username,
-            password_hash=generate_password_hash(password),
-            display_name=display_name or username,
-            role=role,
-        )
+               display_name: str | None = None, email: str | None = None,
+               role: str = "user") -> dict:
+        data = {
+            "username": username,
+            "password_hash": generate_password_hash(password),
+            "display_name": display_name or username,
+            "role": role,
+        }
+        if email is not None:
+            data["email"] = email
+        return self.add(**data)
+
+    def update_profile(self, user_id: int, data: dict) -> dict | None:
+        return self.update(user_id, **data)
 
     def verify(self, username: str, password: str) -> dict | None:
         user = self.get_by_username(username)

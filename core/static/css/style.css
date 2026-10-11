@@ -402,45 +402,205 @@
 /* ── Account Modal ───────────────────────────────────────────────────── */
 
 .account-modal {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  width: 360px;
-  min-height: 280px;
+  background: var(--bg-card);
+  border: 1px solid color-mix(in srgb, var(--border) 36%, transparent);
+  border-radius: var(--radius-md);
+  width: 380px;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  overflow: hidden;
 }
 
 .account-modal-header {
   display: flex;
-  justify-content: flex-end;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--border);
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  min-height: 30px;
+  background: var(--tint-4);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 30%, transparent);
+}
+
+.account-modal-header::before {
+  content: 'ACCOUNT';
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  color: var(--text-muted);
 }
 
 .account-modal-close {
   background: none;
   border: none;
   color: var(--text-muted);
-  font-size: 18px;
+  font-size: 16px;
   cursor: pointer;
-  padding: 0 4px;
+  padding: 0 2px;
   line-height: 1;
   box-shadow: none;
+  transition: color 0.1s;
 }
 .account-modal-close:hover { color: var(--text-primary); }
 
 .account-modal-body {
   flex: 1;
-  padding: 24px;
+  padding: 0;
 }
+
+.account-field {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 30%, transparent);
+  transition: background 0.1s;
+}
+
+.account-field:hover {
+  background: var(--highlight-1);
+}
+
+.account-field:last-child {
+  border-bottom: none;
+}
+
+.account-label {
+  width: 110px;
+  flex-shrink: 0;
+  padding: 8px 14px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-right: 1px solid color-mix(in srgb, var(--border) 30%, transparent);
+  display: flex;
+  align-items: center;
+}
+
+.account-value {
+  flex: 1;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+}
+
+.account-value.accent { color: var(--accent); }
+
+.account-input {
+  width: 100%;
+  padding: 4px 8px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  outline: none;
+}
+.account-input:focus { border-color: var(--accent); }
 
 .account-modal-footer {
   display: flex;
   justify-content: flex-end;
-  padding: 12px 16px;
-  border-top: 1px solid var(--border);
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--tint-4);
+  border-top: 1px solid color-mix(in srgb, var(--border) 30%, transparent);
+}
+
+/* ── Upload Modal ──────────────────────────────────────────────────── */
+
+.upload-modal {
+  background: var(--bg-card);
+  border: 1px solid color-mix(in srgb, var(--border) 36%, transparent);
+  border-radius: var(--radius-md);
+  width: 420px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  overflow: hidden;
+}
+
+.upload-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  min-height: 30px;
+  background: var(--tint-4);
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 30%, transparent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  color: var(--text-muted);
+}
+
+.upload-modal-body {
+  padding: 20px;
+}
+
+.upload-drop {
+  border: 1.5px dashed var(--border);
+  border-radius: var(--radius-lg);
+  padding: 36px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.upload-drop:hover,
+.upload-drop.drag-over {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.upload-drop-text {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.upload-drop-formats {
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+}
+
+.upload-progress-box {
+  margin-top: 12px;
+}
+
+.upload-progress-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.upload-progress-bar {
+  height: 3px;
+  background: var(--bg-card-hover);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.upload-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.3s;
 }
 
 /* ── Video Player Modal ─────────────────────────────────────────────── */
@@ -485,11 +645,34 @@
 }
 .video-modal-close:hover { color: var(--text-primary); }
 
+.video-wrapper {
+  position: relative;
+}
+
 .video-modal video {
   width: 100%;
   display: block;
   max-height: 70vh;
 }
+
+#poseCanvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.pose-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  margin-left: auto;
+  margin-right: 12px;
+}
+.pose-toggle input { cursor: pointer; }
 
 /* ── Drag & Drop ────────────────────────────────────────────────────── */
 
