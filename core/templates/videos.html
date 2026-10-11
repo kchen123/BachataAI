@@ -487,12 +487,13 @@ async function triggerAnalysis(videoId) {
       const remaining = Math.round(elapsed / p.percent * (100 - p.percent));
       const min = Math.floor(remaining / 60);
       const sec = remaining % 60;
-      eta.textContent = p.step === 'calling GPU' ? 'Analyzing...' : (min > 0 ? min + 'm ' + sec + 's left' : sec + 's left');
+      if (p.step && p.step.startsWith('GPU busy')) { eta.textContent = p.step; }
+      else { eta.textContent = p.step === 'calling GPU' ? 'Analyzing...' : (min > 0 ? min + 'm ' + sec + 's left' : sec + 's left'); }
     }
 
     if (p.status === 'done' || p.status === 'error') {
       clearInterval(poll);
-      if (eta) eta.textContent = p.status === 'done' ? 'Done!' : 'Error';
+      if (eta) eta.textContent = p.status === 'done' ? 'Done!' : (p.error || 'Error — GPU maxed out, try again later');
       setTimeout(() => {
         if (card) {
           card.classList.remove('processing');
