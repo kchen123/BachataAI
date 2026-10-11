@@ -60,6 +60,7 @@ body {
   text-decoration: none;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   overflow: hidden;
 }
