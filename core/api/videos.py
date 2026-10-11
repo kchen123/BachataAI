@@ -1,7 +1,7 @@
 """API routes for folders and videos — GDrive-like file browser."""
 
 import datetime
-from flask import Blueprint, render_template, request, jsonify, abort
+from flask import Blueprint, render_template, request, jsonify, abort, session
 from core.adapters.repository import get_repo
 from core.adapters.folders import FoldersAdapter
 from core.adapters.videos import VideosAdapter
@@ -12,6 +12,11 @@ def _serialize(row: dict) -> dict:
     return {k: (str(v) if isinstance(v, (datetime.datetime, datetime.date)) else v)
             for k, v in row.items()}
 
+
+def _uid() -> int:
+    return session["user_id"]
+
+
 videos_bp = Blueprint("videos", __name__)
 
 
@@ -20,9 +25,10 @@ videos_bp = Blueprint("videos", __name__)
 @videos_bp.route("/")
 def index():
     repo = get_repo()
+    uid = _uid()
     fa, va = FoldersAdapter(repo), VideosAdapter(repo)
-    folders = fa.list_root()
-    videos = va.list_unfiled()
+    folders = fa.list_root(uid)
+    videos = va.list_unfiled(uid)
     return render_template("videos.html",
                            folder=None, breadcrumbs=[],
                            folders=folders, videos=videos)
@@ -31,12 +37,13 @@ def index():
 @videos_bp.route("/folder/<int:folder_id>")
 def folder_view(folder_id):
     repo = get_repo()
+    uid = _uid()
     fa, va = FoldersAdapter(repo), VideosAdapter(repo)
     folder = fa.get(folder_id)
-    if folder is None:
+    if folder is None or folder["user_id"] != uid:
         abort(404)
-    folders = fa.list_children(folder_id)
-    videos = va.list_by_folder(folder_id)
+    folders = fa.list_children(uid, folder_id)
+    videos = va.list_by_folder(uid, folder_id)
     breadcrumbs = fa.get_breadcrumbs(folder_id)
     return render_template("videos.html",
                            folder=folder, breadcrumbs=breadcrumbs,
@@ -49,7 +56,7 @@ def folder_view(folder_id):
 def api_create_folder():
     body = request.get_json()
     repo = get_repo()
-    folder = FoldersAdapter(repo).create(body["name"], body.get("parent_id"))
+    folder = FoldersAdapter(repo).create(body["name"], _uid(), body.get("parent_id"))
     return jsonify(_serialize(folder)), 201
 
 
@@ -74,7 +81,7 @@ def api_delete_folder(folder_id):
 def api_create_video():
     body = request.get_json()
     repo = get_repo()
-    video = VideosAdapter(repo).create(body["title"], body.get("folder_id"))
+    video = VideosAdapter(repo).create(body["title"], _uid(), body.get("folder_id"))
     return jsonify(_serialize(video)), 201
 
 

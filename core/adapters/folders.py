@@ -7,14 +7,14 @@ class FoldersAdapter(BaseAdapter):
 
     TABLE = "bachata.folders"
 
-    def list_root(self) -> list[dict]:
-        return self.select(order_by="position, name", parent_id=None)
+    def list_root(self, user_id: int) -> list[dict]:
+        return self.select(order_by="position, name", user_id=user_id, parent_id=None)
 
-    def list_children(self, parent_id: int) -> list[dict]:
-        return self.select(order_by="position, name", parent_id=parent_id)
+    def list_children(self, user_id: int, parent_id: int) -> list[dict]:
+        return self.select(order_by="position, name", user_id=user_id, parent_id=parent_id)
 
-    def create(self, name: str, parent_id: int | None = None) -> dict:
-        data = {"name": name}
+    def create(self, name: str, user_id: int, parent_id: int | None = None) -> dict:
+        data = {"name": name, "user_id": user_id}
         if parent_id is not None:
             data["parent_id"] = parent_id
         return self.add(**data)

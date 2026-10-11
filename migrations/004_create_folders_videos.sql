@@ -1,6 +1,7 @@
 CREATE TABLE IF NOT EXISTS bachata.folders (
   id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
+  user_id INT NOT NULL REFERENCES bachata.users(id) ON DELETE CASCADE,
   parent_id INT REFERENCES bachata.folders(id) ON DELETE CASCADE,
   position INT DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -10,6 +11,7 @@ CREATE TABLE IF NOT EXISTS bachata.folders (
 CREATE TABLE IF NOT EXISTS bachata.videos (
   id SERIAL PRIMARY KEY,
   title TEXT NOT NULL,
+  user_id INT NOT NULL REFERENCES bachata.users(id) ON DELETE CASCADE,
   filename TEXT,
   folder_id INT REFERENCES bachata.folders(id) ON DELETE SET NULL,
   gcs_url TEXT,
@@ -23,3 +25,5 @@ CREATE TABLE IF NOT EXISTS bachata.videos (
 
 CREATE INDEX IF NOT EXISTS idx_folders_parent ON bachata.folders(parent_id);
 CREATE INDEX IF NOT EXISTS idx_videos_folder ON bachata.videos(folder_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_folders_user_name ON bachata.folders(user_id, parent_id, name);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_videos_user_title ON bachata.videos(user_id, folder_id, title);
