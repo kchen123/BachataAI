@@ -502,7 +502,7 @@ function showProcessingCard(videoId, label) {
   card.classList.add('processing');
   const nameEl = card.querySelector('.file-card-name');
   const origText = nameEl.textContent;
-  nameEl.innerHTML = origText + '<div class="processing-bar"><div class="processing-fill" id="pFill' + videoId + '"></div></div><div class="processing-log" id="pLog' + videoId + '"><span class="log-line">' + label + '</span></div>';
+  nameEl.innerHTML = origText + '<div class="processing-bar"><div class="processing-fill" id="pFill' + videoId + '"></div></div><div class="processing-log" id="pLog' + videoId + '"><span class="log-line">' + label + '</span></div><button class="btn btn-sm processing-cancel" onclick="event.stopPropagation(); cancelAnalysis(' + videoId + ')">Cancel</button>';
 }
 
 function pollProgress(videoId) {
@@ -521,10 +521,12 @@ function pollProgress(videoId) {
       logEl.innerHTML = '<span class="log-line">' + p.step + '</span>';
     }
 
-    if (p.status === 'done' || p.status === 'error') {
+    if (p.status === 'done' || p.status === 'error' || p.status === 'cancelled') {
       clearInterval(poll);
       if (p.status === 'error' && logEl) {
         logEl.innerHTML += '<span class="log-line log-error">' + (p.error || 'GPU maxed out, try again later') + '</span>';
+      } else if (p.status === 'cancelled' && logEl) {
+        logEl.innerHTML = '<span class="log-line">Cancelled</span>';
       }
       const card = document.querySelector('.file-card[data-type="video"][data-id="' + videoId + '"]');
       setTimeout(() => {
@@ -538,6 +540,10 @@ function pollProgress(videoId) {
       }, 3000);
     }
   }, 5000);
+}
+
+async function cancelAnalysis(videoId) {
+  await fetch('/api/videos/' + videoId + '/analyze', { method: 'DELETE' });
 }
 
 async function triggerAnalysis(videoId, sampleRate, resolution) {

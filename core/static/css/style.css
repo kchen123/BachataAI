@@ -904,3 +904,15 @@
 .log-error {
   color: var(--red) !important;
 }
+
+.processing-cancel {
+  margin-top: 6px;
+  font-size: 9px;
+  padding: 2px 8px;
+  color: var(--red);
+  border-color: var(--red);
+  background: transparent;
+}
+.processing-cancel:hover {
+  background: var(--red-bg);
+}

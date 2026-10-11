@@ -18,6 +18,7 @@ POSE_SERVICE_URL = os.environ.get("POSE_SERVICE_URL", "http://localhost:8080")
 
 # In-memory progress tracking
 _progress = {}
+_cancel = set()  # video_ids that should be cancelled
 
 
 def _get_auth_headers():
@@ -61,6 +62,7 @@ def _run_analysis(video_id, analysis_id, gcs_blob, frame_count, sample_every_n=1
     """Background thread: call GPU pose service, save results to DB."""
     try:
         _progress[video_id] = {"status": "running", "step": "starting", "percent": 0, "log": []}
+        _cancel.discard(video_id)
         _log(video_id, f"Config: every {sample_every_n} frame(s), {resolution}px resolution", 0)
         _log(video_id, "Requesting GPU instance...", 2)
 
@@ -87,6 +89,8 @@ def _run_analysis(video_id, analysis_id, gcs_blob, frame_count, sample_every_n=1
         data = resp.json()
         pose_frames = data["frames"]
         total = len(pose_frames)
+        if video_id in _cancel:
+            raise RuntimeError("Cancelled by user")
         _log(video_id, f"Inference complete — {total} frames analyzed", 50)
         _log(video_id, "Saving keypoints to database...", 55)
 
@@ -112,6 +116,8 @@ def _run_analysis(video_id, analysis_id, gcs_blob, frame_count, sample_every_n=1
                 batch = []
                 pct = 55 + int((i / total) * 40)
                 _log(video_id, f"Saved {i+1}/{total} frames", pct)
+                if video_id in _cancel:
+                    raise RuntimeError("Cancelled by user")
 
         if batch:
             ja.bulk_insert(analysis_id, batch)
@@ -135,13 +141,23 @@ def _run_analysis(video_id, analysis_id, gcs_blob, frame_count, sample_every_n=1
         _progress[video_id]["status"] = "done"
 
     except Exception as e:
+        cancelled = video_id in _cancel
+        _cancel.discard(video_id)
         try:
             repo = Repository()
-            AnalysesAdapter(repo).set_status(analysis_id, "error")
+            # Clean up on cancel
+            if cancelled:
+                repo.execute("DELETE FROM bachata.joint_frames WHERE analysis_id = %s", [analysis_id])
+                repo.execute("DELETE FROM bachata.analyses WHERE id = %s", [analysis_id])
+            else:
+                AnalysesAdapter(repo).set_status(analysis_id, "error")
             repo.close()
         except Exception:
             pass
-        _progress[video_id] = {"status": "error", "error": str(e), "percent": 0}
+        if cancelled:
+            _progress[video_id] = {"status": "cancelled", "percent": 0, "log": ["Cancelled by user"]}
+        else:
+            _progress[video_id] = {"status": "error", "error": str(e), "percent": 0}
 
 
 @analysis_bp.route("/api/videos/<int:video_id>/analyze", methods=["POST"])
@@ -181,6 +197,12 @@ def api_run_analysis(video_id):
     thread.start()
 
     return jsonify({"status": "started", "analysis_id": analysis["id"]}), 202
+
+
+@analysis_bp.route("/api/videos/<int:video_id>/analyze", methods=["DELETE"])
+def api_cancel_analysis(video_id):
+    _cancel.add(video_id)
+    return jsonify({"status": "cancelling"}), 200
 
 
 @analysis_bp.route("/api/videos/<int:video_id>/progress", methods=["GET"])
