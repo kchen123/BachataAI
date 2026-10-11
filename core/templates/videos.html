@@ -113,11 +113,11 @@
            onclick="document.getElementById('uploadFile').click()"
            ondragover="event.preventDefault(); this.classList.add('drag-over')"
            ondragleave="this.classList.remove('drag-over')"
-           ondrop="event.preventDefault(); this.classList.remove('drag-over'); handleUploadFile(event.dataTransfer.files[0])">
+           ondrop="event.preventDefault(); this.classList.remove('drag-over'); handleUploadFiles(event.dataTransfer.files)">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        <p class="upload-drop-text">Drop video here or click to browse</p>
-        <p class="upload-drop-formats">MP4, MOV, AVI, WebM</p>
-        <input type="file" id="uploadFile" accept="video/*" hidden onchange="handleUploadFile(this.files[0])">
+        <p class="upload-drop-text">Drop videos here or click to browse</p>
+        <p class="upload-drop-formats">MP4, MOV, AVI, WebM — multiple files supported</p>
+        <input type="file" id="uploadFile" accept="video/*" multiple hidden onchange="handleUploadFiles(this.files)">
       </div>
       <div class="upload-progress-box hidden" id="uploadProgress">
         <div class="upload-progress-info">
@@ -682,20 +682,34 @@ function toggleAccountEdit() {
   }
 }
 
-// ── Upload ──
-function handleUploadFile(file) {
-  if (!file) return;
-  const progressBox = document.getElementById('uploadProgress');
-  const nameEl = document.getElementById('uploadName');
-  const pctEl = document.getElementById('uploadPct');
-  const fillEl = document.getElementById('uploadFill');
+// ── Upload (bulk) ──
+function handleUploadFiles(files) {
+  if (!files || files.length === 0) return;
   const dropEl = document.getElementById('uploadDrop');
-
+  const progressBox = document.getElementById('uploadProgress');
   dropEl.classList.add('hidden');
   progressBox.classList.remove('hidden');
-  nameEl.textContent = file.name;
-  pctEl.textContent = '0%';
-  fillEl.style.width = '0%';
+  progressBox.innerHTML = '';
+
+  let completed = 0;
+  const total = files.length;
+
+  for (let i = 0; i < files.length; i++) {
+    uploadSingleFile(files[i], i, () => {
+      completed++;
+      if (completed === total) {
+        setTimeout(() => window.location.reload(), 500);
+      }
+    });
+  }
+}
+
+function uploadSingleFile(file, idx, onDone) {
+  const box = document.getElementById('uploadProgress');
+  const row = document.createElement('div');
+  row.className = 'upload-row';
+  row.innerHTML = '<div class="upload-row-info"><span class="upload-row-name">' + file.name + '</span><span class="upload-row-pct" id="uPct' + idx + '">0%</span></div><div class="upload-progress-bar"><div class="upload-progress-fill" id="uFill' + idx + '"></div></div>';
+  box.appendChild(row);
 
   const xhr = new XMLHttpRequest();
   const formData = new FormData();
@@ -705,23 +719,28 @@ function handleUploadFile(file) {
   xhr.upload.addEventListener('progress', (e) => {
     if (e.lengthComputable) {
       const pct = Math.round((e.loaded / e.total) * 100);
-      fillEl.style.width = pct + '%';
-      pctEl.textContent = pct + '%';
+      document.getElementById('uFill' + idx).style.width = pct + '%';
+      document.getElementById('uPct' + idx).textContent = pct + '%';
     }
   });
 
   xhr.addEventListener('load', () => {
+    const pctEl = document.getElementById('uPct' + idx);
+    const fillEl = document.getElementById('uFill' + idx);
     if (xhr.status === 201) {
-      window.location.reload();
+      pctEl.textContent = 'Done';
+      fillEl.style.background = 'var(--green)';
     } else {
-      pctEl.textContent = 'Upload failed';
+      pctEl.textContent = 'Failed';
       fillEl.style.background = 'var(--red)';
     }
+    onDone();
   });
 
   xhr.addEventListener('error', () => {
-    pctEl.textContent = 'Upload failed';
-    fillEl.style.background = 'var(--red)';
+    document.getElementById('uPct' + idx).textContent = 'Failed';
+    document.getElementById('uFill' + idx).style.background = 'var(--red)';
+    onDone();
   });
 
   xhr.open('POST', '/api/videos/upload');

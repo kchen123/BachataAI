@@ -322,6 +322,7 @@
   position: static;
   opacity: 0;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .files-grid.view-list .file-card:hover .file-card-menu { opacity: 1; }
@@ -690,6 +691,31 @@
   background: var(--accent);
   border-radius: 2px;
   transition: width 0.3s;
+}
+
+.upload-row {
+  margin-bottom: 10px;
+}
+
+.upload-row-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.upload-row-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  margin-right: 8px;
+}
+
+.upload-row-pct {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── Video Player Modal ─────────────────────────────────────────────── */
