@@ -141,7 +141,7 @@
   box-shadow: none;
 }
 
-.hidden { display: none; }
+.hidden { display: none !important; }
 
 /* ── File Browser ────────────────────────────────────────────────────── */
 
@@ -945,7 +945,7 @@
   overflow: hidden;
 }
 
-.jobs-panel.hidden { display: none; }
+.jobs-panel.hidden { display: none !important; }
 
 .jobs-panel-header {
   display: flex;
