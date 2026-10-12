@@ -139,7 +139,8 @@
     <div class="video-modal-header">
       <span class="video-modal-title" id="videoTitle"></span>
       <div class="video-header-controls">
-        <label class="pose-toggle">
+        <button class="btn btn-sm video-header-btn hidden" id="poseAnalyze" onclick="runAnalysis()">Analyze</button>
+        <label class="pose-toggle hidden" id="poseToggleWrap">
           <input type="checkbox" id="poseToggle" onchange="togglePose()">
           <span>Skeleton</span>
         </label>
@@ -414,10 +415,19 @@ async function playVideo(videoId, url, title) {
   } catch (e) {}
   poseLoading = false;
 
-  // Show re-run button if analysis exists
+  // Show correct controls based on pose data
+  const analyzeBtn = document.getElementById('poseAnalyze');
+  const toggleWrap = document.getElementById('poseToggleWrap');
   const rerunBtn = document.getElementById('poseRerun');
-  if (poseHasAnalysis) rerunBtn.classList.remove('hidden');
-  else rerunBtn.classList.add('hidden');
+  if (poseHasAnalysis) {
+    analyzeBtn.classList.add('hidden');
+    toggleWrap.classList.remove('hidden');
+    rerunBtn.classList.remove('hidden');
+  } else {
+    analyzeBtn.classList.remove('hidden');
+    toggleWrap.classList.add('hidden');
+    rerunBtn.classList.add('hidden');
+  }
 
   // Start drawing loop
   player.addEventListener('play', startPoseLoop);
