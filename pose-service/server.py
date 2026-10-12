@@ -46,12 +46,18 @@ def health():
 
 
 def _write_progress(bucket, video_id, data):
-    """Write progress JSON to GCS."""
+    """Write progress JSON to GCS. Skips if already cancelled."""
     try:
         blob = bucket.blob(f"progress/{video_id}.json")
+        # Don't overwrite a cancel flag
+        if blob.exists():
+            current = json.loads(blob.download_as_bytes())
+            if current.get("status") == "cancelled":
+                return False  # Signal caller to stop
         blob.upload_from_string(json.dumps(data), content_type="application/json")
+        return True
     except Exception:
-        pass
+        return True
 
 
 def _run_analysis(req: AnalyzeRequest):
@@ -144,32 +150,27 @@ def _run_analysis(req: AnalyzeRequest):
 
                 # Update progress + check cancel every 200 processed frames
                 if processed % 200 == 0:
-                    # Check cancel flag
-                    try:
-                        prog_blob = bucket.blob(f"progress/{req.video_id}.json")
-                        if prog_blob.exists():
-                            prog = json.loads(prog_blob.download_as_bytes())
-                            if prog.get("status") == "cancelled":
-                                cap.release()
-                                return {"status": "cancelled", "video_id": req.video_id}
-                    except Exception:
-                        pass
-
                     pct = 10 + int((processed / max(frames_to_process, 1)) * 75)
-                    _write_progress(bucket, req.video_id, {
+                    alive = _write_progress(bucket, req.video_id, {
                         "status": "running", "percent": min(pct, 85),
                         "step": f"Analyzed {processed}/{frames_to_process} frames ({min(pct, 85)}%)"
                     })
+                    if not alive:
+                        # Cancelled
+                        cap.release()
+                        return {"status": "cancelled", "video_id": req.video_id}
 
             frame_num += 1
 
         cap.release()
 
-        # Save pose data to GCS
-        _write_progress(bucket, req.video_id, {
+        # Check cancel before saving
+        alive = _write_progress(bucket, req.video_id, {
             "status": "running", "percent": 90,
             "step": f"Saving {len(frames)} frames to storage..."
         })
+        if not alive:
+            return {"status": "cancelled", "video_id": req.video_id}
 
         pose_data = json.dumps({
             "frame_count": frame_num,
