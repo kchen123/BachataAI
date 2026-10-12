@@ -71,27 +71,42 @@ def predict_video(req: PredictRequest):
                 h, w = frame.shape[:2]
                 results = MODEL(frame, verbose=False, imgsz=req.resolution)
 
-                keypoints = {}
+                persons = []
                 if results and results[0].keypoints is not None:
                     kpts = results[0].keypoints
-                    if kpts.xy is not None and len(kpts.xy) > 0:
-                        xy = kpts.xy[0]
-                        conf = kpts.conf[0] if kpts.conf is not None else None
+                    boxes = results[0].boxes
+                    num_persons = len(kpts.xy) if kpts.xy is not None else 0
 
+                    for p_idx in range(num_persons):
+                        xy = kpts.xy[p_idx]
+                        conf = kpts.conf[p_idx] if kpts.conf is not None else None
+                        # Get bbox center x for left/right tracking
+                        cx = 0.5
+                        if boxes is not None and len(boxes.xyxy) > p_idx:
+                            box = boxes.xyxy[p_idx]
+                            cx = float((box[0] + box[2]) / 2) / w
+
+                        person_kpts = {}
                         for i in range(len(xy)):
                             x_px, y_px = float(xy[i][0]), float(xy[i][1])
                             vis = float(conf[i]) if conf is not None else 1.0
-                            keypoints[str(i)] = {
+                            person_kpts[str(i)] = {
                                 "x": round(x_px / w, 5),
                                 "y": round(y_px / h, 5),
                                 "z": 0.0,
                                 "visibility": round(vis, 3),
                             }
+                        persons.append({"keypoints": person_kpts, "center_x": round(cx, 4)})
+
+                # Sort by center_x so left person is always index 0
+                persons.sort(key=lambda p: p["center_x"])
 
                 frames.append({
                     "frame_num": frame_num,
                     "timestamp_sec": round(frame_num / fps, 4),
-                    "keypoints": keypoints,
+                    "persons": persons,
+                    # Keep backward compat: first person as "keypoints"
+                    "keypoints": persons[0]["keypoints"] if persons else {},
                 })
 
             frame_num += 1

@@ -144,7 +144,7 @@
           <input type="checkbox" id="poseToggle" onchange="togglePose()">
           <span>Skeleton</span>
         </label>
-        <button class="btn btn-sm video-header-btn hidden" id="poseRerun" onclick="openAnalyzeModal(true)">Re-run</button>
+        <button class="btn btn-sm video-header-btn hidden" id="poseRerun" onclick="runAnalysis()">Re-run</button>
         <button class="btn btn-sm video-header-btn video-close-btn" onclick="closeVideo()">&times;</button>
       </div>
     </div>
@@ -155,37 +155,6 @@
   </div>
 </div>
 
-<!-- Analyze Config Modal -->
-<div class="modal-overlay" id="analyzeModal" onclick="if(event.target===this)closeAnalyzeModal()">
-  <div class="files-modal">
-    <h3 id="analyzeTitle">Pose Estimation</h3>
-    <p class="analyze-desc" id="analyzeDesc">GPU-accelerated skeleton analysis using YOLO26x-Pose.</p>
-    <div class="analyze-config">
-      <div class="analyze-row">
-        <span class="analyze-label">Sampling</span>
-        <select id="cfgSampleRate">
-          <option value="1" selected>Every frame</option>
-          <option value="2">Every 2nd frame</option>
-          <option value="5">Every 5th frame</option>
-          <option value="10">Every 10th frame</option>
-        </select>
-        <span class="analyze-hint">Lower = more accurate, slower</span>
-      </div>
-      <div class="analyze-row">
-        <span class="analyze-label">Resolution</span>
-        <select id="cfgResolution">
-          <option value="1280" selected>1280px</option>
-          <option value="640">640px</option>
-        </select>
-        <span class="analyze-hint">Higher = better detail</span>
-      </div>
-    </div>
-    <div class="files-modal-actions">
-      <button class="btn btn-sm" onclick="closeAnalyzeModal()">Cancel</button>
-      <button class="btn btn-sm btn-accent" onclick="confirmAnalysis()">Run Analysis</button>
-    </div>
-  </div>
-</div>
 
 <!-- Account Modal -->
 <div class="modal-overlay" id="accountModal" onclick="if(event.target===this)this.classList.remove('open')">
@@ -469,28 +438,8 @@ function closeVideo() {
   document.getElementById('videoModal').classList.remove('open');
 }
 
-function openAnalyzeModal(isRerun) {
-  const title = document.getElementById('analyzeTitle');
-  const desc = document.getElementById('analyzeDesc');
-  if (isRerun) {
-    title.textContent = 'Re-run Pose Estimation';
-    desc.textContent = 'Re-analyze this video with new settings. Previous results will be replaced.';
-  } else {
-    title.textContent = 'Run Pose Estimation';
-    desc.textContent = 'Run GPU-accelerated skeleton analysis on this video.';
-  }
-  document.getElementById('analyzeModal').classList.add('open');
-}
-
-function closeAnalyzeModal() {
-  document.getElementById('analyzeModal').classList.remove('open');
-}
-
-function confirmAnalysis() {
-  const sampleRate = document.getElementById('cfgSampleRate').value;
-  const resolution = document.getElementById('cfgResolution').value;
-  closeAnalyzeModal();
-  triggerAnalysis(currentVideoId, parseInt(sampleRate), parseInt(resolution));
+function runAnalysis() {
+  triggerAnalysis(currentVideoId, 2, 1280);
 }
 
 function showProcessingCard(videoId, label) {
@@ -572,8 +521,8 @@ async function triggerAnalysis(videoId, sampleRate, resolution) {
     try {
       const res = await fetch('/api/videos/' + videoId + '/progress');
       const p = await res.json();
-      if (p.status === 'running') {
-        showProcessingCard(videoId, p.step || 'Processing...');
+      if (p.status === 'running' || p.status === 'queued') {
+        showProcessingCard(videoId, p.step || 'Queued...');
         pollProgress(videoId);
       }
     } catch (e) {}
@@ -593,7 +542,7 @@ async function togglePose() {
   } else if (!poseHasAnalysis) {
     document.getElementById('poseToggle').checked = false;
     poseVisible = false;
-    openAnalyzeModal(false);
+    runAnalysis();
   } else {
     // Load pose data if not loaded yet
     if (!poseFrames) {
@@ -652,39 +601,55 @@ function drawCurrentPose() {
     if (f.timestamp_sec > currentTime + 1) break;
   }
 
-  const rawLm = closest.keypoints || closest.landmarks;
-  if (!closest || !rawLm) return;
-  const lm = typeof rawLm === 'string' ? JSON.parse(rawLm) : rawLm;
+  if (!closest) return;
 
-  // Draw skeleton
+  // Get all persons (multi-person) or fall back to single keypoints
+  const persons = closest.persons || [{ keypoints: closest.keypoints || closest.landmarks }];
+  if (!persons.length) return;
+
   const w = canvas.width;
   const h = canvas.height;
 
-  // Draw connections
-  ctx.strokeStyle = '#00ff88';
-  ctx.lineWidth = 2;
-  ctx.shadowColor = '#00ff88';
-  ctx.shadowBlur = 4;
-  for (const [a, b] of SKELETON_CONNECTIONS) {
-    const pa = lm[a] || lm[String(a)];
-    const pb = lm[b] || lm[String(b)];
-    if (!pa || !pb) continue;
-    if (pa.visibility < 0.3 || pb.visibility < 0.3) continue;
-    ctx.beginPath();
-    ctx.moveTo(pa.x * w, pa.y * h);
-    ctx.lineTo(pb.x * w, pb.y * h);
-    ctx.stroke();
-  }
+  // Colors: left person = green, right person = blue, others = purple
+  const COLORS = [
+    { line: '#00ff88', dot: '#00ffaa', shadow: '#00ff88' },  // green (left)
+    { line: '#4da6ff', dot: '#66b3ff', shadow: '#4da6ff' },  // blue (right)
+    { line: '#cc66ff', dot: '#dd88ff', shadow: '#cc66ff' },  // purple
+    { line: '#ffcc00', dot: '#ffdd44', shadow: '#ffcc00' },  // yellow
+  ];
 
-  // Draw keypoints
-  ctx.shadowBlur = 0;
-  for (let i = 0; i < 17; i++) {
-    const p = lm[i] || lm[String(i)];
-    if (!p || p.visibility < 0.3) continue;
-    ctx.fillStyle = '#ff8800';
-    ctx.beginPath();
-    ctx.arc(p.x * w, p.y * h, 4, 0, Math.PI * 2);
-    ctx.fill();
+  for (let pIdx = 0; pIdx < persons.length; pIdx++) {
+    const rawLm = persons[pIdx].keypoints;
+    if (!rawLm) continue;
+    const lm = typeof rawLm === 'string' ? JSON.parse(rawLm) : rawLm;
+    const color = COLORS[pIdx] || COLORS[COLORS.length - 1];
+
+    // Draw connections
+    ctx.strokeStyle = color.line;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = color.shadow;
+    ctx.shadowBlur = 4;
+    for (const [a, b] of SKELETON_CONNECTIONS) {
+      const pa = lm[a] || lm[String(a)];
+      const pb = lm[b] || lm[String(b)];
+      if (!pa || !pb) continue;
+      if (pa.visibility < 0.3 || pb.visibility < 0.3) continue;
+      ctx.beginPath();
+      ctx.moveTo(pa.x * w, pa.y * h);
+      ctx.lineTo(pb.x * w, pb.y * h);
+      ctx.stroke();
+    }
+
+    // Draw keypoints
+    ctx.shadowBlur = 0;
+    for (let i = 0; i < 17; i++) {
+      const p = lm[i] || lm[String(i)];
+      if (!p || p.visibility < 0.3) continue;
+      ctx.fillStyle = color.dot;
+      ctx.beginPath();
+      ctx.arc(p.x * w, p.y * h, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 }
 
@@ -817,12 +782,7 @@ async function uploadSingleFile(file, idx, onDone) {
     const urlData = await urlRes.json();
     const { upload_url, content_type } = urlData;
 
-    if (urlData.warning) {
-      pctEl.textContent = 'Duplicate';
-      pctEl.style.color = 'var(--amber)';
-    }
-
-    pctEl.textContent = 'Uploading...';
+    pctEl.textContent = '0%';
 
     // Step 2: Upload directly to GCS via resumable URL
     await new Promise((resolve, reject) => {
@@ -844,11 +804,11 @@ async function uploadSingleFile(file, idx, onDone) {
       xhr.send(file);
     });
 
-    pctEl.textContent = 'Done';
+    pctEl.textContent = '100%';
     fillEl.style.background = 'var(--green)';
   } catch (e) {
     console.error('Upload error:', e);
-    pctEl.textContent = 'Failed';
+    pctEl.textContent = '0%';
     fillEl.style.background = 'var(--red)';
   }
   onDone();
