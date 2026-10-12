@@ -781,33 +781,31 @@
   opacity: 0.85;
 }
 
-.file-card-pose {
+.file-card-pose-col {
   display: flex;
   align-items: center;
   gap: 6px;
+  width: 90px;
   flex-shrink: 0;
 }
 
-.file-card-analyze, .file-card-rerun {
+.pose-label {
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--mono);
+}
+.pose-yes { color: var(--green); }
+.pose-no { color: var(--text-muted); }
+
+.pose-action {
   font-size: 9px !important;
   padding: 2px 8px !important;
-  flex-shrink: 0;
-}
-.file-card-analyze { color: var(--accent); border-color: var(--accent); }
-.file-card-analyze:hover { background: var(--accent-bg); }
-.file-card-rerun { color: var(--text-muted); }
-.file-card-rerun:hover { color: var(--accent); border-color: var(--accent); }
-
-.file-card-skeleton {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 10px;
   color: var(--text-muted);
-  cursor: pointer;
   flex-shrink: 0;
 }
-.file-card-skeleton input { cursor: pointer; }
+.pose-action:hover { color: var(--accent); border-color: var(--accent); }
+
+.files-grid.view-grid .file-card-pose-col { display: none; }
 
 .processing-status {
   display: block;

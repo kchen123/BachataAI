@@ -75,14 +75,11 @@
       <svg class="file-card-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#64c8ff" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
       <span class="file-card-name">{{ v.title }}</span>
       <span class="file-card-meta">{{ v.duration_sec|int // 60 }}:{{ '%02d' % (v.duration_sec|int % 60) if v.duration_sec else '--' }}</span>
-      <span class="file-card-date">{{ v.created_at.strftime('%b %d, %Y') if v.created_at else '' }}</span>
-      <span class="file-card-pose hidden" data-vid="{{ v.id }}">
-        <button class="btn btn-sm file-card-analyze" onclick="event.stopPropagation(); runAnalysis({{ v.id }})">Analyze</button>
-        <label class="file-card-skeleton hidden" onclick="event.stopPropagation();">
-          <input type="checkbox" onchange="toggleCardSkeleton({{ v.id }}, this.checked)"> Skeleton
-        </label>
-        <button class="btn btn-sm file-card-rerun hidden" onclick="event.stopPropagation(); runAnalysis({{ v.id }})">Re-run</button>
+      <span class="file-card-pose-col" data-vid="{{ v.id }}">
+        <span class="pose-label">—</span>
+        <button class="btn btn-sm pose-action hidden" onclick="event.stopPropagation(); runAnalysis({{ v.id }})">Analyze</button>
       </span>
+      <span class="file-card-date">{{ v.created_at.strftime('%b %d, %Y') if v.created_at else '' }}</span>
       <button class="file-card-menu" onclick="event.stopPropagation(); toggleDropdown(this);">&vellip;</button>
       <div class="file-dropdown">
         <button onclick="event.stopPropagation(); startRename('video', {{ v.id }}, '{{ v.title }}')">Rename</button>
@@ -409,12 +406,6 @@ async function playVideo(videoId, url, title) {
   poseVisible = false;
   document.getElementById('poseToggle').checked = false;
 
-  // Check if skeleton was toggled on from the card
-  if (window._skeletonOn && window._skeletonOn[videoId]) {
-    document.getElementById('poseToggle').checked = true;
-    poseVisible = true;
-  }
-
   // Check if analysis exists (lightweight, no pose data yet)
   try {
     const res = await fetch('/api/videos/' + videoId + '/analysis');
@@ -570,33 +561,31 @@ async function triggerAnalysis(videoId, sampleRate, resolution) {
   });
 })();
 
-// Show Analyze or Skeleton+Re-run on each video card
+// Check pose status for each video card
 (function checkPoseStatus() {
-  document.querySelectorAll('.file-card-pose').forEach(async (span) => {
-    const videoId = span.dataset.vid;
-    span.classList.remove('hidden');
+  document.querySelectorAll('.file-card-pose-col').forEach(async (col) => {
+    const videoId = col.dataset.vid;
+    const label = col.querySelector('.pose-label');
+    const btn = col.querySelector('.pose-action');
     try {
       const res = await fetch('/api/videos/' + videoId + '/analysis');
       if (res.ok) {
         const analysis = await res.json();
         if (analysis.status === 'done') {
-          // Has pose data — show skeleton checkbox + re-run
-          span.querySelector('.file-card-analyze').classList.add('hidden');
-          span.querySelector('.file-card-skeleton').classList.remove('hidden');
-          span.querySelector('.file-card-rerun').classList.remove('hidden');
+          label.textContent = 'Yes';
+          label.classList.add('pose-yes');
+          btn.textContent = 'Re-run';
+          btn.classList.remove('hidden');
           return;
         }
       }
     } catch (e) {}
-    // No pose data — show analyze button (already visible by default)
+    label.textContent = 'No';
+    label.classList.add('pose-no');
+    btn.textContent = 'Analyze';
+    btn.classList.remove('hidden');
   });
 })();
-
-function toggleCardSkeleton(videoId, checked) {
-  // Store preference — will be used when video is opened
-  window._skeletonOn = window._skeletonOn || {};
-  window._skeletonOn[videoId] = checked;
-}
 
 async function togglePose() {
   poseVisible = document.getElementById('poseToggle').checked;
