@@ -399,6 +399,8 @@ async function playVideo(videoId, url, title) {
   poseFrames = null;
   poseLoading = true;
   poseHasAnalysis = false;
+  poseVisible = false;
+  document.getElementById('poseToggle').checked = false;
 
   // Check if analysis exists (lightweight, no pose data yet)
   try {
