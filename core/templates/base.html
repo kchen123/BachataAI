@@ -77,6 +77,14 @@
   async function deleteJobPanel(id) {
     await fetch('/api/admin/jobs/' + id, { method: 'DELETE' });
     refreshJobsPanel();
+    // Clear processing cards
+    document.querySelectorAll('.file-card.processing').forEach(card => {
+      card.classList.remove('processing');
+      ['processing-bar','processing-log','processing-cancel'].forEach(cls => {
+        const el = card.querySelector('.' + cls);
+        if (el) el.remove();
+      });
+    });
   }
 
   async function cleanupJobsPanel() {

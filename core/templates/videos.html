@@ -503,6 +503,8 @@ async function cancelAnalysis(videoId) {
     if (log) log.remove();
     if (cancel) cancel.remove();
   }
+  // Sync jobs panel
+  if (typeof refreshJobsPanel === 'function') refreshJobsPanel();
 }
 
 async function triggerAnalysis(videoId, sampleRate, resolution) {
