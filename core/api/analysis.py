@@ -17,6 +17,7 @@ import os
 import json
 import threading
 import requests
+from datetime import datetime, timezone, timedelta
 import google.auth.transport.requests
 import google.oauth2.id_token
 from flask import Blueprint, request, jsonify, Response
@@ -183,7 +184,6 @@ def api_get_progress(video_id):
         if analysis["status"] == "running":
             # DB says running but no GCS progress — GPU hasn't started yet or died
             # Check if it's been too long (30 min timeout)
-            from datetime import datetime, timezone, timedelta
             created = analysis.get("created_at")
             if created and (datetime.now(timezone.utc) - created) > timedelta(minutes=30):
                 AnalysesAdapter(repo).set_status(analysis["id"], "error")

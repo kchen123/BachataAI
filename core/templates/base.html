@@ -80,10 +80,10 @@
     // Clear processing cards
     document.querySelectorAll('.file-card.processing').forEach(card => {
       card.classList.remove('processing');
-      ['processing-bar','processing-log','processing-cancel'].forEach(cls => {
-        const el = card.querySelector('.' + cls);
-        if (el) el.remove();
-      });
+      const s = card.querySelector('.processing-status');
+      const c = card.querySelector('.processing-cancel');
+      if (s) s.remove();
+      if (c) c.remove();
     });
   }
 
