@@ -51,9 +51,11 @@ def _auth_headers():
 def _read_progress(video_id):
     """Read progress from GCS. Returns dict or None."""
     try:
-        blob = _gcs().bucket(BUCKET_NAME).blob(f"progress/{video_id}.json")
-        if blob.exists():
-            return json.loads(blob.download_as_bytes())
+        # Use fresh client call to avoid stale reads
+        bucket = _gcs().bucket(BUCKET_NAME)
+        blob = bucket.blob(f"progress/{video_id}.json")
+        blob.reload()  # Force fetch latest metadata
+        return json.loads(blob.download_as_bytes(if_generation_match=blob.generation))
     except Exception:
         pass
     return None
