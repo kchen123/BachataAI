@@ -144,6 +144,11 @@
           <input type="checkbox" id="poseToggle" onchange="togglePose()">
           <span>Skeleton</span>
         </label>
+        <select class="btn btn-sm video-header-btn hidden" id="poseMaxPersons" onchange="updateMaxPersons()" title="Max persons to track">
+          <option value="1">1 person</option>
+          <option value="2" selected>2 persons</option>
+          <option value="0">All</option>
+        </select>
         <button class="btn btn-sm video-header-btn hidden" id="poseRerun" onclick="runAnalysis()">Re-run</button>
         <button class="btn btn-sm video-header-btn video-close-btn" onclick="closeVideo()">&times;</button>
       </div>
@@ -431,13 +436,16 @@ async function playVideo(videoId, url, title) {
   const analyzeBtn = document.getElementById('poseAnalyze');
   const toggleWrap = document.getElementById('poseToggleWrap');
   const rerunBtn = document.getElementById('poseRerun');
+  const maxPersonsSelect = document.getElementById('poseMaxPersons');
   if (poseHasAnalysis) {
     analyzeBtn.classList.add('hidden');
     toggleWrap.classList.remove('hidden');
+    maxPersonsSelect.classList.remove('hidden');
     rerunBtn.classList.remove('hidden');
   } else {
     analyzeBtn.classList.remove('hidden');
     toggleWrap.classList.add('hidden');
+    maxPersonsSelect.classList.add('hidden');
     rerunBtn.classList.add('hidden');
   }
 
@@ -463,6 +471,12 @@ function closeVideo() {
 
 function runAnalysis(videoId) {
   triggerAnalysis(videoId || currentVideoId, 2, 640);
+}
+
+let maxPersons = 2;
+function updateMaxPersons() {
+  maxPersons = parseInt(document.getElementById('poseMaxPersons').value) || 0;
+  if (poseVisible) drawCurrentPose();
 }
 
 function showProcessingCard(videoId) {
@@ -682,8 +696,13 @@ function drawCurrentPose() {
   if (!closest) return;
 
   // Get all persons (multi-person) or fall back to single keypoints
-  const persons = closest.persons || [{ keypoints: closest.keypoints || closest.landmarks }];
+  let persons = closest.persons || [{ keypoints: closest.keypoints || closest.landmarks }];
   if (!persons.length) return;
+
+  // Filter to max persons (largest bounding boxes = most prominent dancers)
+  if (maxPersons > 0 && persons.length > maxPersons) {
+    persons = persons.slice(0, maxPersons);
+  }
 
   const w = canvas.width;
   const h = canvas.height;

@@ -123,9 +123,11 @@ def _run_analysis(req: AnalyzeRequest):
                         xy = kpts.xy[p_idx]
                         conf = kpts.conf[p_idx] if kpts.conf is not None else None
                         cx = 0.5
+                        bbox_area = 0
                         if boxes is not None and len(boxes.xyxy) > p_idx:
                             box = boxes.xyxy[p_idx]
                             cx = float((box[0] + box[2]) / 2) / w
+                            bbox_area = float((box[2] - box[0]) * (box[3] - box[1])) / (w * h)
 
                         person_kpts = {}
                         for i in range(len(xy)):
@@ -137,9 +139,10 @@ def _run_analysis(req: AnalyzeRequest):
                                 "z": 0.0,
                                 "visibility": round(vis, 3),
                             }
-                        persons.append({"keypoints": person_kpts, "center_x": round(cx, 4)})
+                        persons.append({"keypoints": person_kpts, "center_x": round(cx, 4), "bbox_area": round(bbox_area, 4)})
 
-                persons.sort(key=lambda p: p["center_x"])
+                # Sort by bbox area (largest first) then by center_x for stable ordering
+                persons.sort(key=lambda p: (-p["bbox_area"], p["center_x"]))
 
                 frames.append({
                     "frame_num": frame_num,
