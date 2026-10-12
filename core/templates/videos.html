@@ -76,7 +76,13 @@
       <span class="file-card-name">{{ v.title }}</span>
       <span class="file-card-meta">{{ v.duration_sec|int // 60 }}:{{ '%02d' % (v.duration_sec|int % 60) if v.duration_sec else '--' }}</span>
       <span class="file-card-date">{{ v.created_at.strftime('%b %d, %Y') if v.created_at else '' }}</span>
-      <button class="btn btn-sm file-card-analyze hidden" data-vid="{{ v.id }}" onclick="event.stopPropagation(); runAnalysis({{ v.id }})">Analyze</button>
+      <span class="file-card-pose hidden" data-vid="{{ v.id }}">
+        <button class="btn btn-sm file-card-analyze" onclick="event.stopPropagation(); runAnalysis({{ v.id }})">Analyze</button>
+        <label class="file-card-skeleton hidden" onclick="event.stopPropagation();">
+          <input type="checkbox" onchange="toggleCardSkeleton({{ v.id }}, this.checked)"> Skeleton
+        </label>
+        <button class="btn btn-sm file-card-rerun hidden" onclick="event.stopPropagation(); runAnalysis({{ v.id }})">Re-run</button>
+      </span>
       <button class="file-card-menu" onclick="event.stopPropagation(); toggleDropdown(this);">&vellip;</button>
       <div class="file-dropdown">
         <button onclick="event.stopPropagation(); startRename('video', {{ v.id }}, '{{ v.title }}')">Rename</button>
@@ -403,6 +409,12 @@ async function playVideo(videoId, url, title) {
   poseVisible = false;
   document.getElementById('poseToggle').checked = false;
 
+  // Check if skeleton was toggled on from the card
+  if (window._skeletonOn && window._skeletonOn[videoId]) {
+    document.getElementById('poseToggle').checked = true;
+    poseVisible = true;
+  }
+
   // Check if analysis exists (lightweight, no pose data yet)
   try {
     const res = await fetch('/api/videos/' + videoId + '/analysis');
@@ -558,20 +570,33 @@ async function triggerAnalysis(videoId, sampleRate, resolution) {
   });
 })();
 
-// Show Analyze button on videos without pose data
+// Show Analyze or Skeleton+Re-run on each video card
 (function checkPoseStatus() {
-  document.querySelectorAll('.file-card-analyze').forEach(async (btn) => {
-    const videoId = btn.dataset.vid;
+  document.querySelectorAll('.file-card-pose').forEach(async (span) => {
+    const videoId = span.dataset.vid;
+    span.classList.remove('hidden');
     try {
       const res = await fetch('/api/videos/' + videoId + '/analysis');
-      if (!res.ok || (await res.json()).status !== 'done') {
-        btn.classList.remove('hidden');
+      if (res.ok) {
+        const analysis = await res.json();
+        if (analysis.status === 'done') {
+          // Has pose data — show skeleton checkbox + re-run
+          span.querySelector('.file-card-analyze').classList.add('hidden');
+          span.querySelector('.file-card-skeleton').classList.remove('hidden');
+          span.querySelector('.file-card-rerun').classList.remove('hidden');
+          return;
+        }
       }
-    } catch (e) {
-      btn.classList.remove('hidden');
-    }
+    } catch (e) {}
+    // No pose data — show analyze button (already visible by default)
   });
 })();
+
+function toggleCardSkeleton(videoId, checked) {
+  // Store preference — will be used when video is opened
+  window._skeletonOn = window._skeletonOn || {};
+  window._skeletonOn[videoId] = checked;
+}
 
 async function togglePose() {
   poseVisible = document.getElementById('poseToggle').checked;
