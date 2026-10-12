@@ -112,9 +112,13 @@ def api_run_analysis(video_id):
     if prog and prog.get("status") == "running":
         return jsonify({"error": "analysis already running"}), 409
 
-    # Clean slate: delete old progress, pose file, and DB records
+    # Clean slate: delete old progress, pose file, cancel flag, and DB records
     _delete_progress(video_id)
     _delete_pose_file(video_id)
+    try:
+        _gcs().bucket(BUCKET_NAME).blob(f"cancel/{video_id}").delete()
+    except Exception:
+        pass
 
     aa = AnalysesAdapter(repo)
     for old in aa.select(video_id=video_id):
@@ -154,16 +158,14 @@ def api_run_analysis(video_id):
 
 @analysis_bp.route("/api/videos/<int:video_id>/analyze", methods=["DELETE"])
 def api_cancel_analysis(video_id):
-    # Write cancel flag to GCS — GPU checks this every 200 frames
+    # Write separate cancel flag file — GPU checks this every 200 frames
     try:
-        blob = _gcs().bucket(BUCKET_NAME).blob(f"progress/{video_id}.json")
-        blob.upload_from_string(
-            json.dumps({"status": "cancelled", "percent": 0, "step": "Cancelled by user"}),
-            content_type="application/json")
+        blob = _gcs().bucket(BUCKET_NAME).blob(f"cancel/{video_id}")
+        blob.upload_from_string("1", content_type="text/plain")
     except Exception:
         pass
 
-    # Clean up: delete DB record, pose file, progress file
+    # Clean up: delete DB record, pose file
     repo = get_repo()
     aa = AnalysesAdapter(repo)
     for a in aa.select(video_id=video_id):

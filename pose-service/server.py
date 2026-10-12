@@ -46,15 +46,14 @@ def health():
 
 
 def _write_progress(bucket, video_id, data, force=False):
-    """Write progress JSON to GCS. Returns False if cancelled (caller should stop).
-    Use force=True for error writes that must always go through.
-    """
+    """Write progress JSON to GCS. Returns False if cancelled (caller should stop)."""
     try:
-        blob = bucket.blob(f"progress/{video_id}.json")
-        if not force and blob.exists():
-            current = json.loads(blob.download_as_bytes())
-            if current.get("status") == "cancelled":
+        # Check separate cancel flag file
+        if not force:
+            cancel_blob = bucket.blob(f"cancel/{video_id}")
+            if cancel_blob.exists():
                 return False
+        blob = bucket.blob(f"progress/{video_id}.json")
         blob.upload_from_string(json.dumps(data), content_type="application/json")
         return True
     except Exception:
