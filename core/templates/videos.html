@@ -159,11 +159,11 @@
 <!-- Cancel Confirm Modal -->
 <div class="modal-overlay" id="cancelModal" onclick="if(event.target===this)closeCancelModal()">
   <div class="files-modal">
-    <h3>Cancel Analysis</h3>
-    <p class="analyze-desc">This will stop the GPU job and delete any partial results. Are you sure?</p>
-    <div class="files-modal-actions">
-      <button class="btn btn-sm" onclick="closeCancelModal()">Keep Running</button>
-      <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="confirmCancel()">Cancel Job</button>
+    <h3 style="margin-bottom:12px">Cancel Analysis</h3>
+    <p class="analyze-desc" style="margin-bottom:24px">This will stop the GPU job and delete any partial results.</p>
+    <div class="files-modal-actions" style="gap:12px">
+      <button class="btn btn-sm" style="padding:6px 16px" onclick="closeCancelModal()">Keep Running</button>
+      <button class="btn btn-sm" style="padding:6px 16px;color:var(--red);border-color:var(--red)" onclick="confirmCancel()">Cancel Job</button>
     </div>
   </div>
 </div>
