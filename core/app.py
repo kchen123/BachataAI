@@ -8,6 +8,7 @@ from flask import Flask, g, session, request, redirect, url_for
 from core.api.auth import auth_bp
 from core.api.videos import videos_bp
 from core.api.analysis import analysis_bp
+from core.api.scores import scores_bp
 
 
 def _run_migrations():
@@ -51,6 +52,7 @@ def create_app():
     app.register_blueprint(auth_bp)
     app.register_blueprint(videos_bp)
     app.register_blueprint(analysis_bp)
+    app.register_blueprint(scores_bp)
 
     @app.before_request
     def require_login():

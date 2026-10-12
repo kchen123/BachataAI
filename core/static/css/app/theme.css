@@ -138,6 +138,24 @@
   --u-sp-4: 16px;
   --u-sp-5: 24px;
   --u-sp-6: 32px;
+
+  /* Table tokens */
+  --u-fs-xs: 0.6rem;
+  --u-fs-sm: 0.68rem;
+  --u-fs-md: 0.75rem;
+  --u-fs-lg: 0.85rem;
+  --u-pad-head: 6px 10px;
+  --u-pad-cell: 5px 10px;
+  --u-border-head: 2px solid var(--border);
+  --u-cell-border: 1px solid var(--border-light);
+  --u-cell-sep: 1px solid var(--border-light);
+  --u-row-hover: rgba(255,255,255,0.02);
+  --u-row-active: rgba(255,136,0,0.06);
+  --u-pad-btn-sm: 4px 10px;
+  --u-pad-btn-md: 6px 14px;
+  --u-pad-btn-lg: 8px 18px;
+  --u-disabled-op: 0.4;
+  --dbg-bg: #1a1e26;
 }
 
 /* ---- Flat button & select reset ---- */

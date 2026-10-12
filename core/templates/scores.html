@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Scores{% endblock %}
+
+{% block content %}
+<div class="statusbar">
+  <div class="brand">
+    <span class="pulse" title="live"></span>
+    <span class="ticker">BACHATA&middot;AI/SCORES</span>
+  </div>
+  <div class="clock" id="mainClock">
+    <span class="time">--:--:--</span>
+    <span class="tz">ET</span>
+  </div>
+</div>
+
+<div class="scores-toolbar">
+  <input type="text" class="search-input" id="scorecardSearch" placeholder="Search scorecards…">
+  <button class="btn-add-scorecard" id="btnAddScorecard" title="New scorecard">+</button>
+</div>
+
+<table class="app-table" id="scorecardsTable">
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Name</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for sc in scorecards %}
+    <tr>
+      <td class="id-col">{{ sc.id }}</td>
+      <td class="name-col">{{ sc.name }}</td>
+    </tr>
+    {% else %}
+    <tr>
+      <td colspan="2">No scorecards yet.</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+  const search = document.getElementById('scorecardSearch');
+  const tbody = document.querySelector('#scorecardsTable tbody');
+
+  // Search filter
+  search.addEventListener('input', () => {
+    const q = search.value.toLowerCase();
+    tbody.querySelectorAll('tr').forEach(tr => {
+      const name = tr.querySelector('.name-col');
+      if (!name) return;
+      tr.style.display = name.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+  });
+
+  // Add scorecard
+  document.getElementById('btnAddScorecard').addEventListener('click', async () => {
+    const name = prompt('Scorecard name:');
+    if (!name || !name.trim()) return;
+    const res = await fetch('/api/scorecards', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name: name.trim()})
+    });
+    if (res.ok) {
+      const sc = await res.json();
+      const empty = tbody.querySelector('tr td[colspan]');
+      if (empty) empty.closest('tr').remove();
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td class="id-col">${sc.id}</td><td class="name-col">${sc.name}</td>`;
+      tbody.appendChild(tr);
+    }
+  });
+})();
+</script>
+{% endblock %}

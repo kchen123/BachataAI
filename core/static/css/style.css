@@ -927,3 +927,110 @@
 .processing-cancel:hover {
   background: var(--red-bg);
 }
+
+/* ── App Table (Leumeah style) ──────────────────────────────────────── */
+
+.app-table {
+  width: calc(100% - 16px);
+  margin: 6px 8px;
+  border-collapse: collapse;
+  font-size: var(--u-fs-md);
+  font-family: var(--mono);
+  border: 1px solid var(--border);
+}
+
+.app-table th {
+  text-align: center;
+  padding: var(--u-pad-head);
+  color: var(--text-secondary);
+  font-weight: 600;
+  background: var(--dbg-bg);
+  border-bottom: var(--u-border-head);
+  border-right: var(--u-cell-sep);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  font-size: var(--u-fs-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.app-table th:last-child { border-right: none; }
+
+.app-table td {
+  padding: var(--u-pad-cell);
+  color: var(--text-secondary);
+  border-bottom: var(--u-cell-border);
+  border-right: var(--u-cell-sep);
+  text-align: center;
+}
+.app-table td:last-child { border-right: none; }
+
+.app-table tr:hover td { background: var(--u-row-hover); }
+.app-table tr.active td { background: var(--u-row-active); }
+
+.app-table .name-col,
+.app-table .col-name { color: var(--text-primary); font-weight: 500; text-align: center; }
+
+.app-table .id-col { font-family: var(--mono); font-size: var(--u-fs-sm); text-align: center; font-variant-numeric: tabular-nums; }
+
+/* ── Scores Toolbar ─────────────────────────────────────────────────── */
+
+.scores-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  margin-bottom: 0;
+  background: var(--dbg-bg);
+  border: 1px solid color-mix(in srgb, var(--border) 36%, transparent);
+  border-bottom: none;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.scores-toolbar + .app-table {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  margin-top: 0;
+}
+
+.scores-toolbar .search-input {
+  flex: 1;
+  max-width: 260px;
+  padding: 3px 10px;
+  height: 24px;
+  font-size: var(--u-fs-sm);
+  font-family: var(--mono);
+  color: var(--text-primary);
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  outline: none;
+}
+.scores-toolbar .search-input::placeholder { color: var(--text-muted); }
+.scores-toolbar .search-input:focus { border-color: var(--accent); }
+
+.btn-add-scorecard {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  margin-left: auto;
+  font-size: 16px;
+  font-weight: 700;
+  font-family: var(--mono);
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  box-shadow: none;
+  transition: background 0.1s, color 0.1s;
+}
+.btn-add-scorecard:hover {
+  background: var(--accent);
+  color: var(--btn-text);
+}
