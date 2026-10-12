@@ -10,7 +10,7 @@ import json
 import tempfile
 import torch
 import cv2
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from google.cloud import storage
 from ultralytics import YOLO
@@ -45,15 +45,16 @@ def health():
     }
 
 
-def _write_progress(bucket, video_id, data):
-    """Write progress JSON to GCS. Skips if already cancelled."""
+def _write_progress(bucket, video_id, data, force=False):
+    """Write progress JSON to GCS. Returns False if cancelled (caller should stop).
+    Use force=True for error writes that must always go through.
+    """
     try:
         blob = bucket.blob(f"progress/{video_id}.json")
-        # Don't overwrite a cancel flag
-        if blob.exists():
+        if not force and blob.exists():
             current = json.loads(blob.download_as_bytes())
             if current.get("status") == "cancelled":
-                return False  # Signal caller to stop
+                return False
         blob.upload_from_string(json.dumps(data), content_type="application/json")
         return True
     except Exception:
@@ -64,16 +65,17 @@ def _run_analysis(req: AnalyzeRequest):
     """Process video end-to-end: inference → save poses to GCS → update progress."""
     bucket = _gcs().bucket(req.gcs_bucket)
 
-    _write_progress(bucket, req.video_id, {
+    if not _write_progress(bucket, req.video_id, {
         "status": "running", "percent": 5, "step": "Downloading video..."
-    })
+    }):
+        return  # Already cancelled before we started
 
     # Download video
     blob = bucket.blob(req.gcs_blob)
     if not blob.exists():
         _write_progress(bucket, req.video_id, {
             "status": "error", "percent": 0, "step": f"Video file not found: {req.gcs_blob}"
-        })
+        }, force=True)
         return
 
     suffix = os.path.splitext(req.gcs_blob)[1] or ".mp4"
@@ -86,17 +88,19 @@ def _run_analysis(req: AnalyzeRequest):
         if not cap.isOpened():
             _write_progress(bucket, req.video_id, {
                 "status": "error", "percent": 0, "step": "Could not open video file"
-            })
+            }, force=True)
             return
 
         fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         frames_to_process = total_frames // req.sample_every_n
 
-        _write_progress(bucket, req.video_id, {
+        if not _write_progress(bucket, req.video_id, {
             "status": "running", "percent": 10,
             "step": f"Analyzing {frames_to_process} frames at {req.resolution}px..."
-        })
+        }):
+            cap.release()
+            return
 
         frames = []
         frame_num = 0
@@ -192,7 +196,7 @@ def _run_analysis(req: AnalyzeRequest):
     except Exception as e:
         _write_progress(bucket, req.video_id, {
             "status": "error", "percent": 0, "step": str(e)
-        })
+        }, force=True)
     finally:
         os.unlink(tmp_path)
 
