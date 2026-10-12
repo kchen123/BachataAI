@@ -158,8 +158,10 @@ def _run_analysis(req: AnalyzeRequest):
                         "step": f"Analyzed {processed}/{frames_to_process} frames ({min(pct, 85)}%)"
                     })
                     if not alive:
-                        # Cancelled
                         cap.release()
+                        _write_progress(bucket, req.video_id, {
+                            "status": "cancelled", "percent": 0, "step": "Cancelled"
+                        }, force=True)
                         return {"status": "cancelled", "video_id": req.video_id}
 
             frame_num += 1
@@ -172,6 +174,9 @@ def _run_analysis(req: AnalyzeRequest):
             "step": f"Saving {len(frames)} frames to storage..."
         })
         if not alive:
+            _write_progress(bucket, req.video_id, {
+                "status": "cancelled", "percent": 0, "step": "Cancelled"
+            }, force=True)
             return {"status": "cancelled", "video_id": req.video_id}
 
         pose_data = json.dumps({
