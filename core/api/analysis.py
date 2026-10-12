@@ -57,13 +57,15 @@ def _run_job(analysis_id, video_id, gcs_blob, frame_count, sample_every_n, resol
     repo = Repository()
     try:
         aa = AnalysesAdapter(repo)
+        progress_path = f"progress/{video_id}.json"
         aa.set_progress(analysis_id, 0, "Starting GPU...", ["Starting GPU..."])
 
         for attempt in range(10):
             resp = requests.post(
                 f"{POSE_SERVICE_URL}/predict/video",
                 json={"gcs_bucket": BUCKET_NAME, "gcs_blob": gcs_blob,
-                      "sample_every_n": sample_every_n, "resolution": resolution},
+                      "sample_every_n": sample_every_n, "resolution": resolution,
+                      "progress_path": progress_path},
                 headers=_get_auth_headers(),
                 timeout=3600,
             )
@@ -252,7 +254,27 @@ def api_get_progress(video_id):
     analysis = AnalysesAdapter(repo).get_by_video(video_id)
     if not analysis:
         return jsonify({"status": "idle", "percent": 0})
-    return jsonify(AnalysesAdapter(repo).get_progress(analysis["id"]))
+    progress = AnalysesAdapter(repo).get_progress(analysis["id"])
+
+    # If running, check GCS for GPU-side progress
+    if progress.get("status") == "running" and progress.get("percent", 0) < 50:
+        try:
+            blob = _gcs().bucket(BUCKET_NAME).blob(f"progress/{video_id}.json")
+            if blob.exists():
+                import json as _json
+                gpu_progress = _json.loads(blob.download_as_bytes())
+                gpu_pct = gpu_progress.get("percent", 0)
+                processed = gpu_progress.get("processed", 0)
+                total = gpu_progress.get("total", 0)
+                if gpu_pct > 0:
+                    progress["percent"] = gpu_pct
+                    progress["step"] = f"GPU analyzing: {processed}/{total} frames ({gpu_pct}%)"
+                    if "log" in progress:
+                        progress["log"].append(progress["step"])
+        except Exception:
+            pass
+
+    return jsonify(progress)
 
 
 @analysis_bp.route("/api/videos/<int:video_id>/analysis", methods=["GET"])

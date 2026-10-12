@@ -28,6 +28,7 @@ class PredictRequest(BaseModel):
     gcs_blob: str
     sample_every_n: int = 1
     resolution: int = 1280
+    progress_path: str = ""  # GCS path to write progress updates
 
 
 @app.get("/health")
@@ -61,6 +62,14 @@ def predict_video(req: PredictRequest):
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         frames = []
         frame_num = 0
+        processed = 0
+
+        # Write initial progress
+        import json as _json
+        progress_blob = None
+        if req.progress_path:
+            progress_blob = bucket.blob(req.progress_path)
+            progress_blob.upload_from_string(_json.dumps({"status": "running", "processed": 0, "total": total_frames, "percent": 0}), content_type="application/json")
 
         while cap.isOpened():
             ret, frame = cap.read()
@@ -111,7 +120,26 @@ def predict_video(req: PredictRequest):
 
             frame_num += 1
 
+            # Update progress every 500 frames
+            if progress_blob and frame_num % 500 == 0:
+                pct = round(frame_num / total_frames * 100) if total_frames > 0 else 0
+                try:
+                    progress_blob.upload_from_string(
+                        _json.dumps({"status": "running", "processed": frame_num, "total": total_frames, "percent": pct}),
+                        content_type="application/json")
+                except Exception:
+                    pass
+
         cap.release()
+
+        # Write final progress
+        if progress_blob:
+            try:
+                progress_blob.upload_from_string(
+                    _json.dumps({"status": "done", "processed": frame_num, "total": total_frames, "percent": 100}),
+                    content_type="application/json")
+            except Exception:
+                pass
     finally:
         os.unlink(tmp_path)
 
