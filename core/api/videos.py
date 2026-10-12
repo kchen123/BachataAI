@@ -140,17 +140,25 @@ def api_get_upload_url():
     init_resp.raise_for_status()
     upload_url = init_resp.headers["Location"]
 
-    # Create DB record
+    # Check for duplicate title in same folder
     folder_id = body.get("folder_id")
     title = os.path.splitext(original_name)[0]
     repo = get_repo()
+    existing = VideosAdapter(repo).select(user_id=_uid(), folder_id=folder_id, title=title)
+    warning = None
+    if existing:
+        warning = f"Video '{title}' already exists in this folder"
+
     video = VideosAdapter(repo).create(title, _uid(), folder_id, filename=filename, gcs_url=gcs_url)
 
-    return jsonify({
+    result = {
         "upload_url": upload_url,
         "content_type": ct,
         "video": _serialize(video),
-    }), 200
+    }
+    if warning:
+        result["warning"] = warning
+    return jsonify(result), 200
 
 
 @videos_bp.route("/api/videos/upload", methods=["POST"])

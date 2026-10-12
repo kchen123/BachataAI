@@ -814,7 +814,13 @@ async function uploadSingleFile(file, idx, onDone) {
       body: JSON.stringify(body),
     });
     if (!urlRes.ok) throw new Error('Failed to get upload URL');
-    const { upload_url, content_type } = await urlRes.json();
+    const urlData = await urlRes.json();
+    const { upload_url, content_type } = urlData;
+
+    if (urlData.warning) {
+      pctEl.textContent = 'Duplicate';
+      pctEl.style.color = 'var(--amber)';
+    }
 
     pctEl.textContent = 'Uploading...';
 
