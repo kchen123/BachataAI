@@ -100,8 +100,62 @@ def api_create_video():
     return jsonify(_serialize(video)), 201
 
 
+@videos_bp.route("/api/videos/upload-url", methods=["POST"])
+def api_get_upload_url():
+    """Get a resumable upload URL for direct browser-to-GCS upload."""
+    import os, uuid
+    from google.cloud import storage as gcs_storage
+    import google.auth
+    import google.auth.transport.requests
+
+    body = request.get_json()
+    original_name = body.get("filename", "video.mp4")
+    ext = os.path.splitext(original_name)[1].lower()
+    allowed = {".mp4", ".mov", ".avi", ".webm", ".mkv"}
+    if ext not in allowed:
+        return jsonify({"error": f"Unsupported format: {ext}"}), 400
+
+    content_types = {".mp4": "video/mp4", ".mov": "video/quicktime",
+                     ".avi": "video/x-msvideo", ".webm": "video/webm", ".mkv": "video/x-matroska"}
+
+    filename = f"{uuid.uuid4().hex}{ext}"
+    ct = content_types.get(ext, "video/mp4")
+    gcs_url = f"https://storage.googleapis.com/bachataai-videos/{filename}"
+
+    # Create resumable upload session via GCS JSON API
+    credentials, project = google.auth.default()
+    auth_req = google.auth.transport.requests.Request()
+    credentials.refresh(auth_req)
+
+    import requests as req_lib
+    init_resp = req_lib.post(
+        f"https://storage.googleapis.com/upload/storage/v1/b/bachataai-videos/o?uploadType=resumable&name={filename}",
+        headers={
+            "Authorization": f"Bearer {credentials.token}",
+            "Content-Type": "application/json",
+            "X-Upload-Content-Type": ct,
+        },
+        json={"contentType": ct},
+    )
+    init_resp.raise_for_status()
+    upload_url = init_resp.headers["Location"]
+
+    # Create DB record
+    folder_id = body.get("folder_id")
+    title = os.path.splitext(original_name)[0]
+    repo = get_repo()
+    video = VideosAdapter(repo).create(title, _uid(), folder_id, filename=filename, gcs_url=gcs_url)
+
+    return jsonify({
+        "upload_url": upload_url,
+        "content_type": ct,
+        "video": _serialize(video),
+    }), 200
+
+
 @videos_bp.route("/api/videos/upload", methods=["POST"])
 def api_upload_video():
+    """Fallback for small files."""
     import os, uuid, tempfile, cv2
     from core.adapters.storage import upload_blob
 
