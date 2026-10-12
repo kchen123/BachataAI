@@ -781,6 +781,17 @@
   opacity: 0.85;
 }
 
+.file-card-analyze {
+  font-size: 9px !important;
+  padding: 2px 8px !important;
+  color: var(--accent);
+  border-color: var(--accent);
+  flex-shrink: 0;
+}
+.file-card-analyze:hover {
+  background: var(--accent-bg);
+}
+
 .processing-status {
   display: block;
   font-size: 10px;

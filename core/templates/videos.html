@@ -76,6 +76,7 @@
       <span class="file-card-name">{{ v.title }}</span>
       <span class="file-card-meta">{{ v.duration_sec|int // 60 }}:{{ '%02d' % (v.duration_sec|int % 60) if v.duration_sec else '--' }}</span>
       <span class="file-card-date">{{ v.created_at.strftime('%b %d, %Y') if v.created_at else '' }}</span>
+      <button class="btn btn-sm file-card-analyze hidden" data-vid="{{ v.id }}" onclick="event.stopPropagation(); runAnalysis({{ v.id }})">Analyze</button>
       <button class="file-card-menu" onclick="event.stopPropagation(); toggleDropdown(this);">&vellip;</button>
       <div class="file-dropdown">
         <button onclick="event.stopPropagation(); startRename('video', {{ v.id }}, '{{ v.title }}')">Rename</button>
@@ -440,14 +441,17 @@ function closeVideo() {
   document.getElementById('videoModal').classList.remove('open');
 }
 
-function runAnalysis() {
-  triggerAnalysis(currentVideoId, 2, 640);
+function runAnalysis(videoId) {
+  triggerAnalysis(videoId || currentVideoId, 2, 640);
 }
 
 function showProcessingCard(videoId) {
   const card = document.querySelector('.file-card[data-type="video"][data-id="' + videoId + '"]');
   if (!card || card.classList.contains('processing')) return;
   card.classList.add('processing');
+  // Hide analyze button
+  const analyzeBtn = card.querySelector('.file-card-analyze');
+  if (analyzeBtn) analyzeBtn.classList.add('hidden');
   const nameEl = card.querySelector('.file-card-name');
   const origText = nameEl.textContent;
   nameEl.innerHTML = origText + '<span class="processing-status" id="pStatus' + videoId + '">Running...</span><button class="btn btn-sm processing-cancel" onclick="event.stopPropagation(); cancelAnalysis(' + videoId + ')">Cancel</button>';
@@ -551,6 +555,21 @@ async function triggerAnalysis(videoId, sampleRate, resolution) {
         pollProgress(videoId);
       }
     } catch (e) {}
+  });
+})();
+
+// Show Analyze button on videos without pose data
+(function checkPoseStatus() {
+  document.querySelectorAll('.file-card-analyze').forEach(async (btn) => {
+    const videoId = btn.dataset.vid;
+    try {
+      const res = await fetch('/api/videos/' + videoId + '/analysis');
+      if (!res.ok || (await res.json()).status !== 'done') {
+        btn.classList.remove('hidden');
+      }
+    } catch (e) {
+      btn.classList.remove('hidden');
+    }
   });
 })();
 
