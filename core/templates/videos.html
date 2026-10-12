@@ -699,9 +699,13 @@ function drawCurrentPose() {
   let persons = closest.persons || [{ keypoints: closest.keypoints || closest.landmarks }];
   if (!persons.length) return;
 
-  // Filter to max persons (largest bounding boxes = most prominent dancers)
+  // Filter to max persons — sort by distance to center, keep closest
   if (maxPersons > 0 && persons.length > maxPersons) {
-    persons = persons.slice(0, maxPersons);
+    persons = [...persons].sort((a, b) => {
+      const aCx = a.center_x || 0.5;
+      const bCx = b.center_x || 0.5;
+      return Math.abs(aCx - 0.5) - Math.abs(bCx - 0.5);
+    }).slice(0, maxPersons);
   }
 
   const w = canvas.width;
