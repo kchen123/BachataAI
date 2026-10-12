@@ -156,6 +156,18 @@
 </div>
 
 
+<!-- Cancel Confirm Modal -->
+<div class="modal-overlay" id="cancelModal" onclick="if(event.target===this)closeCancelModal()">
+  <div class="files-modal">
+    <h3>Cancel Analysis</h3>
+    <p class="analyze-desc">This will stop the GPU job and delete any partial results. Are you sure?</p>
+    <div class="files-modal-actions">
+      <button class="btn btn-sm" onclick="closeCancelModal()">Keep Running</button>
+      <button class="btn btn-sm" style="color:var(--red);border-color:var(--red)" onclick="confirmCancel()">Cancel Job</button>
+    </div>
+  </div>
+</div>
+
 <!-- Account Modal -->
 <div class="modal-overlay" id="accountModal" onclick="if(event.target===this)this.classList.remove('open')">
   <div class="account-modal">
@@ -520,12 +532,26 @@ function clearProcessingCard(videoId, status) {
   refreshJobsPanel();
 }
 
-async function cancelAnalysis(videoId) {
-  if (!confirm('Cancel analysis? This will stop the GPU job and delete partial results.')) return;
-  await fetch('/api/videos/' + videoId + '/analyze', { method: 'DELETE' });
-  const card = document.querySelector('.file-card[data-type="video"][data-id="' + videoId + '"]');
+let _cancelVideoId = null;
+
+function cancelAnalysis(videoId) {
+  _cancelVideoId = videoId;
+  document.getElementById('cancelModal').classList.add('open');
+}
+
+async function confirmCancel() {
+  document.getElementById('cancelModal').classList.remove('open');
+  if (!_cancelVideoId) return;
+  await fetch('/api/videos/' + _cancelVideoId + '/analyze', { method: 'DELETE' });
+  const card = document.querySelector('.file-card[data-type="video"][data-id="' + _cancelVideoId + '"]');
   if (card && card._pollId) clearInterval(card._pollId);
-  clearProcessingCard(videoId, 'cancelled');
+  clearProcessingCard(_cancelVideoId, 'cancelled');
+  _cancelVideoId = null;
+}
+
+function closeCancelModal() {
+  document.getElementById('cancelModal').classList.remove('open');
+  _cancelVideoId = null;
 }
 
 async function triggerAnalysis(videoId, sampleRate, resolution) {
