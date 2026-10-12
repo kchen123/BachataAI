@@ -454,47 +454,49 @@ function showProcessingCard(videoId, label) {
 }
 
 function pollProgress(videoId) {
-  const startTime = Date.now();
   const poll = setInterval(async () => {
-    const pRes = await fetch('/api/videos/' + videoId + '/progress');
-    const p = await pRes.json();
-    const fill = document.getElementById('pFill' + videoId);
-    const logEl = document.getElementById('pLog' + videoId);
-    if (fill) fill.style.width = p.percent + '%';
+    try {
+      const pRes = await fetch('/api/videos/' + videoId + '/progress');
+      const p = await pRes.json();
+      const fill = document.getElementById('pFill' + videoId);
+      const logEl = document.getElementById('pLog' + videoId);
 
-    if (logEl && p.log) {
-      logEl.innerHTML = p.log.map(l => '<span class="log-line">' + l + '</span>').join('');
-      logEl.scrollTop = logEl.scrollHeight;
-    } else if (logEl && p.step) {
-      logEl.innerHTML = '<span class="log-line">' + p.step + '</span>';
-    }
+      // Update progress bar
+      if (fill) fill.style.width = (p.percent || 0) + '%';
 
-    if (p.status === 'done' || p.status === 'error' || p.status === 'cancelled') {
-      clearInterval(poll);
-      if (p.status === 'error' && logEl) {
-        logEl.innerHTML += '<span class="log-line log-error">' + (p.error || 'GPU maxed out, try again later') + '</span>';
-      } else if (p.status === 'cancelled' && logEl) {
-        logEl.innerHTML = '<span class="log-line">Cancelled</span>';
+      // Update log text
+      if (logEl && p.step) {
+        logEl.innerHTML = '<span class="log-line">' + p.step + '</span>';
       }
-      const card = document.querySelector('.file-card[data-type="video"][data-id="' + videoId + '"]');
-      setTimeout(() => {
-        if (card) {
-          card.classList.remove('processing');
-          const bar = card.querySelector('.processing-bar');
-          const log = card.querySelector('.processing-log');
-          if (bar) bar.remove();
-          if (log) log.remove();
-        }
-      }, 3000);
+
+      // Terminal states — stop polling and clear card
+      if (p.status === 'done' || p.status === 'error' || p.status === 'cancelled' || p.status === 'idle') {
+        clearInterval(poll);
+        clearProcessingCard(videoId, p.status);
+      }
+    } catch (e) {
+      // Network error — keep polling
     }
   }, 5000);
+
+  // Store poll ID so cancel can clear it
+  const card = document.querySelector('.file-card[data-type="video"][data-id="' + videoId + '"]');
+  if (card) card._pollId = poll;
 }
 
-async function cancelAnalysis(videoId) {
-  await fetch('/api/videos/' + videoId + '/analyze', { method: 'DELETE' });
-  // Clear UI immediately
+function clearProcessingCard(videoId, status) {
   const card = document.querySelector('.file-card[data-type="video"][data-id="' + videoId + '"]');
-  if (card) {
+  if (!card) return;
+
+  // Show final status briefly
+  const logEl = document.getElementById('pLog' + videoId);
+  if (logEl) {
+    if (status === 'done') logEl.innerHTML = '<span class="log-line" style="color:var(--green)">Done</span>';
+    else if (status === 'cancelled') logEl.innerHTML = '<span class="log-line">Cancelled</span>';
+    else if (status === 'error') logEl.innerHTML = '<span class="log-line log-error">Error</span>';
+  }
+
+  setTimeout(() => {
     card.classList.remove('processing');
     const bar = card.querySelector('.processing-bar');
     const log = card.querySelector('.processing-log');
@@ -502,9 +504,19 @@ async function cancelAnalysis(videoId) {
     if (bar) bar.remove();
     if (log) log.remove();
     if (cancel) cancel.remove();
-  }
+  }, 2000);
+
   // Sync jobs panel
   if (typeof refreshJobsPanel === 'function') refreshJobsPanel();
+}
+
+async function cancelAnalysis(videoId) {
+  await fetch('/api/videos/' + videoId + '/analyze', { method: 'DELETE' });
+  // Stop polling
+  const card = document.querySelector('.file-card[data-type="video"][data-id="' + videoId + '"]');
+  if (card && card._pollId) clearInterval(card._pollId);
+  // Clear UI
+  clearProcessingCard(videoId, 'cancelled');
 }
 
 async function triggerAnalysis(videoId, sampleRate, resolution) {

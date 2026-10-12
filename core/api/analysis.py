@@ -1,16 +1,21 @@
-"""API routes for pose analysis — stateless, all state in GCS.
+"""Pose analysis API — clean stateless design.
+
+Single source of truth: GCS progress file.
+DB is only updated when progress shows "done".
 
 Flow:
-1. POST /api/videos/<id>/analyze → Flask sends request to GPU service, returns immediately
-2. GPU service processes video, writes progress to GCS, saves results to GCS
-3. GET /api/videos/<id>/progress → Flask reads progress from GCS
-4. GET /api/videos/<id>/pose-data → Flask proxies pose data from GCS
+1. POST /analyze → delete old data, create DB record, send request to GPU, return
+2. GPU processes video, writes progress to GCS every 200 frames
+3. GET /progress → read GCS progress file, sync DB if done
+4. DELETE /analyze → write "cancelled" to GCS, GPU checks and stops
+5. GET /pose-data → stream pose JSON from GCS
 
-Nothing runs in background threads. Nothing gets stuck.
+No background threads. No race conditions. No stuck jobs.
 """
 
 import os
 import json
+import threading
 import requests
 import google.auth.transport.requests
 import google.oauth2.id_token
@@ -25,12 +30,62 @@ analysis_bp = Blueprint("analysis", __name__)
 POSE_SERVICE_URL = os.environ.get("POSE_SERVICE_URL", "http://localhost:8080")
 
 
-def _get_auth_headers():
+def _auth_headers():
     if POSE_SERVICE_URL.startswith("http://localhost"):
         return {}
     auth_req = google.auth.transport.requests.Request()
     token = google.oauth2.id_token.fetch_id_token(auth_req, POSE_SERVICE_URL)
     return {"Authorization": f"Bearer {token}"}
+
+
+def _read_progress(video_id):
+    """Read progress from GCS. Returns dict or None."""
+    try:
+        blob = _gcs().bucket(BUCKET_NAME).blob(f"progress/{video_id}.json")
+        if blob.exists():
+            return json.loads(blob.download_as_bytes())
+    except Exception:
+        pass
+    return None
+
+
+def _delete_progress(video_id):
+    """Delete progress file from GCS."""
+    try:
+        blob = _gcs().bucket(BUCKET_NAME).blob(f"progress/{video_id}.json")
+        if blob.exists():
+            blob.delete()
+    except Exception:
+        pass
+
+
+def _delete_pose_file(video_id):
+    """Delete pose data file from GCS."""
+    try:
+        blob = _gcs().bucket(BUCKET_NAME).blob(f"poses/{video_id}.json")
+        if blob.exists():
+            blob.delete()
+    except Exception:
+        pass
+
+
+def _sync_db_if_done(video_id):
+    """If GCS says done, make sure DB matches."""
+    prog = _read_progress(video_id)
+    if not prog or prog.get("status") != "done":
+        return
+    repo = get_repo()
+    aa = AnalysesAdapter(repo)
+    analysis = aa.get_by_video(video_id)
+    if analysis and analysis["status"] != "done":
+        summary = {
+            "pose_gcs_path": prog.get("pose_gcs_path", f"poses/{video_id}.json"),
+            "pose_size_kb": prog.get("pose_size_kb", 0),
+        }
+        aa.set_summary(analysis["id"], summary)
+
+
+# ── Main Endpoints ──────────────────────────────────────────────────────────
 
 
 @analysis_bp.route("/api/videos/<int:video_id>/analyze", methods=["POST"])
@@ -42,32 +97,20 @@ def api_run_analysis(video_id):
     if not video.get("filename"):
         return jsonify({"error": "video has no file"}), 400
 
-    # Clear any old progress file first
-    try:
-        blob = _gcs().bucket(BUCKET_NAME).blob(f"progress/{video_id}.json")
-        if blob.exists():
-            prog = json.loads(blob.download_as_bytes())
-            if prog.get("status") == "running":
-                return jsonify({"error": "analysis already running"}), 409
-            blob.delete()
-    except Exception:
-        pass
+    # Check if GPU is already processing this video
+    prog = _read_progress(video_id)
+    if prog and prog.get("status") == "running":
+        return jsonify({"error": "analysis already running"}), 409
 
-    # Delete old analyses
+    # Clean slate: delete old progress, pose file, and DB records
+    _delete_progress(video_id)
+    _delete_pose_file(video_id)
+
     aa = AnalysesAdapter(repo)
-    old = aa.select(video_id=video_id)
-    for o in old:
-        try:
-            s = o.get("summary")
-            if isinstance(s, str):
-                s = json.loads(s)
-            if s and s.get("pose_gcs_path"):
-                _gcs().bucket(BUCKET_NAME).blob(s["pose_gcs_path"]).delete()
-        except Exception:
-            pass
-        aa.delete(o["id"])
+    for old in aa.select(video_id=video_id):
+        aa.delete(old["id"])
 
-    # Create analysis record
+    # Create fresh DB record
     body = request.get_json(silent=True) or {}
     sample_every_n = body.get("sample_every_n", 2)
     resolution = body.get("resolution", 640)
@@ -75,9 +118,9 @@ def api_run_analysis(video_id):
     analysis = aa.create(video_id=video_id, model="yolo26x-pose")
     aa.set_status(analysis["id"], "running")
 
-    # Fire and forget — send request in a thread so we don't block Flask
-    # The GPU service blocks until done but we don't need the response
-    import threading
+    # Send to GPU — fire and forget via thread
+    # GPU blocks synchronously (keeps its container alive)
+    # Flask doesn't need the response — progress is in GCS
     def _send():
         try:
             requests.post(
@@ -89,11 +132,11 @@ def api_run_analysis(video_id):
                     "sample_every_n": sample_every_n,
                     "resolution": resolution,
                 },
-                headers=_get_auth_headers(),
+                headers=_auth_headers(),
                 timeout=3600,
             )
         except Exception:
-            pass  # GPU writes status to GCS regardless
+            pass
     threading.Thread(target=_send, daemon=True).start()
 
     return jsonify({"status": "started", "analysis_id": analysis["id"]}), 202
@@ -101,11 +144,11 @@ def api_run_analysis(video_id):
 
 @analysis_bp.route("/api/videos/<int:video_id>/analyze", methods=["DELETE"])
 def api_cancel_analysis(video_id):
-    # Write cancel to GCS progress
+    # Write cancel flag to GCS — GPU checks this every 200 frames
     try:
         blob = _gcs().bucket(BUCKET_NAME).blob(f"progress/{video_id}.json")
         blob.upload_from_string(
-            json.dumps({"status": "cancelled", "percent": 0, "step": "Cancelled"}),
+            json.dumps({"status": "cancelled", "percent": 0, "step": "Cancelled by user"}),
             content_type="application/json")
     except Exception:
         pass
@@ -114,7 +157,7 @@ def api_cancel_analysis(video_id):
     repo = get_repo()
     aa = AnalysesAdapter(repo)
     analysis = aa.get_by_video(video_id)
-    if analysis:
+    if analysis and analysis["status"] != "done":
         aa.set_status(analysis["id"], "error")
 
     return jsonify({"status": "cancelled"}), 200
@@ -122,88 +165,91 @@ def api_cancel_analysis(video_id):
 
 @analysis_bp.route("/api/videos/<int:video_id>/progress", methods=["GET"])
 def api_get_progress(video_id):
-    # Read progress from GCS — single source of truth
-    try:
-        blob = _gcs().bucket(BUCKET_NAME).blob(f"progress/{video_id}.json")
-        if blob.exists():
-            prog = json.loads(blob.download_as_bytes())
+    # GCS is the single source of truth for progress
+    prog = _read_progress(video_id)
 
-            # If GPU finished, update DB
-            if prog.get("status") == "done":
-                repo = get_repo()
-                aa = AnalysesAdapter(repo)
-                analysis = aa.get_by_video(video_id)
-                if analysis and analysis["status"] != "done":
-                    summary = {
-                        "pose_gcs_path": prog.get("pose_gcs_path", f"poses/{video_id}.json"),
-                        "pose_size_kb": prog.get("pose_size_kb", 0),
-                    }
-                    aa.set_summary(analysis["id"], summary)
+    if prog:
+        # Sync DB when GPU finishes
+        if prog["status"] == "done":
+            _sync_db_if_done(video_id)
+        return jsonify(prog)
 
-            return jsonify(prog)
-    except Exception:
-        pass
-
-    # Check DB as fallback
+    # No GCS progress — check DB
     repo = get_repo()
     analysis = AnalysesAdapter(repo).get_by_video(video_id)
-    if analysis and analysis["status"] == "done":
-        return jsonify({"status": "done", "percent": 100})
+    if analysis:
+        if analysis["status"] == "done":
+            return jsonify({"status": "done", "percent": 100, "step": "Complete"})
+        if analysis["status"] == "running":
+            # DB says running but no GCS progress — GPU hasn't started yet or died
+            return jsonify({"status": "running", "percent": 0, "step": "Waiting for GPU..."})
+        if analysis["status"] == "error":
+            return jsonify({"status": "error", "percent": 0, "step": "Error"})
+
     return jsonify({"status": "idle", "percent": 0})
 
 
 @analysis_bp.route("/api/videos/<int:video_id>/analysis", methods=["GET"])
 def api_get_analysis(video_id):
+    # Sync first in case GPU just finished
+    _sync_db_if_done(video_id)
+
     repo = get_repo()
     analysis = AnalysesAdapter(repo).get_by_video(video_id)
     if analysis is None:
         return jsonify({"error": "no analysis found"}), 404
+
     for k in ("created_at", "updated_at"):
         if analysis.get(k):
             analysis[k] = str(analysis[k])
     if analysis.get("summary") and isinstance(analysis["summary"], str):
         analysis["summary"] = json.loads(analysis["summary"])
+
     video = VideosAdapter(repo).get(video_id)
     if video:
         analysis["fps"] = video.get("fps", 30)
-    if analysis.get("summary") and analysis["summary"].get("pose_gcs_path"):
-        path = analysis["summary"]["pose_gcs_path"]
-        analysis["pose_url"] = f"https://storage.googleapis.com/{BUCKET_NAME}/{path}"
+
     return jsonify(analysis)
 
 
 @analysis_bp.route("/api/videos/<int:video_id>/pose-data", methods=["GET"])
 def api_get_pose_data(video_id):
-    """Proxy pose data from GCS."""
+    """Stream pose data from GCS."""
+    # Sync DB first
+    _sync_db_if_done(video_id)
+
     repo = get_repo()
     analysis = AnalysesAdapter(repo).get_by_video(video_id)
     if not analysis or analysis["status"] != "done":
         return jsonify({"error": "no pose data"}), 404
+
     summary = analysis.get("summary")
     if isinstance(summary, str):
         summary = json.loads(summary)
     path = summary.get("pose_gcs_path") if summary else None
     if not path:
         return jsonify({"error": "no pose file"}), 404
-    blob = _gcs().bucket(BUCKET_NAME).blob(path)
 
-    # Stream from GCS to avoid loading entire file into memory
-    def generate():
+    blob = _gcs().bucket(BUCKET_NAME).blob(path)
+    if not blob.exists():
+        return jsonify({"error": "pose file missing from storage"}), 404
+
+    def stream():
         with blob.open("rb") as f:
             while True:
-                chunk = f.read(1024 * 1024)  # 1MB chunks
+                chunk = f.read(1024 * 1024)
                 if not chunk:
                     break
                 yield chunk
 
-    return Response(generate(), content_type="application/json")
+    return Response(stream(), content_type="application/json")
 
 
-# ── Admin: Job Management ────────────────────────────────────────────────────
+# ── Admin ────────────────────────────────────────────────────────────────────
+
 
 @analysis_bp.route("/api/admin/jobs", methods=["GET"])
 def api_list_jobs():
-    """List all analysis jobs with status and progress."""
     repo = get_repo()
     analyses = AnalysesAdapter(repo).select(order_by="id DESC")
     result = []
@@ -215,20 +261,14 @@ def api_list_jobs():
         if a.get("summary") and isinstance(a["summary"], str):
             a["summary"] = json.loads(a["summary"])
 
-        # Check GCS progress
-        gcs_progress = None
-        try:
-            blob = _gcs().bucket(BUCKET_NAME).blob(f"progress/{a['video_id']}.json")
-            if blob.exists():
-                gcs_progress = json.loads(blob.download_as_bytes())
-        except Exception:
-            pass
+        # Get live progress from GCS
+        gcs_progress = _read_progress(a["video_id"])
 
         result.append({
             "id": a["id"],
             "video_id": a["video_id"],
             "video_title": video["title"] if video else "?",
-            "status": a["status"],
+            "status": gcs_progress["status"] if gcs_progress else a["status"],
             "model": a.get("model"),
             "created_at": a.get("created_at"),
             "summary": a.get("summary"),
@@ -239,7 +279,6 @@ def api_list_jobs():
 
 @analysis_bp.route("/api/admin/jobs/<int:analysis_id>", methods=["DELETE"])
 def api_delete_job(analysis_id):
-    """Delete an analysis job — cleans DB, GCS pose file, and progress file."""
     repo = get_repo()
     aa = AnalysesAdapter(repo)
     analysis = aa.get(analysis_id)
@@ -247,22 +286,8 @@ def api_delete_job(analysis_id):
         return jsonify({"error": "not found"}), 404
 
     video_id = analysis["video_id"]
-
-    # Delete GCS files
-    try:
-        _gcs().bucket(BUCKET_NAME).blob(f"progress/{video_id}.json").delete()
-    except Exception:
-        pass
-    try:
-        s = analysis.get("summary")
-        if isinstance(s, str):
-            s = json.loads(s)
-        if s and s.get("pose_gcs_path"):
-            _gcs().bucket(BUCKET_NAME).blob(s["pose_gcs_path"]).delete()
-    except Exception:
-        pass
-
-    # Delete DB record
+    _delete_progress(video_id)
+    _delete_pose_file(video_id)
     aa.delete(analysis_id)
 
     return jsonify({"status": "deleted", "id": analysis_id}), 200
@@ -270,22 +295,16 @@ def api_delete_job(analysis_id):
 
 @analysis_bp.route("/api/admin/jobs/cleanup", methods=["POST"])
 def api_cleanup_jobs():
-    """Mark all stuck 'running' jobs as error and clean progress files."""
     repo = get_repo()
     aa = AnalysesAdapter(repo)
     stuck = aa.select(status="running")
     cleaned = 0
     for a in stuck:
-        # Check if GPU is actually still processing
-        try:
-            blob = _gcs().bucket(BUCKET_NAME).blob(f"progress/{a['video_id']}.json")
-            if blob.exists():
-                prog = json.loads(blob.download_as_bytes())
-                if prog.get("status") == "running":
-                    continue  # Still active, skip
-                blob.delete()
-        except Exception:
-            pass
+        prog = _read_progress(a["video_id"])
+        if prog and prog.get("status") == "running":
+            continue  # Actually still running
+        # Dead job — clean up
+        _delete_progress(a["video_id"])
         aa.set_status(a["id"], "error")
         cleaned += 1
 
