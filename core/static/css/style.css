@@ -782,6 +782,14 @@
 }
 
 
+.analyze-btn {
+  color: var(--accent) !important;
+  border-color: var(--accent) !important;
+}
+.analyze-btn:hover {
+  background: var(--accent-bg) !important;
+}
+
 .processing-status {
   display: block;
   font-size: 10px;
