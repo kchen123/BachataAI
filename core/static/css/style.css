@@ -781,31 +781,6 @@
   opacity: 0.85;
 }
 
-.file-card-pose-col {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 90px;
-  flex-shrink: 0;
-}
-
-.pose-label {
-  font-size: 10px;
-  font-weight: 600;
-  font-family: var(--mono);
-}
-.pose-yes { color: var(--green); }
-.pose-no { color: var(--text-muted); }
-
-.pose-action {
-  font-size: 9px !important;
-  padding: 2px 8px !important;
-  color: var(--text-muted);
-  flex-shrink: 0;
-}
-.pose-action:hover { color: var(--accent); border-color: var(--accent); }
-
-.files-grid.view-grid .file-card-pose-col { display: none; }
 
 .processing-status {
   display: block;
