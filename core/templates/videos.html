@@ -521,11 +521,10 @@ function clearProcessingCard(videoId, status) {
 }
 
 async function cancelAnalysis(videoId) {
+  if (!confirm('Cancel analysis? This will stop the GPU job and delete partial results.')) return;
   await fetch('/api/videos/' + videoId + '/analyze', { method: 'DELETE' });
-  // Stop polling
   const card = document.querySelector('.file-card[data-type="video"][data-id="' + videoId + '"]');
   if (card && card._pollId) clearInterval(card._pollId);
-  // Clear UI
   clearProcessingCard(videoId, 'cancelled');
 }
 
