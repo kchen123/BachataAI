@@ -186,8 +186,17 @@ def api_get_pose_data(video_id):
     if not path:
         return jsonify({"error": "no pose file"}), 404
     blob = _gcs().bucket(BUCKET_NAME).blob(path)
-    data = blob.download_as_bytes()
-    return Response(data, content_type="application/json")
+
+    # Stream from GCS to avoid loading entire file into memory
+    def generate():
+        with blob.open("rb") as f:
+            while True:
+                chunk = f.read(1024 * 1024)  # 1MB chunks
+                if not chunk:
+                    break
+                yield chunk
+
+    return Response(generate(), content_type="application/json")
 
 
 # ── Admin: Job Management ────────────────────────────────────────────────────
