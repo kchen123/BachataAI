@@ -17,6 +17,69 @@
     {% block content %}{% endblock %}
   </main>
 
+  <!-- Jobs Floating Button + Popup -->
+  <button class="jobs-fab" onclick="toggleJobsPanel()" title="Jobs">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+  </button>
+
+  <div class="jobs-panel hidden" id="jobsPanel">
+    <div class="jobs-panel-header">
+      <span>Analysis Jobs</span>
+      <div>
+        <button class="btn btn-sm" onclick="refreshJobsPanel()">Refresh</button>
+        <button class="btn btn-sm btn-danger" onclick="cleanupJobsPanel()">Cleanup</button>
+        <button class="jobs-panel-close" onclick="toggleJobsPanel()">&times;</button>
+      </div>
+    </div>
+    <div class="jobs-panel-body" id="jobsPanelBody">
+      <div class="jobs-loading">Loading...</div>
+    </div>
+  </div>
+
+  <script>
+  function toggleJobsPanel() {
+    const panel = document.getElementById('jobsPanel');
+    panel.classList.toggle('hidden');
+    if (!panel.classList.contains('hidden')) refreshJobsPanel();
+  }
+
+  async function refreshJobsPanel() {
+    const body = document.getElementById('jobsPanelBody');
+    try {
+      const res = await fetch('/api/admin/jobs');
+      const jobs = await res.json();
+      if (!jobs.length) { body.innerHTML = '<div class="jobs-empty">No jobs</div>'; return; }
+
+      body.innerHTML = jobs.map(j => {
+        const sc = j.status === 'done' ? 'status-done' : j.status === 'running' ? 'status-running' : 'status-error';
+        const prog = j.gcs_progress ? (j.gcs_progress.percent + '% — ' + (j.gcs_progress.step || '')) : (j.status === 'done' ? '100%' : '—');
+        const size = j.summary && j.summary.pose_size_kb ? (j.summary.pose_size_kb > 1024 ? Math.round(j.summary.pose_size_kb/1024) + 'MB' : j.summary.pose_size_kb + 'KB') : '';
+        return '<div class="jobs-row">' +
+          '<div class="jobs-row-main">' +
+            '<span class="jobs-status ' + sc + '">' + j.status + '</span>' +
+            '<span class="jobs-row-title">' + j.video_title + '</span>' +
+            '<span class="jobs-row-size">' + size + '</span>' +
+          '</div>' +
+          '<div class="jobs-row-sub">' +
+            '<span class="jobs-row-prog">' + prog + '</span>' +
+            '<button class="btn btn-sm btn-danger jobs-row-del" onclick="deleteJobPanel(' + j.id + ')">Delete</button>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    } catch(e) { body.innerHTML = '<div class="jobs-empty">Error loading jobs</div>'; }
+  }
+
+  async function deleteJobPanel(id) {
+    await fetch('/api/admin/jobs/' + id, { method: 'DELETE' });
+    refreshJobsPanel();
+  }
+
+  async function cleanupJobsPanel() {
+    await fetch('/api/admin/jobs/cleanup', { method: 'POST' });
+    refreshJobsPanel();
+  }
+  </script>
+
   {% block scripts %}{% endblock %}
 </body>
 </html>
