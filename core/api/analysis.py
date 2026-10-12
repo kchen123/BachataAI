@@ -188,3 +188,96 @@ def api_get_pose_data(video_id):
     blob = _gcs().bucket(BUCKET_NAME).blob(path)
     data = blob.download_as_bytes()
     return Response(data, content_type="application/json")
+
+
+# ── Admin: Job Management ────────────────────────────────────────────────────
+
+@analysis_bp.route("/api/admin/jobs", methods=["GET"])
+def api_list_jobs():
+    """List all analysis jobs with status and progress."""
+    repo = get_repo()
+    analyses = AnalysesAdapter(repo).select(order_by="id DESC")
+    result = []
+    for a in analyses:
+        video = VideosAdapter(repo).get(a["video_id"])
+        for k in ("created_at", "updated_at"):
+            if a.get(k):
+                a[k] = str(a[k])
+        if a.get("summary") and isinstance(a["summary"], str):
+            a["summary"] = json.loads(a["summary"])
+
+        # Check GCS progress
+        gcs_progress = None
+        try:
+            blob = _gcs().bucket(BUCKET_NAME).blob(f"progress/{a['video_id']}.json")
+            if blob.exists():
+                gcs_progress = json.loads(blob.download_as_bytes())
+        except Exception:
+            pass
+
+        result.append({
+            "id": a["id"],
+            "video_id": a["video_id"],
+            "video_title": video["title"] if video else "?",
+            "status": a["status"],
+            "model": a.get("model"),
+            "created_at": a.get("created_at"),
+            "summary": a.get("summary"),
+            "gcs_progress": gcs_progress,
+        })
+    return jsonify(result)
+
+
+@analysis_bp.route("/api/admin/jobs/<int:analysis_id>", methods=["DELETE"])
+def api_delete_job(analysis_id):
+    """Delete an analysis job — cleans DB, GCS pose file, and progress file."""
+    repo = get_repo()
+    aa = AnalysesAdapter(repo)
+    analysis = aa.get(analysis_id)
+    if not analysis:
+        return jsonify({"error": "not found"}), 404
+
+    video_id = analysis["video_id"]
+
+    # Delete GCS files
+    try:
+        _gcs().bucket(BUCKET_NAME).blob(f"progress/{video_id}.json").delete()
+    except Exception:
+        pass
+    try:
+        s = analysis.get("summary")
+        if isinstance(s, str):
+            s = json.loads(s)
+        if s and s.get("pose_gcs_path"):
+            _gcs().bucket(BUCKET_NAME).blob(s["pose_gcs_path"]).delete()
+    except Exception:
+        pass
+
+    # Delete DB record
+    aa.delete(analysis_id)
+
+    return jsonify({"status": "deleted", "id": analysis_id}), 200
+
+
+@analysis_bp.route("/api/admin/jobs/cleanup", methods=["POST"])
+def api_cleanup_jobs():
+    """Mark all stuck 'running' jobs as error and clean progress files."""
+    repo = get_repo()
+    aa = AnalysesAdapter(repo)
+    stuck = aa.select(status="running")
+    cleaned = 0
+    for a in stuck:
+        # Check if GPU is actually still processing
+        try:
+            blob = _gcs().bucket(BUCKET_NAME).blob(f"progress/{a['video_id']}.json")
+            if blob.exists():
+                prog = json.loads(blob.download_as_bytes())
+                if prog.get("status") == "running":
+                    continue  # Still active, skip
+                blob.delete()
+        except Exception:
+            pass
+        aa.set_status(a["id"], "error")
+        cleaned += 1
+
+    return jsonify({"cleaned": cleaned})
