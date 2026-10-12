@@ -1,0 +1,1 @@
+ALTER TABLE bachata.analyses ADD COLUMN IF NOT EXISTS progress JSONB DEFAULT '{}';
