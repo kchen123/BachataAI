@@ -183,13 +183,25 @@ def _run_analysis(req: AnalyzeRequest):
         pose_blob = bucket.blob(f"poses/{req.video_id}.json")
         pose_blob.upload_from_string(pose_data, content_type="application/json")
 
-        # Write final success
-        _write_progress(bucket, req.video_id, {
-            "status": "done", "percent": 100,
-            "step": f"Complete — {len(frames)} frames analyzed",
-            "pose_gcs_path": f"poses/{req.video_id}.json",
-            "pose_size_kb": len(pose_data) // 1024,
-        })
+        # Write final status — force to ensure frontend knows job ended
+        # Check if cancelled during processing
+        cancel_blob = bucket.blob(f"cancel/{req.video_id}")
+        if cancel_blob.exists():
+            # Cancelled but pose was already saved — delete it
+            try:
+                pose_blob.delete()
+            except Exception:
+                pass
+            _write_progress(bucket, req.video_id, {
+                "status": "cancelled", "percent": 0, "step": "Cancelled"
+            }, force=True)
+        else:
+            _write_progress(bucket, req.video_id, {
+                "status": "done", "percent": 100,
+                "step": f"Complete — {len(frames)} frames analyzed",
+                "pose_gcs_path": f"poses/{req.video_id}.json",
+                "pose_size_kb": len(pose_data) // 1024,
+            }, force=True)
 
     except Exception as e:
         _write_progress(bucket, req.video_id, {
