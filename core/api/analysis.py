@@ -42,13 +42,14 @@ def api_run_analysis(video_id):
     if not video.get("filename"):
         return jsonify({"error": "video has no file"}), 400
 
-    # Check if already running via GCS progress
+    # Clear any old progress file first
     try:
         blob = _gcs().bucket(BUCKET_NAME).blob(f"progress/{video_id}.json")
         if blob.exists():
             prog = json.loads(blob.download_as_bytes())
             if prog.get("status") == "running":
                 return jsonify({"error": "analysis already running"}), 409
+            blob.delete()
     except Exception:
         pass
 
