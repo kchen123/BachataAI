@@ -140,16 +140,20 @@
       <span class="video-modal-title" id="videoTitle"></span>
       <div class="video-header-controls">
         <button class="btn btn-sm video-header-btn analyze-btn hidden" id="poseAnalyze" onclick="runAnalysis()">Analyze</button>
-        <label class="pose-toggle hidden" id="poseToggleWrap">
-          <input type="checkbox" id="poseToggle" onchange="togglePose()">
-          <span>Skeleton</span>
-        </label>
-        <select class="btn btn-sm video-header-btn hidden" id="poseMaxPersons" onchange="updateMaxPersons()" title="Max persons to track">
-          <option value="1">1 person</option>
-          <option value="2" selected>2 persons</option>
-          <option value="0">All</option>
-        </select>
-        <button class="btn btn-sm video-header-btn hidden" id="poseRerun" onclick="runAnalysis()">Re-run</button>
+        <div class="pose-controls hidden" id="poseControls">
+          <label class="pose-ctrl-item">
+            <input type="checkbox" id="poseToggle" onchange="togglePose()">
+            <span>Skeleton</span>
+          </label>
+          <span class="pose-ctrl-sep">|</span>
+          <select class="pose-ctrl-select" id="poseMaxPersons" onchange="updateMaxPersons()">
+            <option value="1">1</option>
+            <option value="2" selected>2</option>
+            <option value="0">All</option>
+          </select>
+          <span class="pose-ctrl-sep">|</span>
+          <button class="pose-ctrl-btn" onclick="runAnalysis()">Re-run</button>
+        </div>
         <button class="btn btn-sm video-header-btn video-close-btn" onclick="closeVideo()">&times;</button>
       </div>
     </div>
@@ -434,19 +438,13 @@ async function playVideo(videoId, url, title) {
 
   // Show correct controls based on pose data
   const analyzeBtn = document.getElementById('poseAnalyze');
-  const toggleWrap = document.getElementById('poseToggleWrap');
-  const rerunBtn = document.getElementById('poseRerun');
-  const maxPersonsSelect = document.getElementById('poseMaxPersons');
+  const poseControls = document.getElementById('poseControls');
   if (poseHasAnalysis) {
     analyzeBtn.classList.add('hidden');
-    toggleWrap.classList.remove('hidden');
-    maxPersonsSelect.classList.remove('hidden');
-    rerunBtn.classList.remove('hidden');
+    poseControls.classList.remove('hidden');
   } else {
     analyzeBtn.classList.remove('hidden');
-    toggleWrap.classList.add('hidden');
-    maxPersonsSelect.classList.add('hidden');
-    rerunBtn.classList.add('hidden');
+    poseControls.classList.add('hidden');
   }
 
   // Start drawing loop
