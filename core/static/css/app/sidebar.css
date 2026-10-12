@@ -338,6 +338,14 @@ main {
 }
 
 @media (max-width: 600px) {
+  .sidebar {
+    width: 0;
+    border-right: none;
+  }
+  .sidebar.mobile-open {
+    width: 150px;
+    border-right: 1px solid var(--sidebar-border);
+  }
   main,
   .content {
     margin-left: 0;

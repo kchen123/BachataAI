@@ -11,6 +11,11 @@
   {% block head %}{% endblock %}
 </head>
 <body>
+  <button class="mobile-hamburger" onclick="document.getElementById('sidebarMenu').classList.toggle('mobile-open'); document.getElementById('mobileOverlay').classList.toggle('open')">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <div class="mobile-overlay" id="mobileOverlay" onclick="document.getElementById('sidebarMenu').classList.remove('mobile-open'); this.classList.remove('open')"></div>
+
   {% include "_sidebar.html" %}
 
   <main class="content">
