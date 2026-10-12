@@ -65,10 +65,10 @@ def _run_analysis(req: AnalyzeRequest):
     """Process video end-to-end: inference → save poses to GCS → update progress."""
     bucket = _gcs().bucket(req.gcs_bucket)
 
-    if not _write_progress(bucket, req.video_id, {
+    # Force-write initial progress to clear any old cancelled flag
+    _write_progress(bucket, req.video_id, {
         "status": "running", "percent": 5, "step": "Downloading video..."
-    }):
-        return  # Already cancelled before we started
+    }, force=True)
 
     # Download video
     blob = bucket.blob(req.gcs_blob)
@@ -95,12 +95,11 @@ def _run_analysis(req: AnalyzeRequest):
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         frames_to_process = total_frames // req.sample_every_n
 
-        if not _write_progress(bucket, req.video_id, {
+        # Force-write to ensure we override any stale cancelled flag
+        _write_progress(bucket, req.video_id, {
             "status": "running", "percent": 10,
             "step": f"Analyzing {frames_to_process} frames at {req.resolution}px..."
-        }):
-            cap.release()
-            return
+        }, force=True)
 
         frames = []
         frame_num = 0
