@@ -40,9 +40,10 @@ def _auth_headers():
         return {"Authorization": f"Bearer {token}"}
     except Exception:
         # Fallback for local dev — use gcloud CLI
-        import subprocess
+        import subprocess, shutil
+        gcloud_path = shutil.which("gcloud") or "gcloud"
         token = subprocess.check_output(
-            ["gcloud", "auth", "print-identity-token"], text=True
+            [gcloud_path, "auth", "print-identity-token"], text=True, shell=True
         ).strip()
         return {"Authorization": f"Bearer {token}"}
 
