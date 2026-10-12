@@ -75,24 +75,26 @@ def api_run_analysis(video_id):
     analysis = aa.create(video_id=video_id, model="yolo26x-pose")
     aa.set_status(analysis["id"], "running")
 
-    # Fire and forget — GPU service handles everything
-    try:
-        resp = requests.post(
-            f"{POSE_SERVICE_URL}/analyze",
-            json={
-                "gcs_bucket": BUCKET_NAME,
-                "gcs_blob": video["filename"],
-                "video_id": video_id,
-                "sample_every_n": sample_every_n,
-                "resolution": resolution,
-            },
-            headers=_get_auth_headers(),
-            timeout=30,  # Just needs to accept the request
-        )
-        resp.raise_for_status()
-    except Exception as e:
-        aa.set_status(analysis["id"], "error")
-        return jsonify({"error": f"Failed to reach GPU service: {str(e)}"}), 500
+    # Fire and forget — send request in a thread so we don't block Flask
+    # The GPU service blocks until done but we don't need the response
+    import threading
+    def _send():
+        try:
+            requests.post(
+                f"{POSE_SERVICE_URL}/analyze",
+                json={
+                    "gcs_bucket": BUCKET_NAME,
+                    "gcs_blob": video["filename"],
+                    "video_id": video_id,
+                    "sample_every_n": sample_every_n,
+                    "resolution": resolution,
+                },
+                headers=_get_auth_headers(),
+                timeout=3600,
+            )
+        except Exception:
+            pass  # GPU writes status to GCS regardless
+    threading.Thread(target=_send, daemon=True).start()
 
     return jsonify({"status": "started", "analysis_id": analysis["id"]}), 202
 

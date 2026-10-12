@@ -187,18 +187,11 @@ def _run_analysis(req: AnalyzeRequest):
 
 
 @app.post("/analyze")
-def analyze_video(req: AnalyzeRequest, background_tasks: BackgroundTasks):
-    """Trigger analysis. Returns immediately, runs in background on the GPU.
+def analyze_video(req: AnalyzeRequest):
+    """Runs analysis synchronously — blocks until done.
+    Must block so Cloud Run keeps the container alive.
     Progress is written to GCS at gs://bucket/progress/<video_id>.json
     Results saved to gs://bucket/poses/<video_id>.json
     """
-    background_tasks.add_task(_run_analysis, req)
-    return {"status": "accepted", "video_id": req.video_id}
-
-
-# Keep old endpoint for backward compat
-@app.post("/predict/video")
-def predict_video_legacy(req: AnalyzeRequest):
-    """Synchronous endpoint — blocks until done. Use /analyze instead."""
     _run_analysis(req)
     return {"status": "done", "video_id": req.video_id}
