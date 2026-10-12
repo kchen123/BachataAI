@@ -444,42 +444,44 @@ function runAnalysis() {
   triggerAnalysis(currentVideoId, 2, 640);
 }
 
-function showProcessingCard(videoId, label) {
+function showProcessingCard(videoId) {
   const card = document.querySelector('.file-card[data-type="video"][data-id="' + videoId + '"]');
   if (!card || card.classList.contains('processing')) return;
   card.classList.add('processing');
   const nameEl = card.querySelector('.file-card-name');
   const origText = nameEl.textContent;
-  nameEl.innerHTML = origText + '<div class="processing-bar"><div class="processing-fill" id="pFill' + videoId + '"></div></div><div class="processing-log" id="pLog' + videoId + '"><span class="log-line">' + label + '</span></div><button class="btn btn-sm processing-cancel" onclick="event.stopPropagation(); cancelAnalysis(' + videoId + ')">Cancel</button>';
+  nameEl.innerHTML = origText + '<span class="processing-status" id="pStatus' + videoId + '">Running...</span><button class="btn btn-sm processing-cancel" onclick="event.stopPropagation(); cancelAnalysis(' + videoId + ')">Cancel</button>';
 }
 
 function pollProgress(videoId) {
+  const startTime = Date.now();
   const poll = setInterval(async () => {
     try {
       const pRes = await fetch('/api/videos/' + videoId + '/progress');
       const p = await pRes.json();
-      const fill = document.getElementById('pFill' + videoId);
-      const logEl = document.getElementById('pLog' + videoId);
+      const statusEl = document.getElementById('pStatus' + videoId);
 
-      // Update progress bar
-      if (fill) fill.style.width = (p.percent || 0) + '%';
-
-      // Update log text
-      if (logEl && p.step) {
-        logEl.innerHTML = '<span class="log-line">' + p.step + '</span>';
+      if (statusEl) {
+        const pct = p.percent || 0;
+        if (pct > 0 && pct < 100) {
+          const elapsed = (Date.now() - startTime) / 1000;
+          const remaining = Math.round(elapsed / pct * (100 - pct));
+          const min = Math.floor(remaining / 60);
+          const sec = remaining % 60;
+          const eta = min > 0 ? min + 'm ' + sec + 's' : sec + 's';
+          statusEl.textContent = 'Running ' + pct + '% — ' + eta + ' left';
+        } else if (pct === 0) {
+          statusEl.textContent = 'Starting GPU...';
+        }
       }
 
-      // Terminal states — stop polling and clear card
       if (p.status === 'done' || p.status === 'error' || p.status === 'cancelled' || p.status === 'idle') {
         clearInterval(poll);
         clearProcessingCard(videoId, p.status);
       }
-    } catch (e) {
-      // Network error — keep polling
-    }
+    } catch (e) {}
   }, 5000);
 
-  // Store poll ID so cancel can clear it
   const card = document.querySelector('.file-card[data-type="video"][data-id="' + videoId + '"]');
   if (card) card._pollId = poll;
 }
@@ -488,25 +490,21 @@ function clearProcessingCard(videoId, status) {
   const card = document.querySelector('.file-card[data-type="video"][data-id="' + videoId + '"]');
   if (!card) return;
 
-  // Show final status briefly
-  const logEl = document.getElementById('pLog' + videoId);
-  if (logEl) {
-    if (status === 'done') logEl.innerHTML = '<span class="log-line" style="color:var(--green)">Done</span>';
-    else if (status === 'cancelled') logEl.innerHTML = '<span class="log-line">Cancelled</span>';
-    else if (status === 'error') logEl.innerHTML = '<span class="log-line log-error">Error</span>';
+  const statusEl = document.getElementById('pStatus' + videoId);
+  if (statusEl) {
+    if (status === 'done') { statusEl.textContent = 'Done'; statusEl.style.color = 'var(--green)'; }
+    else if (status === 'cancelled') statusEl.textContent = 'Cancelled';
+    else if (status === 'error') { statusEl.textContent = 'Error'; statusEl.style.color = 'var(--red)'; }
   }
 
   setTimeout(() => {
     card.classList.remove('processing');
-    const bar = card.querySelector('.processing-bar');
-    const log = card.querySelector('.processing-log');
-    const cancel = card.querySelector('.processing-cancel');
-    if (bar) bar.remove();
-    if (log) log.remove();
-    if (cancel) cancel.remove();
+    const s = card.querySelector('.processing-status');
+    const c = card.querySelector('.processing-cancel');
+    if (s) s.remove();
+    if (c) c.remove();
   }, 2000);
 
-  // Sync jobs panel
   if (typeof refreshJobsPanel === 'function') refreshJobsPanel();
 }
 
@@ -521,7 +519,7 @@ async function cancelAnalysis(videoId) {
 
 async function triggerAnalysis(videoId, sampleRate, resolution) {
   closeVideo();
-  showProcessingCard(videoId, 'Starting GPU...');
+  showProcessingCard(videoId);
 
   const body = {};
   if (sampleRate) body.sample_every_n = sampleRate;
@@ -548,8 +546,8 @@ async function triggerAnalysis(videoId, sampleRate, resolution) {
     try {
       const res = await fetch('/api/videos/' + videoId + '/progress');
       const p = await res.json();
-      if (p.status === 'running' || p.status === 'queued') {
-        showProcessingCard(videoId, p.step || 'Queued...');
+      if (p.status === 'running') {
+        showProcessingCard(videoId);
         pollProgress(videoId);
       }
     } catch (e) {}

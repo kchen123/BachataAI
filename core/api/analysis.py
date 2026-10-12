@@ -182,6 +182,12 @@ def api_get_progress(video_id):
             return jsonify({"status": "done", "percent": 100, "step": "Complete"})
         if analysis["status"] == "running":
             # DB says running but no GCS progress — GPU hasn't started yet or died
+            # Check if it's been too long (30 min timeout)
+            from datetime import datetime, timezone, timedelta
+            created = analysis.get("created_at")
+            if created and (datetime.now(timezone.utc) - created) > timedelta(minutes=30):
+                AnalysesAdapter(repo).set_status(analysis["id"], "error")
+                return jsonify({"status": "error", "percent": 0, "step": "Timed out — GPU never responded"})
             return jsonify({"status": "running", "percent": 0, "step": "Waiting for GPU..."})
         if analysis["status"] == "error":
             return jsonify({"status": "error", "percent": 0, "step": "Error"})
@@ -297,13 +303,16 @@ def api_delete_job(analysis_id):
 def api_cleanup_jobs():
     repo = get_repo()
     aa = AnalysesAdapter(repo)
+    from datetime import datetime, timezone, timedelta
     stuck = aa.select(status="running")
     cleaned = 0
     for a in stuck:
         prog = _read_progress(a["video_id"])
         if prog and prog.get("status") == "running":
-            continue  # Actually still running
-        # Dead job — clean up
+            # Check age — if older than 30 min, it's dead
+            created = a.get("created_at")
+            if created and (datetime.now(timezone.utc) - created) < timedelta(minutes=30):
+                continue  # Actually still running
         _delete_progress(a["video_id"])
         aa.set_status(a["id"], "error")
         cleaned += 1
