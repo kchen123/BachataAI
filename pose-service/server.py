@@ -168,7 +168,6 @@ def _run_analysis(req: AnalyzeRequest):
 
         pose_blob = bucket.blob(f"poses/{req.video_id}.json")
         pose_blob.upload_from_string(pose_data, content_type="application/json")
-        pose_blob.make_public()
 
         # Write final success
         _write_progress(bucket, req.video_id, {
