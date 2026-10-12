@@ -7,30 +7,19 @@ import threading
 import requests
 import google.auth.transport.requests
 import google.oauth2.id_token
-from google.cloud import storage
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, Response
 from core.adapters.repository import get_repo, Repository
 from core.adapters.analyses import AnalysesAdapter
 from core.adapters.videos import VideosAdapter
+from core.adapters.storage import BUCKET_NAME, _get_client as _gcs
 
 analysis_bp = Blueprint("analysis", __name__)
 
 POSE_SERVICE_URL = os.environ.get("POSE_SERVICE_URL", "http://localhost:8080")
-GCS_BUCKET = "bachataai-videos"
 
 # In-memory progress tracking
 _progress = {}
 _cancel = set()
-
-_gcs_client = None
-
-
-def _gcs():
-    global _gcs_client
-    if _gcs_client is None:
-        _gcs_client = storage.Client()
-    return _gcs_client
-
 
 def _get_auth_headers():
     if POSE_SERVICE_URL.startswith("http://localhost"):
@@ -80,7 +69,7 @@ def _run_analysis(video_id, analysis_id, gcs_blob, frame_count, sample_every_n=1
         for attempt in range(10):
             resp = requests.post(
                 f"{POSE_SERVICE_URL}/predict/video",
-                json={"gcs_bucket": GCS_BUCKET, "gcs_blob": gcs_blob,
+                json={"gcs_bucket": BUCKET_NAME, "gcs_blob": gcs_blob,
                       "sample_every_n": sample_every_n, "resolution": resolution},
                 headers=_get_auth_headers(),
                 timeout=3600,
@@ -102,7 +91,7 @@ def _run_analysis(video_id, analysis_id, gcs_blob, frame_count, sample_every_n=1
 
         # Stream response directly to GCS instead of loading all into memory
         pose_gcs_path = f"poses/{video_id}.json"
-        bucket = _gcs().bucket(GCS_BUCKET)
+        bucket = _gcs().bucket(BUCKET_NAME)
         blob = bucket.blob(pose_gcs_path)
         blob.upload_from_string(resp.content, content_type="application/json")
         blob.make_public()
@@ -140,7 +129,7 @@ def _run_analysis(video_id, analysis_id, gcs_blob, frame_count, sample_every_n=1
             if cancelled:
                 # Clean up GCS file and DB record
                 try:
-                    bucket = _gcs().bucket(GCS_BUCKET)
+                    bucket = _gcs().bucket(BUCKET_NAME)
                     bucket.blob(f"poses/{video_id}.json").delete()
                 except Exception:
                     pass
@@ -179,7 +168,7 @@ def api_run_analysis(video_id):
             if isinstance(s, str):
                 s = json.loads(s)
             if s and s.get("pose_gcs_path"):
-                _gcs().bucket(GCS_BUCKET).blob(s["pose_gcs_path"]).delete()
+                _gcs().bucket(BUCKET_NAME).blob(s["pose_gcs_path"]).delete()
         except Exception:
             pass
         aa.delete(o["id"])
@@ -237,7 +226,7 @@ def api_get_analysis(video_id):
     # Add public URL for pose data
     if analysis.get("summary") and analysis["summary"].get("pose_gcs_path"):
         path = analysis["summary"]["pose_gcs_path"]
-        analysis["pose_url"] = f"https://storage.googleapis.com/{GCS_BUCKET}/{path}"
+        analysis["pose_url"] = f"https://storage.googleapis.com/{BUCKET_NAME}/{path}"
     return jsonify(analysis)
 
 
@@ -254,7 +243,6 @@ def api_get_pose_data(video_id):
     path = summary.get("pose_gcs_path") if summary else None
     if not path:
         return jsonify({"error": "no pose file"}), 404
-    blob = _gcs().bucket(GCS_BUCKET).blob(path)
+    blob = _gcs().bucket(BUCKET_NAME).blob(path)
     data = blob.download_as_bytes()
-    from flask import Response
     return Response(data, content_type="application/json")

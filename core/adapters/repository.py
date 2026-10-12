@@ -1,4 +1,4 @@
-"""Adapters foundation — DB connection, generic Repository, BaseAdapter, and SQL loader."""
+"""Adapters foundation — DB connection, generic Repository, and BaseAdapter."""
 
 import os
 import json
@@ -10,8 +10,6 @@ from pathlib import Path
 from contextlib import contextmanager
 
 _ADMIN_PATH = Path(__file__).parent / "db.json"
-_SQL_DIR = Path(__file__).parent / "sql_queries"
-_SQL_CACHE: dict[str, str] = {}
 
 
 # ── Database Adapter ──────────────────────────────────────────────────────────
@@ -51,19 +49,6 @@ class DatabaseAdapter:
         pool = cls._pool
         if pool is not None and not pool.closed:
             pool.putconn(conn)
-
-
-# ── SQL Loader ────────────────────────────────────────────────────────────────
-
-def load_sql(folder: str, name: str, **kwargs) -> str:
-    key = f"{folder}/{name}"
-    if key not in _SQL_CACHE:
-        path = _SQL_DIR / folder / f"{name}.sql"
-        _SQL_CACHE[key] = path.read_text(encoding="utf-8").strip()
-    sql = _SQL_CACHE[key]
-    if kwargs:
-        sql = sql.format(**kwargs)
-    return sql
 
 
 # ── Repository ────────────────────────────────────────────────────────────────
