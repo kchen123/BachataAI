@@ -163,12 +163,13 @@ def api_cancel_analysis(video_id):
     except Exception:
         pass
 
-    # Update DB
+    # Clean up: delete DB record, pose file, progress file
     repo = get_repo()
     aa = AnalysesAdapter(repo)
-    analysis = aa.get_by_video(video_id)
-    if analysis and analysis["status"] != "done":
-        aa.set_status(analysis["id"], "error")
+    for a in aa.select(video_id=video_id):
+        if a["status"] != "done":
+            aa.delete(a["id"])
+    _delete_pose_file(video_id)
 
     return jsonify({"status": "cancelled"}), 200
 
