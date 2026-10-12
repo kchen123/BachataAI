@@ -34,9 +34,17 @@ POSE_SERVICE_URL = os.environ.get("POSE_SERVICE_URL", "http://localhost:8080")
 def _auth_headers():
     if POSE_SERVICE_URL.startswith("http://localhost"):
         return {}
-    auth_req = google.auth.transport.requests.Request()
-    token = google.oauth2.id_token.fetch_id_token(auth_req, POSE_SERVICE_URL)
-    return {"Authorization": f"Bearer {token}"}
+    try:
+        auth_req = google.auth.transport.requests.Request()
+        token = google.oauth2.id_token.fetch_id_token(auth_req, POSE_SERVICE_URL)
+        return {"Authorization": f"Bearer {token}"}
+    except Exception:
+        # Fallback for local dev — use gcloud CLI
+        import subprocess
+        token = subprocess.check_output(
+            ["gcloud", "auth", "print-identity-token"], text=True
+        ).strip()
+        return {"Authorization": f"Bearer {token}"}
 
 
 def _read_progress(video_id):
