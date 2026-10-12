@@ -558,6 +558,16 @@ async function togglePose() {
     // Load pose data if not loaded yet
     if (!poseFrames) {
       document.getElementById('poseToggle').disabled = true;
+      const player = document.getElementById('videoPlayer');
+      player.pause();
+      // Show loading overlay
+      const wrapper = document.querySelector('.video-wrapper');
+      const overlay = document.createElement('div');
+      overlay.className = 'pose-loading-overlay';
+      overlay.id = 'poseLoadingOverlay';
+      overlay.innerHTML = '<span>Loading pose data...</span>';
+      wrapper.appendChild(overlay);
+
       try {
         const poseRes = await fetch('/api/videos/' + currentVideoId + '/pose-data');
         if (poseRes.ok) {
@@ -565,7 +575,12 @@ async function togglePose() {
           poseFrames = poseData.frames;
         }
       } catch (e) {}
+
+      // Remove overlay
+      const ol = document.getElementById('poseLoadingOverlay');
+      if (ol) ol.remove();
       document.getElementById('poseToggle').disabled = false;
+      player.play();
     }
     if (poseFrames && poseFrames.length > 0) {
       drawCurrentPose();
