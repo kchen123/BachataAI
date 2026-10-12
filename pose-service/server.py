@@ -142,8 +142,19 @@ def _run_analysis(req: AnalyzeRequest):
 
                 processed += 1
 
-                # Update progress every 200 processed frames
+                # Update progress + check cancel every 200 processed frames
                 if processed % 200 == 0:
+                    # Check cancel flag
+                    try:
+                        prog_blob = bucket.blob(f"progress/{req.video_id}.json")
+                        if prog_blob.exists():
+                            prog = json.loads(prog_blob.download_as_bytes())
+                            if prog.get("status") == "cancelled":
+                                cap.release()
+                                return {"status": "cancelled", "video_id": req.video_id}
+                    except Exception:
+                        pass
+
                     pct = 10 + int((processed / max(frames_to_process, 1)) * 75)
                     _write_progress(bucket, req.video_id, {
                         "status": "running", "percent": min(pct, 85),
