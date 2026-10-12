@@ -490,6 +490,17 @@ function pollProgress(videoId) {
 
 async function cancelAnalysis(videoId) {
   await fetch('/api/videos/' + videoId + '/analyze', { method: 'DELETE' });
+  // Clear UI immediately
+  const card = document.querySelector('.file-card[data-type="video"][data-id="' + videoId + '"]');
+  if (card) {
+    card.classList.remove('processing');
+    const bar = card.querySelector('.processing-bar');
+    const log = card.querySelector('.processing-log');
+    const cancel = card.querySelector('.processing-cancel');
+    if (bar) bar.remove();
+    if (log) log.remove();
+    if (cancel) cancel.remove();
+  }
 }
 
 async function triggerAnalysis(videoId, sampleRate, resolution) {
