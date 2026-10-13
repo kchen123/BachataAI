@@ -141,7 +141,9 @@ def _run_analysis(req: AnalyzeRequest):
                             }
                         persons.append({"keypoints": person_kpts, "center_x": round(cx, 4), "bbox_area": round(bbox_area, 4)})
 
-                # Sort by distance to frame center (closest first) — center dancers are the focus
+                # Filter out small bboxes (background people/audience)
+                persons = [p for p in persons if p["bbox_area"] > 0.02]
+                # Sort by distance to frame center (closest first)
                 persons.sort(key=lambda p: abs(p["center_x"] - 0.5))
 
                 frames.append({
