@@ -121,12 +121,6 @@
 
 const search = document.getElementById('scorecardSearch');
 const tbody = document.querySelector('#scorecardsTable tbody');
-const countEl = document.getElementById('scorecardCount');
-
-function updateCount() {
-  const visible = tbody.querySelectorAll('tr:not([style*="display: none"]):not(:has(.empty-row))').length;
-  countEl.textContent = visible + ' items';
-}
 
 search.addEventListener('input', () => {
   const q = search.value.toLowerCase();
@@ -135,7 +129,6 @@ search.addEventListener('input', () => {
     if (!name) return;
     tr.style.display = name.textContent.toLowerCase().includes(q) ? '' : 'none';
   });
-  updateCount();
 });
 
 document.getElementById('btnAddScorecard').addEventListener('click', () => {

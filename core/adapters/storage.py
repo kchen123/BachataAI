@@ -19,18 +19,3 @@ def upload_blob(filename: str, local_path: str, content_type: str = "video/mp4")
     blob = bucket.blob(filename)
     blob.upload_from_filename(local_path, content_type=content_type)
     return blob.public_url
-
-
-def delete_blob(filename: str):
-    """Delete a file from GCS."""
-    bucket = _get_client().bucket(BUCKET_NAME)
-    blob = bucket.blob(filename)
-    if blob.exists():
-        blob.delete()
-
-
-def download_blob(filename: str, local_path: str):
-    """Download a file from GCS to a local path."""
-    bucket = _get_client().bucket(BUCKET_NAME)
-    blob = bucket.blob(filename)
-    blob.download_to_filename(local_path)
