@@ -1047,6 +1047,18 @@
   min-height: 300px;
 }
 
+.sc-bar-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0 4px;
+  box-shadow: none;
+}
+.sc-bar-btn:hover { color: var(--text-primary); }
+.sc-bar-delete:hover { color: var(--red); }
+
 .scorecard-body {
   flex: 1;
   overflow-y: auto;

@@ -50,6 +50,8 @@
       <span class="video-bar-id" id="scId"></span>
       <span class="video-bar-sep">|</span>
       <span class="video-bar-name" id="scName"></span>
+      <button class="sc-bar-btn" onclick="renameScorecard()" title="Rename">&#9998;</button>
+      <button class="sc-bar-btn sc-bar-delete" onclick="deleteScorecardFromModal()" title="Delete">&#128465;</button>
       <button class="video-bar-close" onclick="closeScorecardModal()">&times;</button>
     </div>
     <div class="scorecard-body">
@@ -249,6 +251,31 @@ function filterMetrics() {
     if (!name) return;
     tr.style.display = name.textContent.toLowerCase().includes(q) ? '' : 'none';
   });
+}
+
+async function renameScorecard() {
+  const name = prompt('New name:');
+  if (!name || !name.trim()) return;
+  const res = await fetch('/api/scorecards/' + currentScorecardId, {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name: name.trim()})
+  });
+  if (res.ok) {
+    document.getElementById('scName').textContent = name.trim();
+    const row = document.querySelector('tr[data-id="' + currentScorecardId + '"] .name-col');
+    if (row) row.textContent = name.trim();
+  }
+}
+
+async function deleteScorecardFromModal() {
+  if (!confirm('Delete this scorecard and all its metrics?')) return;
+  const res = await fetch('/api/scorecards/' + currentScorecardId, { method: 'DELETE' });
+  if (res.ok) {
+    closeScorecardModal();
+    const row = document.querySelector('tr[data-id="' + currentScorecardId + '"]');
+    if (row) row.remove();
+  }
 }
 
 async function deleteMetric(id) {
