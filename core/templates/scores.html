@@ -42,6 +42,19 @@
     </tbody>
   </table>
 </div>
+
+<!-- Add Scorecard Modal -->
+<div class="modal-overlay" id="addScorecardModal" onclick="if(event.target===this)closeAddModal()">
+  <div class="files-modal">
+    <h3>New Scorecard</h3>
+    <input type="text" id="scorecardNameInput" placeholder="Scorecard name" autocomplete="off"
+           onkeydown="if(event.key==='Enter')createScorecard()">
+    <div class="files-modal-actions">
+      <button class="btn btn-sm" onclick="closeAddModal()">Cancel</button>
+      <button class="btn btn-sm btn-accent" onclick="createScorecard()">Create</button>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -79,18 +92,28 @@ search.addEventListener('input', () => {
   updateCount();
 });
 
-document.getElementById('btnAddScorecard').addEventListener('click', async () => {
-  const name = prompt('Scorecard name:');
-  if (!name || !name.trim()) return;
+document.getElementById('btnAddScorecard').addEventListener('click', () => {
+  document.getElementById('addScorecardModal').classList.add('open');
+  setTimeout(() => document.getElementById('scorecardNameInput').focus(), 50);
+});
+
+function closeAddModal() {
+  document.getElementById('addScorecardModal').classList.remove('open');
+  document.getElementById('scorecardNameInput').value = '';
+}
+
+async function createScorecard() {
+  const name = document.getElementById('scorecardNameInput').value.trim();
+  if (!name) return;
   const res = await fetch('/api/scorecards', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({name: name.trim()})
+    body: JSON.stringify({name: name})
   });
   if (res.ok) {
     window.location.reload();
   }
-});
+}
 
 async function deleteScorecard(id) {
   if (!confirm('Delete this scorecard?')) return;
