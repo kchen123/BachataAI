@@ -734,6 +734,7 @@
 .video-controls-bar {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
   padding: 6px 16px;
   background: var(--bg-elevated);
