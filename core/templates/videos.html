@@ -143,7 +143,7 @@
         <div class="pose-controls hidden" id="poseControls">
           <label class="pose-ctrl-item">
             <input type="checkbox" id="poseToggle" onchange="togglePose()">
-            <span>Skeleton</span>
+            <span>Pose</span>
           </label>
           <span class="pose-ctrl-sep">|</span>
           <select class="pose-ctrl-select" id="poseMaxPersons" onchange="updateMaxPersons()">
@@ -465,7 +465,35 @@ function closeVideo() {
   const canvas = document.getElementById('poseCanvas');
   canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
   document.getElementById('videoModal').classList.remove('open');
+  // Reset position
+  const modal = document.querySelector('.video-modal');
+  modal.style.transform = '';
 }
+
+// Drag video modal
+(function() {
+  const header = document.querySelector('.video-modal-header');
+  const modal = document.querySelector('.video-modal');
+  let dragging = false, startX, startY, dx = 0, dy = 0;
+
+  header.addEventListener('mousedown', (e) => {
+    if (e.target.closest('button, label, select, input')) return;
+    dragging = true;
+    startX = e.clientX - dx;
+    startY = e.clientY - dy;
+    header.style.cursor = 'grabbing';
+  });
+  document.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    dx = e.clientX - startX;
+    dy = e.clientY - startY;
+    modal.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+  });
+  document.addEventListener('mouseup', () => {
+    dragging = false;
+    header.style.cursor = 'grab';
+  });
+})();
 
 function runAnalysis(videoId) {
   triggerAnalysis(videoId || currentVideoId, 2, 640);

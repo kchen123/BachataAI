@@ -672,6 +672,9 @@
   max-width: 960px;
   box-shadow: 0 16px 48px rgba(0,0,0,0.7);
   overflow: hidden;
+  resize: both;
+  min-width: 400px;
+  min-height: 300px;
 }
 
 .video-modal-header {
@@ -681,6 +684,8 @@
   padding: 10px 16px;
   background: var(--bg-elevated);
   border-bottom: 1px solid var(--border);
+  cursor: grab;
+  user-select: none;
 }
 
 .video-modal-title {
