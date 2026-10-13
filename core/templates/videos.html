@@ -936,9 +936,6 @@ async function uploadSingleFile(file, idx, onDone) {
     return;
   }
 
-  const pctEl = document.getElementById('uPct' + idx);
-  const fillEl = document.getElementById('uFill' + idx);
-
   try {
     // Step 1: Get resumable upload URL from Flask (small request)
     const body = { filename: file.name };
