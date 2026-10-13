@@ -1,18 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Scores{% endblock %}
 
+{% block page_id %}SCORES{% endblock %}
 {% block content %}
-<div class="statusbar">
-  <div class="brand">
-    <span class="pulse" title="live"></span>
-    <span class="ticker">BACHATA&middot;AI/SCORES</span>
-  </div>
-  <div class="clock" id="mainClock">
-    <span class="time">--:--:--</span>
-    <span class="tz">ET</span>
-  </div>
-</div>
-
 <div class="scores-toolbar">
   <input type="text" class="search-input" id="scorecardSearch" placeholder="...">
 <button class="btn-add-scorecard" id="btnAddScorecard" title="New scorecard">+</button>
@@ -51,8 +41,8 @@
       <span class="video-bar-sep">|</span>
       <span class="video-bar-name" id="scName"></span>
       <button class="sc-bar-btn" onclick="renameScorecard()" title="Rename">&#9998;</button>
-      <button class="sc-bar-btn sc-bar-delete" onclick="deleteScorecardFromModal()" title="Delete">&#128465;</button>
       <button class="video-bar-close" onclick="closeScorecardModal()">&times;</button>
+      <button class="sc-bar-btn sc-bar-delete" onclick="deleteScorecardFromModal()" title="Delete">&#128465;</button>
     </div>
     <div class="scorecard-body">
       <div class="scores-toolbar">
