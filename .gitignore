@@ -21,6 +21,10 @@ Thumbs.db
 
 # Uploads
 uploads/
+downloads/
 yolo26x-pose.pt
 *.mp4
 *.png
+
+# Credentials
+core/admin.json
