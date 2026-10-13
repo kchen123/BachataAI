@@ -182,7 +182,7 @@ async function loadMetrics(id) {
   tbody.innerHTML = metrics.map(m => {
     let range = m.range || '';
     if (typeof range === 'string') try { range = JSON.parse(range); } catch(e) {}
-    const rangeStr = typeof range === 'object' ? (range.min !== undefined ? range.min + '–' + range.max : '') : range;
+    const rangeStr = m.type === 'score' ? '0–10' : m.type === 'boolean' ? 'Yes / No' : '';
     return '<tr data-mid="' + m.id + '">' +
       '<td class="id-col">' + m.id + '</td>' +
       '<td class="name-col">' + m.name + '</td>' +
