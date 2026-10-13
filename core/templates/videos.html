@@ -908,12 +908,33 @@ function handleUploadFiles(files) {
   }
 }
 
+async function checkVideoFile(file) {
+  // Read first 12 bytes to check for valid MP4/MOV header
+  const buf = await file.slice(0, 12).arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  const str = String.fromCharCode(...bytes.slice(4, 12));
+  const valid = ['ftyp', 'moov', 'mdat', 'free'].some(sig => str.startsWith(sig));
+  return valid;
+}
+
 async function uploadSingleFile(file, idx, onDone) {
   const box = document.getElementById('uploadProgress');
   const row = document.createElement('div');
   row.className = 'upload-row';
   row.innerHTML = '<div class="upload-row-info"><span class="upload-row-name">' + file.name + '</span><span class="upload-row-pct" id="uPct' + idx + '">0%</span></div><div class="upload-progress-bar"><div class="upload-progress-fill" id="uFill' + idx + '"></div></div>';
   box.appendChild(row);
+
+  const pctEl = document.getElementById('uPct' + idx);
+  const fillEl = document.getElementById('uFill' + idx);
+
+  // Validate file format
+  const isValid = await checkVideoFile(file);
+  if (!isValid) {
+    pctEl.textContent = 'Invalid format';
+    fillEl.style.background = 'var(--red)';
+    onDone();
+    return;
+  }
 
   const pctEl = document.getElementById('uPct' + idx);
   const fillEl = document.getElementById('uFill' + idx);
