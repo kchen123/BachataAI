@@ -53,12 +53,12 @@
       <button class="video-bar-close" onclick="closeScorecardModal()">&times;</button>
     </div>
     <div class="scorecard-body">
-      <div class="scorecard-metrics-header">
-        <span class="scorecard-metrics-title">Metrics</span>
-        <button class="btn btn-sm" onclick="showAddMetric()">+ Add</button>
+      <div class="scores-toolbar">
+        <input type="text" class="search-input" id="metricSearch" placeholder="..." oninput="filterMetrics()">
+        <button class="btn-add-scorecard" onclick="showAddMetric()" title="Add metric">+</button>
       </div>
       <div class="scorecard-add-row hidden" id="addMetricRow">
-        <input type="text" id="newMetricName" placeholder="Metric name" class="metric-input">
+        <input type="text" id="newMetricName" placeholder="Metric name" class="metric-input" onkeydown="if(event.key==='Enter')addMetric()">
         <select id="newMetricType" class="metric-select">
           <option value="score">Score (0-10)</option>
           <option value="boolean">Yes/No</option>
@@ -215,6 +215,15 @@ async function addMetric() {
     hideAddMetric();
     loadMetrics(currentScorecardId);
   }
+}
+
+function filterMetrics() {
+  const q = document.getElementById('metricSearch').value.toLowerCase();
+  document.querySelectorAll('#metricsBody tr').forEach(tr => {
+    const name = tr.querySelector('.name-col');
+    if (!name) return;
+    tr.style.display = name.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
 }
 
 async function deleteMetric(id) {
