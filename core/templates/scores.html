@@ -15,8 +15,7 @@
 
 <div class="scores-toolbar">
   <input type="text" class="search-input" id="scorecardSearch" placeholder="Search scorecards…">
-  <span class="toolbar-count" id="scorecardCount">{{ scorecards|length }} items</span>
-  <button class="btn-add-scorecard" id="btnAddScorecard" title="New scorecard">+</button>
+<button class="btn-add-scorecard" id="btnAddScorecard" title="New scorecard">+</button>
 </div>
 
 <div class="table-wrap">
@@ -26,7 +25,6 @@
         <th class="id-col">ID</th>
         <th class="name-col">Name</th>
         <th class="date-col">Created</th>
-        <th class="actions-col"></th>
       </tr>
     </thead>
     <tbody>
@@ -35,13 +33,10 @@
         <td class="id-col">{{ sc.id }}</td>
         <td class="name-col">{{ sc.name }}</td>
         <td class="date-col">{{ sc.created_at.strftime('%b %d, %Y') if sc.created_at else '' }}</td>
-        <td class="actions-col">
-          <button class="tbl-action" onclick="deleteScorecard({{ sc.id }})" title="Delete">&times;</button>
-        </td>
       </tr>
       {% else %}
       <tr>
-        <td colspan="4" class="empty-row">No scorecards yet.</td>
+        <td colspan="3" class="empty-row">No scorecards yet.</td>
       </tr>
       {% endfor %}
     </tbody>
