@@ -48,15 +48,6 @@
       <div class="scores-toolbar">
         <input type="text" class="search-input" id="metricSearch" placeholder="..." oninput="filterMetrics()">
       </div>
-      <div class="scorecard-add-row hidden" id="addMetricRow">
-        <input type="text" id="newMetricName" placeholder="Metric name" class="metric-input" onkeydown="if(event.key==='Enter')addMetric()">
-        <select id="newMetricType" class="metric-select">
-          <option value="score">Score (0-10)</option>
-          <option value="boolean">Yes/No</option>
-        </select>
-        <button class="btn btn-sm btn-accent" onclick="addMetric()">Add</button>
-        <button class="btn btn-sm" onclick="hideAddMetric()">Cancel</button>
-      </div>
       <table class="app-table" id="metricsTable">
         <thead>
           <tr>
@@ -70,7 +61,16 @@
           <tr><td colspan="4" class="empty-row">Loading...</td></tr>
         </tbody>
       </table>
-      <div class="metrics-add-bottom">
+      <div class="metrics-add-bottom hidden" id="addMetricRow">
+        <input type="text" id="newMetricName" placeholder="Name" class="metric-input" onkeydown="if(event.key==='Enter')addMetric()">
+        <select id="newMetricType" class="metric-select">
+          <option value="score">Score (0-10)</option>
+          <option value="boolean">Yes/No</option>
+        </select>
+        <button class="btn btn-sm btn-accent" onclick="addMetric()">Add</button>
+        <button class="btn btn-sm" onclick="hideAddMetric()">Cancel</button>
+      </div>
+      <div class="metrics-add-bottom" id="addMetricBtn">
         <button class="btn btn-sm" onclick="showAddMetric()">+ Add Metric</button>
       </div>
     </div>
@@ -225,11 +225,13 @@ async function loadMetrics(id) {
 
 function showAddMetric() {
   document.getElementById('addMetricRow').classList.remove('hidden');
+  document.getElementById('addMetricBtn').classList.add('hidden');
   document.getElementById('newMetricName').focus();
 }
 
 function hideAddMetric() {
   document.getElementById('addMetricRow').classList.add('hidden');
+  document.getElementById('addMetricBtn').classList.remove('hidden');
   document.getElementById('newMetricName').value = '';
 }
 
