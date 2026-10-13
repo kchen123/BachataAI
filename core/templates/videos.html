@@ -706,8 +706,27 @@ function drawCurrentPose() {
     }).slice(0, maxPersons);
   }
 
-  const w = canvas.width;
-  const h = canvas.height;
+  // Calculate actual video area within the player (handles letterboxing/pillarboxing)
+  const vw = player.videoWidth || 1;
+  const vh = player.videoHeight || 1;
+  const videoAspect = vw / vh;
+  const canvasAspect = canvas.width / canvas.height;
+  let drawW, drawH, offsetX, offsetY;
+  if (videoAspect > canvasAspect) {
+    // Video wider than canvas — letterboxed (black bars top/bottom)
+    drawW = canvas.width;
+    drawH = canvas.width / videoAspect;
+    offsetX = 0;
+    offsetY = (canvas.height - drawH) / 2;
+  } else {
+    // Video taller than canvas — pillarboxed (black bars left/right)
+    drawH = canvas.height;
+    drawW = canvas.height * videoAspect;
+    offsetX = (canvas.width - drawW) / 2;
+    offsetY = 0;
+  }
+  const w = drawW;
+  const h = drawH;
 
   // Colors: left person = green, right person = blue, others = purple
   const COLORS = [
@@ -734,8 +753,8 @@ function drawCurrentPose() {
       if (!pa || !pb) continue;
       if (pa.visibility < 0.3 || pb.visibility < 0.3) continue;
       ctx.beginPath();
-      ctx.moveTo(pa.x * w, pa.y * h);
-      ctx.lineTo(pb.x * w, pb.y * h);
+      ctx.moveTo(offsetX + pa.x * w, offsetY + pa.y * h);
+      ctx.lineTo(offsetX + pb.x * w, offsetY + pb.y * h);
       ctx.stroke();
     }
 
@@ -746,7 +765,7 @@ function drawCurrentPose() {
       if (!p || p.visibility < 0.3) continue;
       ctx.fillStyle = color.dot;
       ctx.beginPath();
-      ctx.arc(p.x * w, p.y * h, 4, 0, Math.PI * 2);
+      ctx.arc(offsetX + p.x * w, offsetY + p.y * h, 4, 0, Math.PI * 2);
       ctx.fill();
     }
   }
