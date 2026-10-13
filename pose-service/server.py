@@ -111,7 +111,7 @@ def _run_analysis(req: AnalyzeRequest):
 
             if frame_num % req.sample_every_n == 0:
                 h, w = frame.shape[:2]
-                results = MODEL(frame, verbose=False, imgsz=req.resolution)
+                results = MODEL.track(frame, verbose=False, imgsz=req.resolution, persist=True)
 
                 persons = []
                 if results and results[0].keypoints is not None:
@@ -124,10 +124,13 @@ def _run_analysis(req: AnalyzeRequest):
                         conf = kpts.conf[p_idx] if kpts.conf is not None else None
                         cx = 0.5
                         bbox_area = 0
+                        track_id = -1
                         if boxes is not None and len(boxes.xyxy) > p_idx:
                             box = boxes.xyxy[p_idx]
                             cx = float((box[0] + box[2]) / 2) / w
                             bbox_area = float((box[2] - box[0]) * (box[3] - box[1])) / (w * h)
+                            if boxes.id is not None and len(boxes.id) > p_idx:
+                                track_id = int(boxes.id[p_idx])
 
                         person_kpts = {}
                         for i in range(len(xy)):
@@ -139,7 +142,7 @@ def _run_analysis(req: AnalyzeRequest):
                                 "z": 0.0,
                                 "visibility": round(vis, 3),
                             }
-                        persons.append({"keypoints": person_kpts, "center_x": round(cx, 4), "bbox_area": round(bbox_area, 4)})
+                        persons.append({"keypoints": person_kpts, "center_x": round(cx, 4), "bbox_area": round(bbox_area, 4), "track_id": track_id})
 
                 # Filter out small bboxes (background people/audience)
                 persons = [p for p in persons if p["bbox_area"] > 0.02]
