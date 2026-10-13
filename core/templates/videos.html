@@ -143,7 +143,7 @@
           <option value="0">All</option>
         </select>
         <span class="pose-ctrl-sep">|</span>
-        <button class="pose-ctrl-btn" onclick="runAnalysis()">Re-run</button>
+        <button class="pose-ctrl-btn" onclick="confirmRerun()">Re-run</button>
       </div>
     </div>
     <div class="video-wrapper">
@@ -155,6 +155,18 @@
 
 
 <!-- Cancel Confirm Modal -->
+<!-- Re-run Confirm Modal -->
+<div class="modal-overlay" id="rerunModal" onclick="if(event.target===this)closeRerunModal()">
+  <div class="files-modal">
+    <h3 style="margin-bottom:12px">Re-run Analysis</h3>
+    <p class="analyze-desc" style="margin-bottom:24px">This will delete existing pose data and run a new analysis. Previous results will be replaced.</p>
+    <div class="files-modal-actions" style="gap:12px">
+      <button class="btn btn-sm" style="padding:6px 16px" onclick="closeRerunModal()">Cancel</button>
+      <button class="btn btn-sm btn-accent" style="padding:6px 16px" onclick="confirmRerunAction()">Re-run</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="cancelModal" onclick="if(event.target===this)closeCancelModal()">
   <div class="files-modal">
     <h3 style="margin-bottom:12px">Cancel Analysis</h3>
@@ -470,6 +482,19 @@ function closeVideo() {
     header.style.cursor = 'grab';
   });
 })();
+
+function confirmRerun() {
+  document.getElementById('rerunModal').classList.add('open');
+}
+
+function closeRerunModal() {
+  document.getElementById('rerunModal').classList.remove('open');
+}
+
+function confirmRerunAction() {
+  closeRerunModal();
+  runAnalysis();
+}
 
 function runAnalysis(videoId) {
   triggerAnalysis(videoId || currentVideoId, 2, 640);
