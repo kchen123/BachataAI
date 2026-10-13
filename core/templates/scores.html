@@ -14,7 +14,7 @@
 </div>
 
 <div class="scores-toolbar">
-  <input type="text" class="search-input" id="scorecardSearch" placeholder="Search scorecards…">
+  <input type="text" class="search-input" id="scorecardSearch" placeholder="...">
 <button class="btn-add-scorecard" id="btnAddScorecard" title="New scorecard">+</button>
 </div>
 
@@ -29,7 +29,7 @@
     </thead>
     <tbody>
       {% for sc in scorecards %}
-      <tr data-id="{{ sc.id }}">
+      <tr data-id="{{ sc.id }}" onclick="openScorecard({{ sc.id }}, '{{ sc.name }}')" style="cursor:pointer">
         <td class="id-col">{{ sc.id }}</td>
         <td class="name-col">{{ sc.name }}</td>
         <td class="date-col">{{ sc.created_at.strftime('%b %d, %Y') if sc.created_at else '' }}</td>
@@ -41,6 +41,47 @@
       {% endfor %}
     </tbody>
   </table>
+</div>
+
+<!-- Scorecard Detail Modal -->
+<div class="modal-overlay" id="scorecardModal" onclick="if(event.target===this)closeScorecardModal()">
+  <div class="scorecard-modal">
+    <div class="video-title-bar">
+      <span class="video-bar-id" id="scId"></span>
+      <span class="video-bar-sep">|</span>
+      <span class="video-bar-name" id="scName"></span>
+      <button class="video-bar-close" onclick="closeScorecardModal()">&times;</button>
+    </div>
+    <div class="scorecard-body">
+      <div class="scorecard-metrics-header">
+        <span class="scorecard-metrics-title">Metrics</span>
+        <button class="btn btn-sm" onclick="showAddMetric()">+ Add</button>
+      </div>
+      <div class="scorecard-add-row hidden" id="addMetricRow">
+        <input type="text" id="newMetricName" placeholder="Metric name" class="metric-input">
+        <select id="newMetricType" class="metric-select">
+          <option value="score">Score (0-10)</option>
+          <option value="boolean">Yes/No</option>
+          <option value="text">Text</option>
+        </select>
+        <button class="btn btn-sm btn-accent" onclick="addMetric()">Add</button>
+        <button class="btn btn-sm" onclick="hideAddMetric()">Cancel</button>
+      </div>
+      <table class="app-table" id="metricsTable">
+        <thead>
+          <tr>
+            <th class="id-col">ID</th>
+            <th class="name-col">Name</th>
+            <th class="type-col">Type</th>
+            <th class="actions-col"></th>
+          </tr>
+        </thead>
+        <tbody id="metricsBody">
+          <tr><td colspan="4" class="empty-row">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
 </div>
 
 <!-- Add Scorecard Modal -->
@@ -115,14 +156,68 @@ async function createScorecard() {
   }
 }
 
-async function deleteScorecard(id) {
-  if (!confirm('Delete this scorecard?')) return;
-  const res = await fetch('/api/scorecards/' + id, { method: 'DELETE' });
-  if (res.ok) {
-    const row = document.querySelector('tr[data-id="' + id + '"]');
-    if (row) row.remove();
-    updateCount();
+let currentScorecardId = null;
+
+async function openScorecard(id, name) {
+  currentScorecardId = id;
+  document.getElementById('scId').textContent = '#' + id;
+  document.getElementById('scName').textContent = name;
+  document.getElementById('scorecardModal').classList.add('open');
+  hideAddMetric();
+  await loadMetrics(id);
+}
+
+function closeScorecardModal() {
+  document.getElementById('scorecardModal').classList.remove('open');
+  currentScorecardId = null;
+}
+
+async function loadMetrics(id) {
+  const res = await fetch('/api/scorecards/' + id + '/metrics');
+  const metrics = await res.json();
+  const tbody = document.getElementById('metricsBody');
+  if (!metrics.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty-row">No metrics yet</td></tr>';
+    return;
   }
+  tbody.innerHTML = metrics.map(m =>
+    '<tr data-mid="' + m.id + '">' +
+    '<td class="id-col">' + m.id + '</td>' +
+    '<td class="name-col">' + m.name + '</td>' +
+    '<td class="type-col">' + m.type + '</td>' +
+    '<td class="actions-col"><button class="tbl-action" onclick="deleteMetric(' + m.id + ')" title="Delete">&times;</button></td>' +
+    '</tr>'
+  ).join('');
+}
+
+function showAddMetric() {
+  document.getElementById('addMetricRow').classList.remove('hidden');
+  document.getElementById('newMetricName').focus();
+}
+
+function hideAddMetric() {
+  document.getElementById('addMetricRow').classList.add('hidden');
+  document.getElementById('newMetricName').value = '';
+}
+
+async function addMetric() {
+  const name = document.getElementById('newMetricName').value.trim();
+  const type = document.getElementById('newMetricType').value;
+  if (!name) return;
+  const res = await fetch('/api/scorecards/' + currentScorecardId + '/metrics', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name, type})
+  });
+  if (res.ok) {
+    hideAddMetric();
+    loadMetrics(currentScorecardId);
+  }
+}
+
+async function deleteMetric(id) {
+  const res = await fetch('/api/metrics/' + id, { method: 'DELETE' });
+  if (res.ok) loadMetrics(currentScorecardId);
 }
 </script>
 {% endblock %}
