@@ -751,18 +751,20 @@ function drawCurrentPose() {
       const pa = lm[a] || lm[String(a)];
       const pb = lm[b] || lm[String(b)];
       if (!pa || !pb) continue;
-      if (pa.visibility < 0.3 || pb.visibility < 0.3) continue;
+      if (pa.visibility < 0.5 || pb.visibility < 0.5) continue;
+      ctx.globalAlpha = Math.min(pa.visibility, pb.visibility);
       ctx.beginPath();
       ctx.moveTo(offsetX + pa.x * w, offsetY + pa.y * h);
       ctx.lineTo(offsetX + pb.x * w, offsetY + pb.y * h);
       ctx.stroke();
+      ctx.globalAlpha = 1;
     }
 
     // Draw keypoints
     ctx.shadowBlur = 0;
     for (let i = 0; i < 17; i++) {
       const p = lm[i] || lm[String(i)];
-      if (!p || p.visibility < 0.3) continue;
+      if (!p || p.visibility < 0.5) continue;
       ctx.fillStyle = color.dot;
       ctx.beginPath();
       ctx.arc(offsetX + p.x * w, offsetY + p.y * h, 4, 0, Math.PI * 2);
