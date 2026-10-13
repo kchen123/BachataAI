@@ -1061,6 +1061,23 @@
 .sc-bar-delete { border: none; font-size: 10px; color: var(--text-muted); }
 .sc-bar-delete:hover { color: var(--red); }
 
+.sc-rename-input {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--accent);
+  color: var(--text-primary);
+  font: 700 11px var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  outline: none;
+  width: 200px;
+}
+
+.metrics-add-bottom {
+  padding: 10px 16px;
+  border-top: 1px solid var(--border-light);
+}
+
 .scorecard-body {
   flex: 1;
   overflow-y: auto;

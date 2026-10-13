@@ -39,8 +39,7 @@
     <div class="video-title-bar">
       <span class="video-bar-id" id="scId"></span>
       <span class="video-bar-sep">|</span>
-      <span class="video-bar-name" id="scName"></span>
-      <button class="sc-bar-btn" onclick="renameScorecard()" title="Rename">&#9998;</button>
+      <span class="video-bar-name" id="scName" ondblclick="startRenameScorecard()" title="Double-click to rename"></span>
       <span style="flex:1"></span>
       <button class="sc-bar-btn sc-bar-delete" onclick="openDeleteScorecardModal()">Delete</button>
       <button class="video-bar-close" onclick="closeScorecardModal()">&times;</button>
@@ -48,7 +47,6 @@
     <div class="scorecard-body">
       <div class="scores-toolbar">
         <input type="text" class="search-input" id="metricSearch" placeholder="..." oninput="filterMetrics()">
-        <button class="btn-add-scorecard" onclick="showAddMetric()" title="Add metric">+</button>
       </div>
       <div class="scorecard-add-row hidden" id="addMetricRow">
         <input type="text" id="newMetricName" placeholder="Metric name" class="metric-input" onkeydown="if(event.key==='Enter')addMetric()">
@@ -72,6 +70,9 @@
           <tr><td colspan="4" class="empty-row">Loading...</td></tr>
         </tbody>
       </table>
+      <div class="metrics-add-bottom">
+        <button class="btn btn-sm" onclick="showAddMetric()">+ Add Metric</button>
+      </div>
     </div>
   </div>
 </div>
@@ -256,19 +257,38 @@ function filterMetrics() {
   });
 }
 
-async function renameScorecard() {
-  const name = prompt('New name:');
-  if (!name || !name.trim()) return;
-  const res = await fetch('/api/scorecards/' + currentScorecardId, {
-    method: 'PUT',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({name: name.trim()})
-  });
-  if (res.ok) {
-    document.getElementById('scName').textContent = name.trim();
-    const row = document.querySelector('tr[data-id="' + currentScorecardId + '"] .name-col');
-    if (row) row.textContent = name.trim();
-  }
+function startRenameScorecard() {
+  const el = document.getElementById('scName');
+  const current = el.textContent;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = current;
+  input.className = 'sc-rename-input';
+  input.onkeydown = async (e) => {
+    if (e.key === 'Enter') {
+      const name = input.value.trim();
+      if (!name) return;
+      const res = await fetch('/api/scorecards/' + currentScorecardId, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name})
+      });
+      if (res.ok) {
+        el.textContent = name;
+        const row = document.querySelector('tr[data-id="' + currentScorecardId + '"] .name-col');
+        if (row) row.textContent = name;
+      } else {
+        el.textContent = current;
+      }
+    } else if (e.key === 'Escape') {
+      el.textContent = current;
+    }
+  };
+  input.onblur = () => { el.textContent = input.value.trim() || current; };
+  el.textContent = '';
+  el.appendChild(input);
+  input.focus();
+  input.select();
 }
 
 function openDeleteScorecardModal() {
