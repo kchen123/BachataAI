@@ -15,65 +15,96 @@
 
 <div class="scores-toolbar">
   <input type="text" class="search-input" id="scorecardSearch" placeholder="Search scorecards…">
+  <span class="toolbar-count" id="scorecardCount">{{ scorecards|length }} items</span>
   <button class="btn-add-scorecard" id="btnAddScorecard" title="New scorecard">+</button>
 </div>
 
-<table class="app-table" id="scorecardsTable">
-  <thead>
-    <tr>
-      <th>ID</th>
-      <th>Name</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for sc in scorecards %}
-    <tr>
-      <td class="id-col">{{ sc.id }}</td>
-      <td class="name-col">{{ sc.name }}</td>
-    </tr>
-    {% else %}
-    <tr>
-      <td colspan="2">No scorecards yet.</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+<div class="table-wrap">
+  <table class="app-table" id="scorecardsTable">
+    <thead>
+      <tr>
+        <th class="id-col">ID</th>
+        <th class="name-col">Name</th>
+        <th class="date-col">Created</th>
+        <th class="actions-col"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for sc in scorecards %}
+      <tr data-id="{{ sc.id }}">
+        <td class="id-col">{{ sc.id }}</td>
+        <td class="name-col">{{ sc.name }}</td>
+        <td class="date-col">{{ sc.created_at.strftime('%b %d, %Y') if sc.created_at else '' }}</td>
+        <td class="actions-col">
+          <button class="tbl-action" onclick="deleteScorecard({{ sc.id }})" title="Delete">&times;</button>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="4" class="empty-row">No scorecards yet.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
 (function() {
-  const search = document.getElementById('scorecardSearch');
-  const tbody = document.querySelector('#scorecardsTable tbody');
-
-  // Search filter
-  search.addEventListener('input', () => {
-    const q = search.value.toLowerCase();
-    tbody.querySelectorAll('tr').forEach(tr => {
-      const name = tr.querySelector('.name-col');
-      if (!name) return;
-      tr.style.display = name.textContent.toLowerCase().includes(q) ? '' : 'none';
-    });
-  });
-
-  // Add scorecard
-  document.getElementById('btnAddScorecard').addEventListener('click', async () => {
-    const name = prompt('Scorecard name:');
-    if (!name || !name.trim()) return;
-    const res = await fetch('/api/scorecards', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({name: name.trim()})
-    });
-    if (res.ok) {
-      const sc = await res.json();
-      const empty = tbody.querySelector('tr td[colspan]');
-      if (empty) empty.closest('tr').remove();
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td class="id-col">${sc.id}</td><td class="name-col">${sc.name}</td>`;
-      tbody.appendChild(tr);
-    }
-  });
+  function hms() {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York", hour: "numeric", minute: "numeric",
+      second: "numeric", hour12: false,
+    }).formatToParts(new Date());
+    const g = t => (parts.find(p => p.type === t) || {}).value || "00";
+    const p = n => String(n).padStart(2, "0");
+    return p(+g("hour")) + ":" + g("minute") + ":" + g("second");
+  }
+  const el = document.querySelector("#mainClock .time");
+  if (el) { const tick = () => { el.textContent = hms(); }; tick(); setInterval(tick, 1000); }
 })();
+
+const search = document.getElementById('scorecardSearch');
+const tbody = document.querySelector('#scorecardsTable tbody');
+const countEl = document.getElementById('scorecardCount');
+
+function updateCount() {
+  const visible = tbody.querySelectorAll('tr:not([style*="display: none"]):not(:has(.empty-row))').length;
+  countEl.textContent = visible + ' items';
+}
+
+search.addEventListener('input', () => {
+  const q = search.value.toLowerCase();
+  tbody.querySelectorAll('tr').forEach(tr => {
+    const name = tr.querySelector('.name-col');
+    if (!name) return;
+    tr.style.display = name.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+  updateCount();
+});
+
+document.getElementById('btnAddScorecard').addEventListener('click', async () => {
+  const name = prompt('Scorecard name:');
+  if (!name || !name.trim()) return;
+  const res = await fetch('/api/scorecards', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name: name.trim()})
+  });
+  if (res.ok) {
+    window.location.reload();
+  }
+});
+
+async function deleteScorecard(id) {
+  if (!confirm('Delete this scorecard?')) return;
+  const res = await fetch('/api/scorecards/' + id, { method: 'DELETE' });
+  if (res.ok) {
+    const row = document.querySelector('tr[data-id="' + id + '"]');
+    if (row) row.remove();
+    updateCount();
+  }
+}
 </script>
 {% endblock %}

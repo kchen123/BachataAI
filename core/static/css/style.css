@@ -953,9 +953,46 @@
 .app-table tr:hover td { background: var(--u-row-hover); }
 .app-table tr.active td { background: var(--u-row-active); }
 
-.app-table .name-col { color: var(--text-primary); font-weight: 500; text-align: center; }
+.app-table .name-col { color: var(--text-primary); font-weight: 500; text-align: left; }
 
-.app-table .id-col { font-family: var(--mono); font-size: var(--u-fs-sm); text-align: center; font-variant-numeric: tabular-nums; }
+.app-table .id-col { font-family: var(--mono); font-size: var(--u-fs-sm); text-align: center; font-variant-numeric: tabular-nums; width: 50px; }
+
+.app-table .date-col { font-size: var(--u-fs-sm); color: var(--text-muted); width: 100px; }
+
+.app-table .actions-col { width: 40px; text-align: center; }
+
+.app-table .empty-row { color: var(--text-muted); text-align: center; padding: 24px; }
+
+.tbl-action {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  box-shadow: none;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+.app-table tr:hover .tbl-action { opacity: 1; }
+.tbl-action:hover { color: var(--red); }
+
+.table-wrap {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.toolbar-count {
+  font-size: var(--u-fs-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  margin-left: auto;
+  white-space: nowrap;
+  font-family: var(--mono);
+}
 
 /* ── Scores Toolbar ─────────────────────────────────────────────────── */
 
