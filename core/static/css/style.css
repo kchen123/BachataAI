@@ -1049,14 +1049,16 @@
 
 .sc-bar-btn {
   background: transparent;
-  border: none;
+  border: 1px solid var(--sidebar-border, #262626);
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: 10px;
   cursor: pointer;
-  padding: 0 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
   box-shadow: none;
 }
-.sc-bar-btn:hover { color: var(--text-primary); }
+.sc-bar-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
+.sc-bar-delete { border: none; font-size: 10px; color: var(--text-muted); }
 .sc-bar-delete:hover { color: var(--red); }
 
 .scorecard-body {

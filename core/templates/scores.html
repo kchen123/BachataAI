@@ -41,8 +41,8 @@
       <span class="video-bar-sep">|</span>
       <span class="video-bar-name" id="scName"></span>
       <button class="sc-bar-btn" onclick="renameScorecard()" title="Rename">&#9998;</button>
+      <button class="sc-bar-btn sc-bar-delete" onclick="openDeleteScorecardModal()">Delete</button>
       <button class="video-bar-close" onclick="closeScorecardModal()">&times;</button>
-      <button class="sc-bar-btn sc-bar-delete" onclick="deleteScorecardFromModal()" title="Delete">&#128465;</button>
     </div>
     <div class="scorecard-body">
       <div class="scores-toolbar">
@@ -71,6 +71,18 @@
           <tr><td colspan="4" class="empty-row">Loading...</td></tr>
         </tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Scorecard Confirm Modal -->
+<div class="modal-overlay" id="deleteScorecardModal" onclick="if(event.target===this)closeDeleteScorecardModal()">
+  <div class="files-modal">
+    <h3 style="margin-bottom:12px">Delete Scorecard</h3>
+    <p class="analyze-desc" style="margin-bottom:24px">This will permanently delete this scorecard and all its metrics. This cannot be undone.</p>
+    <div class="files-modal-actions" style="gap:12px">
+      <button class="btn btn-sm" style="padding:6px 16px" onclick="closeDeleteScorecardModal()">Cancel</button>
+      <button class="btn btn-sm" style="padding:6px 16px;color:var(--red);border-color:var(--red)" onclick="confirmDeleteScorecard()">Delete</button>
     </div>
   </div>
 </div>
@@ -258,8 +270,16 @@ async function renameScorecard() {
   }
 }
 
-async function deleteScorecardFromModal() {
-  if (!confirm('Delete this scorecard and all its metrics?')) return;
+function openDeleteScorecardModal() {
+  document.getElementById('deleteScorecardModal').classList.add('open');
+}
+
+function closeDeleteScorecardModal() {
+  document.getElementById('deleteScorecardModal').classList.remove('open');
+}
+
+async function confirmDeleteScorecard() {
+  closeDeleteScorecardModal();
   const res = await fetch('/api/scorecards/' + currentScorecardId, { method: 'DELETE' });
   if (res.ok) {
     closeScorecardModal();
