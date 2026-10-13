@@ -111,7 +111,7 @@ def _run_analysis(req: AnalyzeRequest):
 
             if frame_num % req.sample_every_n == 0:
                 h, w = frame.shape[:2]
-                results = MODEL.track(frame, verbose=False, imgsz=req.resolution, persist=True)
+                results = MODEL(frame, verbose=False, imgsz=req.resolution)
 
                 persons = []
                 if results and results[0].keypoints is not None:
