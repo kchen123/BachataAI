@@ -1099,6 +1099,7 @@
 }
 
 .type-col { font-size: var(--u-fs-sm); color: var(--text-muted); width: 80px; }
+.range-col { font-size: var(--u-fs-sm); color: var(--text-muted); width: 80px; font-family: var(--mono); }
 
 .btn-add-scorecard {
   width: 24px;

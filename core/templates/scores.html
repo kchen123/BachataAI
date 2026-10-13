@@ -73,7 +73,7 @@
             <th class="id-col">ID</th>
             <th class="name-col">Name</th>
             <th class="type-col">Type</th>
-            <th class="actions-col"></th>
+            <th class="range-col">Range</th>
           </tr>
         </thead>
         <tbody id="metricsBody">
@@ -180,14 +180,17 @@ async function loadMetrics(id) {
     tbody.innerHTML = '<tr><td colspan="4" class="empty-row">No metrics yet</td></tr>';
     return;
   }
-  tbody.innerHTML = metrics.map(m =>
-    '<tr data-mid="' + m.id + '">' +
-    '<td class="id-col">' + m.id + '</td>' +
-    '<td class="name-col">' + m.name + '</td>' +
-    '<td class="type-col">' + m.type + '</td>' +
-    '<td class="actions-col"><button class="tbl-action" onclick="deleteMetric(' + m.id + ')" title="Delete">&times;</button></td>' +
-    '</tr>'
-  ).join('');
+  tbody.innerHTML = metrics.map(m => {
+    let range = m.range || '';
+    if (typeof range === 'string') try { range = JSON.parse(range); } catch(e) {}
+    const rangeStr = typeof range === 'object' ? (range.min !== undefined ? range.min + '–' + range.max : '') : range;
+    return '<tr data-mid="' + m.id + '">' +
+      '<td class="id-col">' + m.id + '</td>' +
+      '<td class="name-col">' + m.name + '</td>' +
+      '<td class="type-col">' + m.type + '</td>' +
+      '<td class="range-col">' + rangeStr + '</td>' +
+      '</tr>';
+  }).join('');
 }
 
 function showAddMetric() {
