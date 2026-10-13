@@ -168,8 +168,33 @@ async function openScorecard(id, name) {
 
 function closeScorecardModal() {
   document.getElementById('scorecardModal').classList.remove('open');
+  document.querySelector('.scorecard-modal').style.transform = '';
   currentScorecardId = null;
 }
+
+// Drag scorecard modal
+(function() {
+  const header = document.querySelector('.scorecard-modal .video-title-bar');
+  const modal = document.querySelector('.scorecard-modal');
+  let dragging = false, startX, startY, dx = 0, dy = 0;
+  header.addEventListener('mousedown', (e) => {
+    if (e.target.closest('button')) return;
+    dragging = true;
+    startX = e.clientX - dx;
+    startY = e.clientY - dy;
+    header.style.cursor = 'grabbing';
+  });
+  document.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    dx = e.clientX - startX;
+    dy = e.clientY - startY;
+    modal.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+  });
+  document.addEventListener('mouseup', () => {
+    dragging = false;
+    if (header) header.style.cursor = 'grab';
+  });
+})();
 
 async function loadMetrics(id) {
   const res = await fetch('/api/scorecards/' + id + '/metrics');
