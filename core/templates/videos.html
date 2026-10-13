@@ -136,25 +136,27 @@
 <!-- Video Player Modal -->
 <div class="modal-overlay" id="videoModal" onclick="if(event.target===this)closeVideo()">
   <div class="video-modal">
-    <div class="video-modal-header">
-      <span class="video-modal-title" id="videoTitle"></span>
-      <div class="video-header-controls">
-        <button class="btn btn-sm video-header-btn analyze-btn hidden" id="poseAnalyze" onclick="runAnalysis()">Analyze</button>
-        <div class="pose-controls hidden" id="poseControls">
-          <label class="pose-ctrl-item">
-            <input type="checkbox" id="poseToggle" onchange="togglePose()">
-            <span>Pose</span>
-          </label>
-          <span class="pose-ctrl-sep">|</span>
-          <select class="pose-ctrl-select" id="poseMaxPersons" onchange="updateMaxPersons()">
-            <option value="1">1</option>
-            <option value="2" selected>2</option>
-            <option value="0">All</option>
-          </select>
-          <span class="pose-ctrl-sep">|</span>
-          <button class="pose-ctrl-btn" onclick="runAnalysis()">Re-run</button>
-        </div>
-        <button class="btn btn-sm video-header-btn video-close-btn" onclick="closeVideo()">&times;</button>
+    <div class="video-title-bar">
+      <span class="video-bar-id" id="videoId"></span>
+      <span class="video-bar-sep">|</span>
+      <span class="video-bar-name" id="videoTitle"></span>
+      <button class="video-bar-close" onclick="closeVideo()">&times;</button>
+    </div>
+    <div class="video-controls-bar">
+      <button class="btn btn-sm analyze-btn hidden" id="poseAnalyze" onclick="runAnalysis()">Analyze</button>
+      <div class="pose-controls hidden" id="poseControls">
+        <label class="pose-ctrl-item">
+          <input type="checkbox" id="poseToggle" onchange="togglePose()">
+          <span>Pose</span>
+        </label>
+        <span class="pose-ctrl-sep">|</span>
+        <select class="pose-ctrl-select" id="poseMaxPersons" onchange="updateMaxPersons()">
+          <option value="1">1</option>
+          <option value="2" selected>2</option>
+          <option value="0">All</option>
+        </select>
+        <span class="pose-ctrl-sep">|</span>
+        <button class="pose-ctrl-btn" onclick="runAnalysis()">Re-run</button>
       </div>
     </div>
     <div class="video-wrapper">
@@ -413,6 +415,7 @@ const SKELETON_CONNECTIONS = [
 async function playVideo(videoId, url, title) {
   if (!url) return;
   currentVideoId = videoId;
+  document.getElementById('videoId').textContent = '#' + videoId;
   document.getElementById('videoTitle').textContent = title;
   const player = document.getElementById('videoPlayer');
   player.src = url;
@@ -472,7 +475,7 @@ function closeVideo() {
 
 // Drag video modal
 (function() {
-  const header = document.querySelector('.video-modal-header');
+  const header = document.querySelector('.video-title-bar');
   const modal = document.querySelector('.video-modal');
   let dragging = false, startX, startY, dx = 0, dy = 0;
 
