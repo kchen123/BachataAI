@@ -136,6 +136,11 @@
           <span>Pose</span>
         </label>
         <span class="pose-ctrl-sep">|</span>
+        <label class="pose-ctrl-item">
+          <input type="checkbox" id="metricsToggle" onchange="toggleMetrics()" disabled>
+          <span>Metrics</span>
+        </label>
+        <span class="pose-ctrl-sep">|</span>
         <select class="pose-ctrl-select" id="poseMaxPersons" onchange="updateMaxPersons()">
           <option value="1">1</option>
           <option value="2" selected>2</option>
@@ -143,11 +148,6 @@
         </select>
         <span class="pose-ctrl-sep">|</span>
         <button class="pose-ctrl-btn" onclick="confirmRerun()">Re-run</button>
-        <span class="pose-ctrl-sep">|</span>
-        <label class="pose-ctrl-item">
-          <input type="checkbox" id="metricsToggle" onchange="toggleMetrics()" disabled>
-          <span>Metrics</span>
-        </label>
       </div>
     </div>
     <div class="video-wrapper">
