@@ -95,6 +95,7 @@ def _sync_db_if_done(video_id):
             "pose_size_kb": prog.get("pose_size_kb", 0),
         }
         aa.set_summary(analysis["id"], summary)
+        repo.update("bachata.videos", video_id, {"has_pose": True})
 
 
 # ── Main Endpoints ──────────────────────────────────────────────────────────
@@ -174,6 +175,7 @@ def api_cancel_analysis(video_id):
         if a["status"] != "done":
             aa.delete(a["id"])
     _delete_pose_file(video_id)
+    repo.update("bachata.videos", video_id, {"has_pose": False})
 
     return jsonify({"status": "cancelled"}), 200
 
