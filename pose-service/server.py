@@ -23,14 +23,20 @@ MODEL = YOLO("yolo26x-pose.pt")
 GCS_CLIENT = None
 
 # MediaPipe selfie segmentation for background blur
-_mp_selfie = mp.solutions.selfie_segmentation
-_segmentor = _mp_selfie.SelfieSegmentation(model_selection=1)
+_segmentor = None
+
+
+def _get_segmentor():
+    global _segmentor
+    if _segmentor is None:
+        _segmentor = mp.solutions.selfie_segmentation.SelfieSegmentation(model_selection=1)
+    return _segmentor
 
 
 def blur_background(frame, blur_strength=51):
     """Blur background using MediaPipe selfie segmentation."""
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    result = _segmentor.process(rgb)
+    result = _get_segmentor().process(rgb)
     mask = result.segmentation_mask
     # Threshold to get binary mask (person=1, background=0)
     mask = (mask > 0.5).astype(np.uint8)
