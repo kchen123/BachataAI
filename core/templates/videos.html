@@ -143,27 +143,7 @@
         </select>
         <span class="pose-ctrl-sep">|</span>
         <button class="pose-ctrl-btn" onclick="confirmRerun()">Re-run</button>
-        <span class="pose-ctrl-sep">|</span>
-        <button class="pose-ctrl-btn" id="compareBtn" onclick="toggleCompareMode()">Compare</button>
       </div>
-    </div>
-    <!-- Compare controls -->
-    <div class="compare-bar hidden" id="compareBar">
-      <button class="pose-ctrl-btn" onclick="setCompareStart()">Set Start</button>
-      <span id="compareStartLabel">--</span>
-      <button class="pose-ctrl-btn" onclick="setCompareEnd()">Set End</button>
-      <span id="compareEndLabel">--</span>
-      <span class="pose-ctrl-sep">|</span>
-      <button class="btn btn-sm" onclick="runCompare()" id="runCompareBtn" disabled>Find Similar</button>
-      <button class="pose-ctrl-btn" onclick="toggleCompareMode()">Cancel</button>
-    </div>
-    <!-- Compare results -->
-    <div class="compare-results hidden" id="compareResults">
-      <div class="compare-results-header">
-        <span>Similar Moves</span>
-        <button class="pose-ctrl-btn" onclick="closeCompareResults()">&times;</button>
-      </div>
-      <div class="compare-results-list" id="compareResultsList"></div>
     </div>
     <div class="video-wrapper">
       <video id="videoPlayer" controls autoplay></video>
@@ -488,95 +468,6 @@ function closeVideo() {
     header.style.cursor = 'grab';
   });
 })();
-
-// ── Compare Mode ──
-let compareMode = false;
-let compareStart = null;
-let compareEnd = null;
-
-function toggleCompareMode() {
-  compareMode = !compareMode;
-  const bar = document.getElementById('compareBar');
-  const btn = document.getElementById('compareBtn');
-  if (compareMode) {
-    bar.classList.remove('hidden');
-    btn.classList.add('active');
-    compareStart = null;
-    compareEnd = null;
-    document.getElementById('compareStartLabel').textContent = '--';
-    document.getElementById('compareEndLabel').textContent = '--';
-    document.getElementById('runCompareBtn').disabled = true;
-  } else {
-    bar.classList.add('hidden');
-    btn.classList.remove('active');
-    closeCompareResults();
-  }
-}
-
-function setCompareStart() {
-  const player = document.getElementById('videoPlayer');
-  compareStart = player.currentTime;
-  document.getElementById('compareStartLabel').textContent = compareStart.toFixed(2) + 's';
-  checkCompareReady();
-}
-
-function setCompareEnd() {
-  const player = document.getElementById('videoPlayer');
-  compareEnd = player.currentTime;
-  document.getElementById('compareEndLabel').textContent = compareEnd.toFixed(2) + 's';
-  checkCompareReady();
-}
-
-function checkCompareReady() {
-  document.getElementById('runCompareBtn').disabled = !(compareStart !== null && compareEnd !== null && compareEnd > compareStart);
-}
-
-async function runCompare() {
-  const btn = document.getElementById('runCompareBtn');
-  btn.disabled = true;
-  btn.textContent = 'Searching...';
-
-  try {
-    const res = await fetch('/api/videos/' + currentVideoId + '/compare', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({start_sec: compareStart, end_sec: compareEnd}),
-    });
-    const data = await res.json();
-    showCompareResults(data.results || []);
-  } catch (e) {
-    console.error('Compare failed:', e);
-  }
-
-  btn.disabled = false;
-  btn.textContent = 'Find Similar';
-}
-
-function showCompareResults(results) {
-  const container = document.getElementById('compareResults');
-  const list = document.getElementById('compareResultsList');
-  list.innerHTML = '';
-
-  if (results.length === 0) {
-    list.innerHTML = '<div style="padding:8px 12px;font-size:11px;color:var(--text-muted)">No similar moves found</div>';
-  } else {
-    results.forEach(r => {
-      const item = document.createElement('div');
-      item.className = 'compare-result-item';
-      item.innerHTML = '<span class="compare-result-score">' + (r.score * 100).toFixed(1) + '%</span>' +
-        '<span class="compare-result-title">' + r.video_id + ' | ' + r.title + '</span>' +
-        '<span class="compare-result-range">' + r.start_sec.toFixed(1) + 's - ' + r.end_sec.toFixed(1) + 's</span>';
-      item.onclick = () => playVideo(r.video_id, r.gcs_url, r.title, r.has_pose);
-      list.appendChild(item);
-    });
-  }
-
-  container.classList.remove('hidden');
-}
-
-function closeCompareResults() {
-  document.getElementById('compareResults').classList.add('hidden');
-}
 
 function confirmRerun() {
   document.getElementById('rerunModal').classList.add('open');

@@ -6,9 +6,17 @@ USER_ID=1
 count=0
 total=$(ls "$DIR"/*.mp4 | wc -l)
 
+declare -A seen_posts
 for f in "$DIR"/*.mp4; do
-  fname="$(python -c "import uuid; print(uuid.uuid4().hex)").mp4"
   title=$(basename "$f" .mp4)
+  post_id=$(echo "$title" | cut -d'_' -f1)
+  # Skip carousel duplicates (same post ID)
+  if [[ -n "${seen_posts[$post_id]}" ]]; then
+    echo "SKIP (carousel dupe): $title"
+    continue
+  fi
+  seen_posts[$post_id]=1
+  fname="$(python -c "import uuid; print(uuid.uuid4().hex)").mp4"
   gcloud storage cp "$f" "$BUCKET/$fname" --quiet
   if [ $? -eq 0 ]; then
     count=$((count+1))
