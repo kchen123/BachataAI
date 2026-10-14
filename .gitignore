@@ -25,6 +25,7 @@ downloads/
 yolo26x-pose.pt
 *.mp4
 *.png
+*.pdf
 
 # Credentials
 core/admin.json
