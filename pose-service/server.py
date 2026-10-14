@@ -10,7 +10,6 @@ import json
 import tempfile
 import torch
 import cv2
-import numpy as np
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from google.cloud import storage
@@ -20,45 +19,6 @@ app = FastAPI(title="BachataAI Pose Service")
 
 MODEL = YOLO("yolo26x-pose.pt")
 GCS_CLIENT = None
-
-# Background blur using MediaPipe selfie segmentation (new API)
-_segmentor = None
-
-
-def _get_segmentor():
-    global _segmentor
-    if _segmentor is None:
-        from mediapipe.tasks import python as mp_python
-        from mediapipe.tasks.python import vision
-        import urllib.request
-        import os
-        model_path = "/tmp/selfie_segmenter.tflite"
-        if not os.path.exists(model_path):
-            urllib.request.urlretrieve(
-                "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite",
-                model_path,
-            )
-        options = vision.ImageSegmenterOptions(
-            base_options=mp_python.BaseOptions(model_asset_path=model_path),
-            output_category_mask=True,
-            running_mode=vision.RunningMode.IMAGE,
-        )
-        _segmentor = vision.ImageSegmenter.create_from_options(options)
-    return _segmentor
-
-
-def blur_background(frame, blur_strength=51):
-    """Blur background using MediaPipe selfie segmentation."""
-    import mediapipe as mp
-    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-    result = _get_segmentor().segment(mp_image)
-    mask = result.category_mask.numpy_view().squeeze()
-    # Person pixels have non-zero category
-    person_mask = (mask > 0).astype(np.uint8)
-    mask_3ch = person_mask[:, :, np.newaxis].repeat(3, axis=2)
-    blurred = cv2.GaussianBlur(frame, (blur_strength, blur_strength), 0)
-    return np.where(mask_3ch, frame, blurred)
 
 
 def _gcs():
@@ -74,7 +34,6 @@ class AnalyzeRequest(BaseModel):
     video_id: int
     sample_every_n: int = 2
     resolution: int = 640
-    blur_bg: bool = True
 
 
 @app.get("/health")
@@ -152,8 +111,6 @@ def _run_analysis(req: AnalyzeRequest):
 
             if frame_num % req.sample_every_n == 0:
                 h, w = frame.shape[:2]
-                if req.blur_bg:
-                    frame = blur_background(frame)
                 results = MODEL(frame, verbose=False, imgsz=req.resolution)
 
                 persons = []
