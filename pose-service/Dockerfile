@@ -15,8 +15,8 @@ RUN pip install --no-cache-dir --break-system-packages -r requirements.txt
 # Bake the model into the image (126MB)
 COPY yolo26x-pose.pt /app/yolo26x-pose.pt
 
-# v2 - mediapipe tasks API
-COPY server.py .
+# Copy app code last to bust cache on code changes
+COPY server.py /app/server.py
 
 EXPOSE 8080
 
