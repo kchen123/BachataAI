@@ -58,9 +58,8 @@
     <div class="file-card" data-type="video" data-id="{{ v.id }}" data-name="{{ v.title|lower }}" data-date="{{ v.created_at }}" draggable="true"
          ondragstart="onDragStart(event)"
          onclick="playVideo({{ v.id }}, '{{ v.gcs_url|e }}', '{{ v.title|e }}', {{ v.has_pose|default(false)|tojson }})">
-      <span class="file-card-id">{{ v.id }}</span>
       <svg class="file-card-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="{{ '#16a34a' if v.has_pose else '#64c8ff' }}" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
-      <span class="file-card-name">{{ v.title }}{% if v.has_pose %} *{% endif %}</span>
+      <span class="file-card-name">{{ v.id }} | {{ v.title }}{% if v.has_pose %} *{% endif %}</span>
       <span class="file-card-date">{{ v.created_at.strftime('%b %d, %Y') if v.created_at else '' }}</span>
       <button class="file-card-menu" onclick="event.stopPropagation(); toggleDropdown(this);">&vellip;</button>
       <div class="file-dropdown">
