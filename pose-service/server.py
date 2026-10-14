@@ -11,7 +11,6 @@ import tempfile
 import torch
 import cv2
 import numpy as np
-import mediapipe as mp
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from google.cloud import storage
@@ -22,25 +21,42 @@ app = FastAPI(title="BachataAI Pose Service")
 MODEL = YOLO("yolo26x-pose.pt")
 GCS_CLIENT = None
 
-# MediaPipe selfie segmentation for background blur
+# Background blur using MediaPipe selfie segmentation (new API)
 _segmentor = None
 
 
 def _get_segmentor():
     global _segmentor
     if _segmentor is None:
-        _segmentor = mp.solutions.selfie_segmentation.SelfieSegmentation(model_selection=1)
+        from mediapipe.tasks import python as mp_python
+        from mediapipe.tasks.python import vision
+        import urllib.request
+        import os
+        model_path = "/tmp/selfie_segmenter.tflite"
+        if not os.path.exists(model_path):
+            urllib.request.urlretrieve(
+                "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite",
+                model_path,
+            )
+        options = vision.ImageSegmenterOptions(
+            base_options=mp_python.BaseOptions(model_asset_path=model_path),
+            output_category_mask=True,
+            running_mode=vision.RunningMode.IMAGE,
+        )
+        _segmentor = vision.ImageSegmenter.create_from_options(options)
     return _segmentor
 
 
 def blur_background(frame, blur_strength=51):
     """Blur background using MediaPipe selfie segmentation."""
+    import mediapipe as mp
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    result = _get_segmentor().process(rgb)
-    mask = result.segmentation_mask
-    # Threshold to get binary mask (person=1, background=0)
-    mask = (mask > 0.5).astype(np.uint8)
-    mask_3ch = np.stack([mask] * 3, axis=-1)
+    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+    result = _get_segmentor().segment(mp_image)
+    mask = result.category_mask.numpy_view()
+    # Person pixels have non-zero category
+    person_mask = (mask > 0).astype(np.uint8)
+    mask_3ch = np.stack([person_mask] * 3, axis=-1)
     blurred = cv2.GaussianBlur(frame, (blur_strength, blur_strength), 0)
     return np.where(mask_3ch, frame, blurred)
 
