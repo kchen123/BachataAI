@@ -10,6 +10,8 @@ import json
 import tempfile
 import torch
 import cv2
+import numpy as np
+import mediapipe as mp
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from google.cloud import storage
@@ -19,6 +21,22 @@ app = FastAPI(title="BachataAI Pose Service")
 
 MODEL = YOLO("yolo26x-pose.pt")
 GCS_CLIENT = None
+
+# MediaPipe selfie segmentation for background blur
+_mp_selfie = mp.solutions.selfie_segmentation
+_segmentor = _mp_selfie.SelfieSegmentation(model_selection=1)
+
+
+def blur_background(frame, blur_strength=51):
+    """Blur background using MediaPipe selfie segmentation."""
+    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    result = _segmentor.process(rgb)
+    mask = result.segmentation_mask
+    # Threshold to get binary mask (person=1, background=0)
+    mask = (mask > 0.5).astype(np.uint8)
+    mask_3ch = np.stack([mask] * 3, axis=-1)
+    blurred = cv2.GaussianBlur(frame, (blur_strength, blur_strength), 0)
+    return np.where(mask_3ch, frame, blurred)
 
 
 def _gcs():
@@ -34,6 +52,7 @@ class AnalyzeRequest(BaseModel):
     video_id: int
     sample_every_n: int = 2
     resolution: int = 640
+    blur_bg: bool = True
 
 
 @app.get("/health")
@@ -111,6 +130,8 @@ def _run_analysis(req: AnalyzeRequest):
 
             if frame_num % req.sample_every_n == 0:
                 h, w = frame.shape[:2]
+                if req.blur_bg:
+                    frame = blur_background(frame)
                 results = MODEL(frame, verbose=False, imgsz=req.resolution)
 
                 persons = []
