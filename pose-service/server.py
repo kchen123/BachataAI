@@ -53,10 +53,10 @@ def blur_background(frame, blur_strength=51):
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
     result = _get_segmentor().segment(mp_image)
-    mask = result.category_mask.numpy_view()
+    mask = result.category_mask.numpy_view().squeeze()
     # Person pixels have non-zero category
     person_mask = (mask > 0).astype(np.uint8)
-    mask_3ch = np.stack([person_mask] * 3, axis=-1)
+    mask_3ch = person_mask[:, :, np.newaxis].repeat(3, axis=2)
     blurred = cv2.GaussianBlur(frame, (blur_strength, blur_strength), 0)
     return np.where(mask_3ch, frame, blurred)
 
