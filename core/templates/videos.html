@@ -549,6 +549,13 @@ function clearProcessingCard(videoId, status) {
     else if (status === 'error') { statusEl.textContent = 'Error'; statusEl.style.color = 'var(--red)'; }
   }
 
+  if (status === 'done') {
+    const icon = card.querySelector('.file-card-icon');
+    if (icon) icon.setAttribute('stroke', '#16a34a');
+    const name = card.querySelector('.file-card-name');
+    if (name && !name.textContent.endsWith(' *')) name.textContent += ' *';
+  }
+
   setTimeout(() => {
     card.classList.remove('processing');
     const s = card.querySelector('.processing-status');
