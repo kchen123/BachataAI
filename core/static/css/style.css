@@ -11,27 +11,36 @@
   justify-content: center;
   gap: 5px;
   padding: 7px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.1s;
+  transition: all 0.15s ease;
   text-decoration: none;
-  background: transparent;
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   color: var(--text-secondary);
   line-height: 1;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.04), var(--glass-inset);
 }
 
-.btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
+.btn:hover {
+  color: var(--text-primary);
+  background: var(--glass-bg-hover);
+  border-color: rgba(255,255,255,0.7);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+}
 
 .btn-accent {
   background: var(--accent);
   color: #fff;
-  border-color: var(--accent);
+  border-color: rgba(255, 136, 0, 0.3);
   font-weight: 600;
+  box-shadow: 0 4px 12px rgba(255, 136, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
-.btn-accent:hover { background: var(--accent-hover); color: #fff; }
+.btn-accent:hover { background: var(--accent-hover); color: #fff; box-shadow: 0 6px 16px rgba(255, 136, 0, 0.25); }
 .btn-accent:disabled { opacity: 0.35; cursor: wait; }
 
 .btn-danger {
@@ -146,24 +155,27 @@
 /* ── File Browser ────────────────────────────────────────────────────── */
 
 .files-container {
-  border: 1px solid var(--border);
-  background: var(--bg-card);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  border-radius: var(--radius-lg);
+  border-radius: var(--card-radius);
+  box-shadow: var(--glass-shadow), var(--glass-inset);
 }
 
 .files-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 16px;
+  padding: 10px 16px;
   gap: 12px;
-  background: var(--bg-elevated);
-  border-bottom: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.35);
   flex-shrink: 0;
 }
 
@@ -213,7 +225,7 @@
   aspect-ratio: 16 / 9;
   object-fit: cover;
   border-radius: var(--radius-md);
-  background: var(--bg-subtle);
+  background: rgba(0, 0, 0, 0.05);
   pointer-events: none;
 }
 
@@ -315,17 +327,25 @@
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  padding: 20px 12px 16px;
-  background: transparent;
-  border: 1px solid var(--border);
+  padding: 16px 12px 14px;
+  background: rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.5);
   border-radius: var(--radius-lg);
   cursor: pointer;
   text-decoration: none;
-  transition: border-color 0.15s, background 0.15s;
+  transition: all 0.2s ease;
   position: relative;
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 .file-card:hover {
-  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.5);
+  border-color: rgba(255, 255, 255, 0.7);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  transform: translateY(-2px);
 }
 .file-card svg { opacity: 0.5; transition: opacity 0.15s; }
 .file-card:hover svg { opacity: 0.9; }
@@ -386,13 +406,16 @@
   position: absolute;
   top: 28px;
   right: 4px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--glass-shadow-lg);
   z-index: 10;
   display: none;
   min-width: 100px;
+  overflow: hidden;
 }
 .file-dropdown.open { display: block; }
 .file-dropdown button {
@@ -408,7 +431,7 @@
   transition: background 0.1s;
   box-shadow: none;
 }
-.file-dropdown button:hover { background: rgba(255,255,255,0.04); color: var(--text-primary); }
+.file-dropdown button:hover { background: rgba(255,255,255,0.3); color: var(--text-primary); }
 .file-dropdown button.danger:hover { color: var(--red); }
 
 .files-empty {
@@ -425,7 +448,9 @@
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.6);
+  background: rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   display: none;
   align-items: center;
   justify-content: center;
@@ -436,12 +461,14 @@
 }
 
 .files-modal {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--card-radius);
   padding: 24px;
   min-width: 320px;
-  box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+  box-shadow: var(--glass-shadow-lg), var(--glass-inset);
 }
 
 .files-modal h3 {
@@ -456,15 +483,16 @@
 .files-modal input {
   width: 100%;
   padding: 10px 14px;
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: var(--radius-md);
   color: var(--text-primary);
   font-size: 12px;
   outline: none;
   margin-bottom: 16px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04);
 }
-.files-modal input:focus { border-color: var(--accent); }
+.files-modal input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255, 136, 0, 0.1); }
 
 .files-modal-actions {
   display: flex;
@@ -475,16 +503,16 @@
 /* ── Account Modal ───────────────────────────────────────────────────── */
 
 .account-modal {
-  background: var(--bg-card);
-  border: 1px solid color-mix(in srgb, var(--border) 36%, transparent);
-  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--card-radius);
   width: 380px;
   display: flex;
   flex-direction: column;
-  box-shadow:
-    0 2px 8px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  font-family: var(--mono);
+  box-shadow: var(--glass-shadow-lg), var(--glass-inset);
+  font-family: var(--sans);
   overflow: hidden;
 }
 
@@ -493,9 +521,9 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 14px;
-  min-height: 30px;
-  background: var(--tint-4);
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 30%, transparent);
+  min-height: 36px;
+  background: rgba(255, 255, 255, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.35);
 }
 
 .account-modal-header::before {
@@ -584,19 +612,21 @@
   justify-content: flex-end;
   gap: 8px;
   padding: 8px 14px;
-  background: var(--tint-4);
-  border-top: 1px solid color-mix(in srgb, var(--border) 30%, transparent);
+  background: rgba(255, 255, 255, 0.2);
+  border-top: 1px solid rgba(255, 255, 255, 0.35);
 }
 
 /* ── Upload Modal ──────────────────────────────────────────────────── */
 
 .upload-modal {
-  background: var(--bg-card);
-  border: 1px solid color-mix(in srgb, var(--border) 36%, transparent);
-  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--card-radius);
   width: 420px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  font-family: var(--mono);
+  box-shadow: var(--glass-shadow-lg), var(--glass-inset);
+  font-family: var(--sans);
   overflow: hidden;
 }
 
@@ -605,9 +635,9 @@
   align-items: center;
   justify-content: space-between;
   padding: 0 14px;
-  min-height: 30px;
-  background: var(--tint-4);
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 30%, transparent);
+  min-height: 36px;
+  background: rgba(255, 255, 255, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.35);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 1.4px;
@@ -619,7 +649,7 @@
 }
 
 .upload-drop {
-  border: 1.5px dashed var(--border);
+  border: 1.5px dashed rgba(0, 0, 0, 0.12);
   border-radius: var(--radius-lg);
   padding: 36px 20px;
   text-align: center;
@@ -704,12 +734,14 @@
 /* ── Video Player Modal ─────────────────────────────────────────────── */
 
 .video-modal {
-  background: #000;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  background: rgba(20, 20, 25, 0.85);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--card-radius);
   width: 90vw;
   max-width: 960px;
-  box-shadow: 0 16px 48px rgba(0,0,0,0.7);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   overflow: hidden;
   resize: both;
   min-width: 400px;

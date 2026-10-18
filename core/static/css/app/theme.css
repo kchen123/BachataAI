@@ -1,44 +1,53 @@
 /* =====================================================================
-   Paso — Unified Theme System (Light)
+   Paso — Liquid Glass Theme
    ===================================================================== */
 
 :root {
-  /* Page & surface */
-  --bg-page: #f5f5f7;
-  --bg-card: #ffffff;
-  --bg-card-hover: #f0f0f2;
-  --bg-elevated: #fafafa;
-  --bg-input: #ffffff;
-  --bg-subtle: #f0f0f2;
-  --bg-secondary: #f5f5f7;
+  /* Page — soft gradient base */
+  --bg-page: #e8ecf4;
+  --bg-card: rgba(255, 255, 255, 0.45);
+  --bg-card-hover: rgba(255, 255, 255, 0.6);
+  --bg-elevated: rgba(255, 255, 255, 0.35);
+  --bg-input: rgba(255, 255, 255, 0.65);
+  --bg-subtle: rgba(255, 255, 255, 0.25);
+  --bg-secondary: rgba(240, 242, 248, 0.5);
+
+  /* Glass effect */
+  --glass-bg: rgba(255, 255, 255, 0.42);
+  --glass-bg-hover: rgba(255, 255, 255, 0.58);
+  --glass-blur: 24px;
+  --glass-border: rgba(255, 255, 255, 0.55);
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.04);
+  --glass-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.1), 0 4px 16px rgba(0, 0, 0, 0.05);
+  --glass-inset: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 
   /* Borders */
-  --border: #d8dae0;
-  --border-light: #e8eaef;
+  --border: rgba(255, 255, 255, 0.5);
+  --border-light: rgba(255, 255, 255, 0.35);
 
   /* Text */
   --text-primary: #1a1a2e;
-  --text-secondary: #5a5d6b;
-  --text-muted: #9a9da8;
+  --text-secondary: #4a4d5c;
+  --text-muted: #8a8d9c;
   --btn-text: #ffffff;
 
-  /* Accent — warm orange */
+  /* Accent */
   --accent: #ff8800;
   --accent-hover: #e67a00;
-  --accent-bg: rgba(255,136,0,0.08);
+  --accent-bg: rgba(255, 136, 0, 0.1);
 
   /* Semantic colors */
   --green: #00aa46;
   --red: #e04040;
   --amber: #e8a317;
-  --green-bg: rgba(0,170,70,0.08);
-  --red-bg: rgba(224,64,64,0.08);
-  --amber-bg: rgba(232,163,23,0.08);
+  --green-bg: rgba(0, 170, 70, 0.1);
+  --red-bg: rgba(224, 64, 64, 0.1);
+  --amber-bg: rgba(232, 163, 23, 0.1);
 
   /* Terminal log palette */
-  --term-bg: #f0f0f2;
+  --term-bg: rgba(255, 255, 255, 0.3);
   --term-text: #1a1a2e;
-  --term-dim: #9a9da8;
+  --term-dim: #8a8d9c;
 
   /* Muted semantic */
   --accent-muted: #cc6e00;
@@ -48,17 +57,17 @@
   --yellow: #e8a317;
   --blue: #3b82f6;
   --error: #ef4444;
-  --neutral-bg: rgba(120, 120, 120, 0.08);
-  --neutral-border: rgba(120, 120, 120, 0.2);
+  --neutral-bg: rgba(120, 120, 120, 0.06);
+  --neutral-border: rgba(120, 120, 120, 0.12);
 
   /* Shared sizing */
-  --radius-sm: 2px;
-  --radius-md: 4px;
-  --radius-lg: 6px;
-  --radius-xl: 10px;
-  --radius-pill: 10px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-pill: 20px;
   --radius-full: 50%;
-  --card-radius: 8px;
+  --card-radius: 16px;
   --transition: 0.25s ease;
   --bar-h-sm: 40px;
   --bar-h-md: 44px;
@@ -72,57 +81,57 @@
   --icon-btn-size: 32px;
 
   /* Overlay & shadow */
-  --overlay-bg: rgba(0,0,0,0.3);
-  --shadow: 0 4px 16px rgba(0,0,0,0.08);
+  --overlay-bg: rgba(0, 0, 0, 0.2);
+  --shadow: var(--glass-shadow);
 
-  /* Tints (layered surfaces) */
-  --tint-1: rgba(0, 0, 0, 0.02);
-  --tint-2: rgba(0, 0, 0, 0.03);
-  --tint-3: rgba(0, 0, 0, 0.04);
-  --tint-4: rgba(0, 0, 0, 0.05);
-  --tint-5: rgba(0, 0, 0, 0.06);
-  --tint-heavy: rgba(0, 0, 0, 0.1);
+  /* Tints */
+  --tint-1: rgba(255, 255, 255, 0.15);
+  --tint-2: rgba(255, 255, 255, 0.2);
+  --tint-3: rgba(255, 255, 255, 0.25);
+  --tint-4: rgba(255, 255, 255, 0.3);
+  --tint-5: rgba(255, 255, 255, 0.35);
+  --tint-heavy: rgba(255, 255, 255, 0.5);
 
   /* Highlights */
-  --highlight-1: rgba(0, 0, 0, 0.02);
-  --highlight-2: rgba(0, 0, 0, 0.03);
-  --bg-card-mixed: color-mix(in srgb, var(--bg-card) 92%, var(--bg-elevated));
-  --shadow-card-inset: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  --highlight-1: rgba(255, 255, 255, 0.5);
+  --highlight-2: rgba(255, 255, 255, 0.6);
+  --bg-card-mixed: rgba(255, 255, 255, 0.5);
+  --shadow-card-inset: var(--glass-inset);
 
   /* Tags & buttons */
-  --tag-bg: rgba(255,136,0,0.1);
+  --tag-bg: rgba(255, 136, 0, 0.12);
   --tag-color: #e67a00;
-  --btn-delete-bg: rgba(224,64,64,0.1);
+  --btn-delete-bg: rgba(224, 64, 64, 0.1);
   --btn-delete-color: #ef4444;
-  --btn-cancel-bg: #f0f0f2;
+  --btn-cancel-bg: rgba(255, 255, 255, 0.4);
   --btn-cancel-color: #1a1a2e;
 
   /* Charts */
-  --chart-grid: #e8eaef;
-  --chart-axis: #5a5d6b;
-  --chart-tooltip-bg: #ffffff;
-  --chart-tooltip-border: #d8dae0;
-  --chart-tooltip-shadow: 0 2px 12px rgba(0,0,0,0.1);
+  --chart-grid: rgba(0, 0, 0, 0.06);
+  --chart-axis: #4a4d5c;
+  --chart-tooltip-bg: rgba(255, 255, 255, 0.8);
+  --chart-tooltip-border: rgba(255, 255, 255, 0.6);
+  --chart-tooltip-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
 
   /* Shared fonts */
   --sans: Inter, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   --mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
 
   /* Navbar */
-  --sidebar-bg: #ffffff;
-  --sidebar-bg-header: #fafafa;
-  --sidebar-border: #e0e2e8;
-  --sidebar-text: #5a5d6b;
-  --sidebar-text-dim: #9a9da8;
+  --sidebar-bg: rgba(255, 255, 255, 0.5);
+  --sidebar-bg-header: rgba(255, 255, 255, 0.3);
+  --sidebar-border: rgba(255, 255, 255, 0.5);
+  --sidebar-text: #4a4d5c;
+  --sidebar-text-dim: #8a8d9c;
   --sidebar-accent: #ff8800;
-  --sidebar-accent-bg: rgba(255, 136, 0, 0.08);
-  --sidebar-hover: #f5f5f7;
+  --sidebar-accent-bg: rgba(255, 136, 0, 0.1);
+  --sidebar-hover: rgba(255, 255, 255, 0.35);
 
-  /* ── Legacy aliases (backward compat) ── */
+  /* ── Legacy aliases ── */
   --bg: var(--bg-page);
   --bg-raised: var(--bg-card);
   --bg-surface: var(--bg-elevated);
-  --bg-hover: rgba(255,136,0,0.06);
+  --bg-hover: rgba(255, 136, 0, 0.06);
   --border-subtle: var(--border-light);
   --text: var(--text-primary);
   --text-2: var(--text-secondary);
@@ -146,16 +155,16 @@
   --u-fs-lg: 0.85rem;
   --u-pad-head: 6px 10px;
   --u-pad-cell: 5px 10px;
-  --u-border-head: 2px solid var(--border);
-  --u-cell-border: 1px solid var(--border-light);
-  --u-cell-sep: 1px solid var(--border-light);
-  --u-row-hover: rgba(0,0,0,0.02);
-  --u-row-active: rgba(255,136,0,0.06);
+  --u-border-head: 2px solid rgba(0, 0, 0, 0.08);
+  --u-cell-border: 1px solid rgba(0, 0, 0, 0.04);
+  --u-cell-sep: 1px solid rgba(0, 0, 0, 0.04);
+  --u-row-hover: rgba(255, 255, 255, 0.3);
+  --u-row-active: rgba(255, 136, 0, 0.08);
   --u-pad-btn-sm: 4px 10px;
   --u-pad-btn-md: 6px 14px;
   --u-pad-btn-lg: 8px 18px;
   --u-disabled-op: 0.4;
-  --dbg-bg: #f0f0f2;
+  --dbg-bg: rgba(255, 255, 255, 0.3);
 }
 
 /* ---- Flat button & select reset ---- */
@@ -164,8 +173,8 @@ button, select {
   -webkit-appearance: none;
   -moz-appearance: none;
   color: var(--text-primary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
   font-family: inherit;
   font-size: inherit;
   cursor: pointer;
@@ -173,68 +182,51 @@ button, select {
 }
 
 button {
-  background: var(--bg-card);
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   color: var(--text-primary);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  box-shadow: var(--glass-shadow), var(--glass-inset);
 }
 
 button:hover {
-  background: var(--bg-card-hover);
-  border-color: var(--text-muted);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  background: var(--glass-bg-hover);
+  border-color: rgba(255, 255, 255, 0.7);
+  box-shadow: var(--glass-shadow);
 }
 
 button:active {
-  background: var(--bg-elevated);
-  box-shadow: inset 0 1px 3px rgba(0,0,0,0.06);
+  background: rgba(255, 255, 255, 0.35);
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.06);
 }
 
 button:focus-visible, select:focus-visible {
-  box-shadow: 0 0 0 2px var(--accent-bg);
+  box-shadow: 0 0 0 2px var(--accent-bg), var(--glass-shadow);
 }
 
 select {
-  background: var(--bg-card);
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 8px center;
   padding-right: 24px;
 }
 
-/* F1-style gutter panels */
+/* ---- Gradient page background — mid-tone neutral ---- */
+body {
+  background:
+    radial-gradient(ellipse at 25% 15%, rgba(170, 165, 158, 0.2) 0%, transparent 50%),
+    radial-gradient(ellipse at 75% 85%, rgba(155, 150, 142, 0.18) 0%, transparent 50%),
+    #c8c5c0;
+  background-attachment: fixed;
+}
+
+/* Remove F1 gutter panels — doesn't fit glass */
 body::before,
 body::after {
-  content: '';
-  position: fixed;
-  top: 42px;
-  bottom: 0;
-  width: calc((100vw - 960px) / 2);
-  pointer-events: none;
-  z-index: 1;
-}
-
-body::before {
-  left: 0;
-  background:
-    /* Glowing red edge line */
-    linear-gradient(to left, rgba(220,30,30,0.7) 0px, rgba(220,30,30,0.0) 12px) no-repeat right top / 12px 100%,
-    /* Dark carbon panel */
-    linear-gradient(to left, #111 0%, #0a0a0a 40%, #050505 100%);
-  box-shadow: inset -8px 0 20px rgba(220,30,30,0.08);
-}
-
-body::after {
-  right: 0;
-  background:
-    /* Glowing red edge line */
-    linear-gradient(to right, rgba(220,30,30,0.7) 0px, rgba(220,30,30,0.0) 12px) no-repeat left top / 12px 100%,
-    /* Dark carbon panel */
-    linear-gradient(to right, #111 0%, #0a0a0a 40%, #050505 100%);
-  box-shadow: inset 8px 0 20px rgba(220,30,30,0.08);
-}
-
-@media (max-width: 1024px) {
-  body::before, body::after { display: none; }
+  display: none;
 }
 
 /* Global error banner */
