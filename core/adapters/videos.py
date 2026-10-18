@@ -7,11 +7,15 @@ class VideosAdapter(BaseAdapter):
 
     TABLE = "bachata.videos"
 
-    def list_by_folder(self, user_id: int, folder_id: int) -> list[dict]:
-        return self.select(order_by="title", user_id=user_id, folder_id=folder_id)
+    def list_by_folder(self, user_id: int, folder_id: int,
+                       limit: int | None = None, offset: int | None = None) -> list[dict]:
+        return self.select(order_by="title", limit=limit, offset=offset,
+                           user_id=user_id, folder_id=folder_id)
 
-    def list_unfiled(self, user_id: int) -> list[dict]:
-        return self.select(order_by="title", user_id=user_id, folder_id=None)
+    def list_unfiled(self, user_id: int,
+                     limit: int | None = None, offset: int | None = None) -> list[dict]:
+        return self.select(order_by="title", limit=limit, offset=offset,
+                           user_id=user_id, folder_id=None)
 
     def create(self, title: str, user_id: int, folder_id: int | None = None,
                filename: str | None = None, gcs_url: str | None = None) -> dict:

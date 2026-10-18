@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Bachata.AI — {% block title %}Home{% endblock %}</title>
+  <title>Paso — {% block title %}Home{% endblock %}</title>
   {% include "_theme_head.html" %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app/sidebar.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
@@ -11,27 +11,9 @@
   {% block head %}{% endblock %}
 </head>
 <body>
-  <button class="mobile-hamburger" onclick="document.getElementById('sidebarMenu').classList.toggle('mobile-open'); document.getElementById('mobileOverlay').classList.toggle('open')">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-  </button>
-  <div class="mobile-overlay" id="mobileOverlay" onclick="document.getElementById('sidebarMenu').classList.remove('mobile-open'); this.classList.remove('open')"></div>
-
   {% include "_sidebar.html" %}
 
   <main class="content">
-    <div class="statusbar">
-      <div class="brand">
-        <span class="pulse" title="live"></span>
-        <span class="ticker">BACHATA&middot;AI/{% block page_id %}HOME{% endblock %}</span>
-      </div>
-      <div class="clock" id="mainClock">
-        <span class="time">--:--:--</span>
-        <span class="tz">ET</span>
-      </div>
-      <button class="statusbar-logout" title="Account" onclick="document.getElementById('accountModal').classList.add('open')">
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-      </button>
-    </div>
     {% block content %}{% endblock %}
   </main>
 
@@ -121,6 +103,7 @@
     refreshJobsPanel();
   }
   </script>
+
 
   {% block scripts %}{% endblock %}
 </body>

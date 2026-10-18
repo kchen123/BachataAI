@@ -1,5 +1,5 @@
 /* =====================================================================
-   BachataAI — Page-specific styles
+   Paso — Page-specific styles
    Theme tokens are in app/theme.css, sidebar in app/sidebar.css.
    ===================================================================== */
 
@@ -27,11 +27,11 @@
 
 .btn-accent {
   background: var(--accent);
-  color: #000;
+  color: #fff;
   border-color: var(--accent);
   font-weight: 600;
 }
-.btn-accent:hover { background: var(--accent-hover); color: #000; }
+.btn-accent:hover { background: var(--accent-hover); color: #fff; }
 .btn-accent:disabled { opacity: 0.35; cursor: wait; }
 
 .btn-danger {
@@ -125,9 +125,9 @@
   padding: 0;
   cursor: pointer;
   border-radius: var(--radius-full);
-  border: 1.5px solid rgba(255,255,255,0.3);
+  border: 1.5px solid var(--border);
   background: transparent;
-  color: rgba(255,255,255,0.4);
+  color: var(--text-muted);
   text-decoration: none;
   transition: color 0.15s, border-color 0.15s;
   box-shadow: none;
@@ -135,8 +135,8 @@
 }
 
 .statusbar-logout:hover {
-  color: rgba(255,255,255,0.7);
-  border-color: rgba(255,255,255,0.5);
+  color: var(--text-secondary);
+  border-color: var(--text-muted);
   background: transparent;
   box-shadow: none;
 }
@@ -206,6 +206,32 @@
 
 .files-grid.view-grid .file-card-meta,
 .files-grid.view-grid .file-card-date { display: none; }
+
+/* Video thumbnail in grid view */
+.file-card-thumb {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  pointer-events: none;
+}
+
+/* Hide SVG icon when thumbnail is present */
+.files-grid.view-grid .file-card-thumb + .file-card-icon { display: none; }
+
+/* Hide thumbnail in list view */
+.files-grid.view-list .file-card-thumb { display: none; }
+
+/* Load more */
+.load-more-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 12px 16px 20px;
+}
+.load-more-btn {
+  padding: 8px 32px !important;
+}
 
 /* List view */
 .files-grid.view-list {
@@ -1366,42 +1392,16 @@
   font-size: 12px;
 }
 
-/* ── Mobile Hamburger ───────────────────────────────────────────────── */
+/* ── Mobile Hamburger (deprecated — horizontal nav) ────────────────── */
 
-.mobile-hamburger {
-  display: none;
-  position: fixed;
-  top: 6px;
-  left: 6px;
-  width: 32px;
-  height: 32px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 101;
-  box-shadow: none;
-}
-
-.mobile-overlay {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.5);
-  z-index: 99;
-}
+.mobile-hamburger { display: none; }
+.mobile-overlay { display: none; }
 
 /* ── Mobile Responsive ──────────────────────────────────────────────── */
 
 @media (max-width: 600px) {
-  .mobile-hamburger { display: flex; }
-  .mobile-overlay.open { display: block; }
-
   /* Statusbar */
-  .statusbar { margin-left: 36px; font-size: 10px; }
+  .statusbar { font-size: 10px; }
   .statusbar .brand { padding: 0 10px; }
   .statusbar .brand .ticker { font-size: 10px; letter-spacing: 1px; }
   .statusbar .clock { padding: 0 8px; font-size: 10px; }

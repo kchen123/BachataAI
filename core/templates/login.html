@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bachata.AI — Login</title>
+  <title>Paso — Login</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
-      background: #171b22;
+      font-family: Inter, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+      background: #f5f5f7;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -18,76 +18,77 @@
 
     .login-card {
       width: 340px;
-      background: #20252e;
-      border: 1px solid #343b47;
-      border-radius: 4px;
+      background: #ffffff;
+      border: 1px solid #d8dae0;
+      border-radius: 8px;
       padding: 32px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.06);
     }
 
     .login-card::before {
       content: '';
       display: block;
       height: 2px;
-      background: linear-gradient(90deg, #ff8800, #cc6600);
+      background: linear-gradient(90deg, #ff8800, #e67a00);
       margin: -32px -32px 28px;
-      border-radius: 4px 4px 0 0;
+      border-radius: 8px 8px 0 0;
     }
 
     .form-group { margin-bottom: 20px; }
 
     label {
       display: block;
-      font-size: 0.58rem;
+      font-size: 0.7rem;
       font-weight: 600;
-      color: #878c95;
+      color: #5a5d6b;
       margin-bottom: 6px;
-      letter-spacing: 0.12em;
+      letter-spacing: 0.06em;
       text-transform: uppercase;
     }
 
     input {
       width: 100%;
-      padding: 8px 12px;
-      border: 1px solid #343b47;
-      border-radius: 4px;
-      font-size: 0.72rem;
-      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      padding: 10px 12px;
+      border: 1px solid #d8dae0;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-family: inherit;
       outline: none;
-      background: #1b2028;
-      color: #d1d4dc;
+      background: #ffffff;
+      color: #1a1a2e;
       transition: border-color 0.2s;
     }
-    input::placeholder { color: #545862; }
+    input::placeholder { color: #9a9da8; }
     input:focus { border-color: #ff8800; }
 
     .btn {
       width: 100%;
-      padding: 8px;
+      padding: 10px;
       margin-top: 8px;
-      background: #20252e;
+      background: #ff8800;
       color: #fff;
-      border: 1px solid #343b47;
-      border-radius: 4px;
-      font-size: 0.65rem;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.8rem;
       font-weight: 600;
-      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      font-family: inherit;
       cursor: pointer;
-      letter-spacing: 0.1em;
+      letter-spacing: 0.04em;
       text-transform: uppercase;
-      transition: background 0.2s, border-color 0.2s;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
+      transition: background 0.2s;
+      box-shadow: 0 1px 3px rgba(255,136,0,0.3);
     }
-    .btn:hover { background: #272d37; border-color: #545862; }
-    .btn:active { background: #252b35; }
+    .btn:hover { background: #e67a00; }
+    .btn:active { background: #cc6e00; }
 
     .error {
-      background: rgba(224,64,64,0.1);
-      color: #ef4444;
-      font-size: 0.65rem;
+      background: rgba(224,64,64,0.08);
+      color: #e04040;
+      font-size: 0.8rem;
       padding: 8px 12px;
-      border-radius: 4px;
+      border-radius: 6px;
       margin-bottom: 16px;
-      border: 1px solid rgba(224,64,64,0.2);
+      border: 1px solid rgba(224,64,64,0.15);
     }
   </style>
 </head>

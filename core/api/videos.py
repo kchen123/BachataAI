@@ -21,6 +21,8 @@ def _current_user(repo) -> dict:
 
 videos_bp = Blueprint("videos", __name__)
 
+PAGE_SIZE = 20
+
 
 # ── Page routes ────────────────────────────────────────────────────────────────
 
@@ -30,11 +32,14 @@ def index():
     user_id = uid()
     fa, va = FoldersAdapter(repo), VideosAdapter(repo)
     folders = fa.list_root(user_id)
-    videos = va.list_unfiled(user_id)
+    videos = va.list_unfiled(user_id, limit=PAGE_SIZE + 1)
+    has_more = len(videos) > PAGE_SIZE
+    videos = videos[:PAGE_SIZE]
     user = _current_user(repo)
     return render_template("videos.html",
                            folder=None, breadcrumbs=[],
-                           folders=folders, videos=videos, user=user)
+                           folders=folders, videos=videos,
+                           has_more=has_more, user=user)
 
 
 @videos_bp.route("/folder/<int:folder_id>")
@@ -46,12 +51,31 @@ def folder_view(folder_id):
     if folder is None or folder["user_id"] != user_id:
         abort(404)
     folders = fa.list_children(user_id, folder_id)
-    videos = va.list_by_folder(user_id, folder_id)
+    videos = va.list_by_folder(user_id, folder_id, limit=PAGE_SIZE + 1)
+    has_more = len(videos) > PAGE_SIZE
+    videos = videos[:PAGE_SIZE]
     breadcrumbs = fa.get_breadcrumbs(folder_id)
     user = _current_user(repo)
     return render_template("videos.html",
                            folder=folder, breadcrumbs=breadcrumbs,
-                           folders=folders, videos=videos, user=user)
+                           folders=folders, videos=videos,
+                           has_more=has_more, user=user)
+
+
+@videos_bp.route("/api/videos/list")
+def api_list_videos():
+    repo = get_repo()
+    user_id = uid()
+    va = VideosAdapter(repo)
+    offset = request.args.get("offset", 0, type=int)
+    folder_id = request.args.get("folder_id", type=int)
+    if folder_id is not None:
+        videos = va.list_by_folder(user_id, folder_id, limit=PAGE_SIZE + 1, offset=offset)
+    else:
+        videos = va.list_unfiled(user_id, limit=PAGE_SIZE + 1, offset=offset)
+    has_more = len(videos) > PAGE_SIZE
+    videos = videos[:PAGE_SIZE]
+    return jsonify({"videos": [serialize(v) for v in videos], "has_more": has_more})
 
 
 # ── Folder CRUD API ────────────────────────────────────────────────────────────

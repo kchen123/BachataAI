@@ -87,7 +87,8 @@ class Repository:
         return self._exec_row(sql, [id])
 
     def select(self, table: str, filters: dict | None = None,
-               order_by: str | None = None, limit: int | None = None) -> list[dict]:
+               order_by: str | None = None, limit: int | None = None,
+               offset: int | None = None) -> list[dict]:
         sql = f"SELECT * FROM {table}"
         params = []
         if filters:
@@ -108,6 +109,9 @@ class Repository:
         if limit:
             sql += " LIMIT %s"
             params.append(limit)
+        if offset:
+            sql += " OFFSET %s"
+            params.append(offset)
         return self._exec_rows(sql, params)
 
     def update(self, table: str, id: int, data: dict) -> dict | None:
@@ -210,8 +214,9 @@ class BaseAdapter:
         return self.repo.get(self.TABLE, id)
 
     def select(self, order_by: str | None = None,
-               limit: int | None = None, **filters) -> list[dict]:
-        return self.repo.select(self.TABLE, filters or None, order_by, limit)
+               limit: int | None = None, offset: int | None = None,
+               **filters) -> list[dict]:
+        return self.repo.select(self.TABLE, filters or None, order_by, limit, offset)
 
     def list(self, order_by: str | None = None) -> list[dict]:
         return self.repo.select(self.TABLE, order_by=order_by)

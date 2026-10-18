@@ -41,7 +41,6 @@
          onclick="window.location.href='/folder/{{ f.id }}'"
          ondragover="onDragOver(event)" ondragleave="this.classList.remove('drag-over')"
          ondrop="onDrop(event, {{ f.id }})">
-      <span class="file-card-id">{{ f.id }}</span>
       <svg class="file-card-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
       <span class="file-card-name">{{ f.name }}</span>
       <span class="file-card-meta">Folder</span>
@@ -58,8 +57,11 @@
     <div class="file-card" data-type="video" data-id="{{ v.id }}" data-name="{{ v.title|lower }}" data-date="{{ v.created_at }}" draggable="true"
          ondragstart="onDragStart(event)"
          onclick="playVideo({{ v.id }}, '{{ v.gcs_url|e }}', '{{ v.title|e }}', {{ v.has_pose|default(false)|tojson }})">
+      {% if v.gcs_url %}
+      <video class="file-card-thumb" data-src="{{ v.gcs_url }}" preload="none" muted playsinline></video>
+      {% endif %}
       <svg class="file-card-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="{{ '#16a34a' if v.has_pose else '#64c8ff' }}" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
-      <span class="file-card-name">{{ v.id }} | {{ v.title }}{% if v.has_pose %} *{% endif %}</span>
+      <span class="file-card-name">{{ v.title }}{% if v.has_pose %} *{% endif %}</span>
       <span class="file-card-date">{{ v.created_at.strftime('%b %d, %Y') if v.created_at else '' }}</span>
       <button class="file-card-menu" onclick="event.stopPropagation(); toggleDropdown(this);">&vellip;</button>
       <div class="file-dropdown">
@@ -73,6 +75,11 @@
     <div class="files-empty">This folder is empty</div>
     {% endif %}
   </div>
+  {% if has_more %}
+  <div class="load-more-wrap" id="loadMoreWrap">
+    <button class="btn btn-sm load-more-btn" id="loadMoreBtn" onclick="loadMore()">Load more</button>
+  </div>
+  {% endif %}
 </div>
 
 <!-- Modal -->
@@ -238,6 +245,23 @@
 <script>
 
 const FOLDER_ID = {{ folder.id if folder else 'null' }};
+let videoOffset = document.querySelectorAll('.file-card[data-type="video"]').length;
+
+// Lazy-load thumbnail videos as they scroll into view
+(function() {
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (!e.isIntersecting) return;
+      const v = e.target;
+      observer.unobserve(v);
+      v.src = v.dataset.src;
+      v.preload = 'metadata';
+      v.addEventListener('loadedmetadata', () => { v.currentTime = 1; }, { once: true });
+    });
+  }, { rootMargin: '200px' });
+  window._thumbObserver = observer;
+  document.querySelectorAll('.file-card-thumb').forEach(v => observer.observe(v));
+})();
 
 // ── Modal ──
 let modalMode = null;
@@ -356,7 +380,7 @@ function sortItems() {
 
 // Restore saved preferences
 (function() {
-  const view = localStorage.getItem('fileView') || 'list';
+  const view = localStorage.getItem('fileView') || 'grid';
   setView(view);
   const sort = localStorage.getItem('fileSort');
   if (sort) {
@@ -1309,6 +1333,61 @@ function renderROM() {
 
   html += '</tbody></table>';
   table.innerHTML = html;
+}
+
+// ── Load More ──
+async function loadMore() {
+  const btn = document.getElementById('loadMoreBtn');
+  btn.disabled = true;
+  btn.textContent = 'Loading...';
+  const params = new URLSearchParams({ offset: videoOffset });
+  if (FOLDER_ID) params.set('folder_id', FOLDER_ID);
+  try {
+    const res = await fetch('/api/videos/list?' + params);
+    const data = await res.json();
+    const grid = document.getElementById('filesGrid');
+    const thumbObserver = window._thumbObserver;
+    data.videos.forEach(v => {
+      const card = document.createElement('div');
+      card.className = 'file-card';
+      card.dataset.type = 'video';
+      card.dataset.id = v.id;
+      card.dataset.name = (v.title || '').toLowerCase();
+      card.dataset.date = v.created_at || '';
+      card.draggable = true;
+      card.ondragstart = onDragStart;
+      card.onclick = () => playVideo(v.id, v.gcs_url || '', v.title || '', !!v.has_pose);
+      const hasPose = !!v.has_pose;
+      const strokeColor = hasPose ? '#16a34a' : '#64c8ff';
+      let thumbHtml = '';
+      if (v.gcs_url) {
+        thumbHtml = `<video class="file-card-thumb" data-src="${v.gcs_url}" preload="none" muted playsinline></video>`;
+      }
+      card.innerHTML = thumbHtml +
+        `<svg class="file-card-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="${strokeColor}" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>` +
+        `<span class="file-card-name">${v.title || ''}${hasPose ? ' *' : ''}</span>` +
+        `<span class="file-card-date">${v.created_at ? new Date(v.created_at).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'}) : ''}</span>` +
+        `<button class="file-card-menu" onclick="event.stopPropagation(); toggleDropdown(this);">&vellip;</button>` +
+        `<div class="file-dropdown">` +
+          `<button onclick="event.stopPropagation(); startRename('video', ${v.id}, '${(v.title || '').replace(/'/g, "\\'")}')">Rename</button>` +
+          `<button class="danger" onclick="event.stopPropagation(); confirmDelete('video', ${v.id}, '${(v.title || '').replace(/'/g, "\\'")}')">Delete</button>` +
+        `</div>`;
+      grid.appendChild(card);
+      // Observe new thumbnails for lazy loading
+      const thumb = card.querySelector('.file-card-thumb');
+      if (thumb && thumbObserver) thumbObserver.observe(thumb);
+    });
+    videoOffset += data.videos.length;
+    if (!data.has_more) {
+      document.getElementById('loadMoreWrap').remove();
+    } else {
+      btn.disabled = false;
+      btn.textContent = 'Load more';
+    }
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = 'Load more';
+  }
 }
 </script>
 {% endblock %}

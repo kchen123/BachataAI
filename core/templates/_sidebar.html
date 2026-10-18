@@ -7,17 +7,14 @@
 <nav id="sidebarMenu" class="sidebar">
   <div class="sidebar-header">
     <a href="/" class="sidebar-title-link">
-      <span class="sidebar-title-mark">B</span>
-<span class="sidebar-title">BACHATA.AI</span>
+      <svg class="sidebar-logo" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 2.1a3 3 0 0 1 4.16.88l.17.28a3 3 0 0 1-.88 4.15l-6.36 4.07a3 3 0 0 1-4.16-.88l-.17-.28a3 3 0 0 1 .88-4.15z"/><path d="M17.64 13.37a3 3 0 0 1 4.16.88l.17.28a3 3 0 0 1-.88 4.15l-6.36 4.07a3 3 0 0 1-4.16-.88l-.17-.28a3 3 0 0 1 .88-4.15z"/></svg>
+      <span class="sidebar-title">PASO</span>
     </a>
   </div>
 
   <div class="sidebar-sections">
 
     <div class="sidebar-section" data-section="studio">
-      <div class="section-label" data-toggle="studio">
-        <span class="section-label-text">Studio</span>
-      </div>
       <ul class="sidebar-nav section-body">
         <li><a href="/" class="nav-link" data-path="/"><span class="nav-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></span><span class="nav-text">Videos</span></a></li>
         <li><a href="/scores" class="nav-link" data-path="/scores"><span class="nav-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span><span class="nav-text">Scores</span></a></li>
@@ -25,45 +22,25 @@
     </div>
 
   </div>
+
+  <div class="navbar-right">
+    <div class="navbar-clock" id="mainClock">
+      <span class="time">--:--:--</span>
+      <span class="tz">ET</span>
+    </div>
+    <button class="navbar-account" title="Account" onclick="document.getElementById('accountModal').classList.add('open')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    </button>
+  </div>
 </nav>
 
 <script>
   // Highlight active nav link based on current path
   (function() {
     const path = window.location.pathname;
-    const normalized = path;
     document.querySelectorAll('.nav-link[data-path]').forEach(link => {
-      if (link.dataset.path === normalized || normalized.startsWith(link.dataset.path + '/')) link.classList.add('active');
+      if (link.dataset.path === path || path.startsWith(link.dataset.path + '/')) link.classList.add('active');
     });
   })();
 
-  // Collapse / expand sidebar — click on empty space
-  (function() {
-    const sidebar = document.getElementById('sidebarMenu');
-    const stored = localStorage.getItem('sidebar-collapsed');
-    if (stored === '1') sidebar.classList.add('collapsed');
-
-    sidebar.addEventListener('click', (e) => {
-      const interactive = e.target.closest('a, button, .section-label, select, input');
-      if (interactive) return;
-      sidebar.classList.toggle('collapsed');
-      localStorage.setItem('sidebar-collapsed', sidebar.classList.contains('collapsed') ? '1' : '0');
-      window.dispatchEvent(new Event('sidebar-toggle'));
-    });
-  })();
-
-  // Collapsible sections
-  (function() {
-    document.querySelectorAll('.section-label[data-toggle]').forEach(label => {
-      const key = label.dataset.toggle;
-      const section = label.closest('.sidebar-section');
-      if (localStorage.getItem('section-' + key) === '0') {
-        section.classList.add('section-collapsed');
-      }
-      label.addEventListener('click', () => {
-        section.classList.toggle('section-collapsed');
-        localStorage.setItem('section-' + key, section.classList.contains('section-collapsed') ? '0' : '1');
-      });
-    });
-  })();
 </script>
