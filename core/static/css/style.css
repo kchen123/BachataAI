@@ -223,6 +223,19 @@
 /* Hide thumbnail in list view */
 .files-grid.view-list .file-card-thumb { display: none; }
 
+/* Pose-analyzed star badge */
+.file-card-star {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  font-size: 14px;
+  color: var(--accent);
+  line-height: 1;
+  z-index: 2;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.15));
+}
+
 /* Load more */
 .load-more-wrap {
   display: flex;

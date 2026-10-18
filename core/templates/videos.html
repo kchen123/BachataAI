@@ -60,8 +60,9 @@
       {% if v.gcs_url %}
       <video class="file-card-thumb" data-src="{{ v.gcs_url }}" preload="none" muted playsinline></video>
       {% endif %}
-      <svg class="file-card-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="{{ '#16a34a' if v.has_pose else '#64c8ff' }}" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
-      <span class="file-card-name">{{ v.title }}{% if v.has_pose %} *{% endif %}</span>
+      {% if v.has_pose %}<span class="file-card-star" title="Pose analyzed">&#9733;</span>{% endif %}
+      <svg class="file-card-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+      <span class="file-card-name">{{ v.title }}</span>
       <span class="file-card-date">{{ v.created_at.strftime('%b %d, %Y') if v.created_at else '' }}</span>
       <button class="file-card-menu" onclick="event.stopPropagation(); toggleDropdown(this);">&vellip;</button>
       <div class="file-dropdown">
@@ -599,10 +600,13 @@ function clearProcessingCard(videoId, status) {
   }
 
   if (status === 'done') {
-    const icon = card.querySelector('.file-card-icon');
-    if (icon) icon.setAttribute('stroke', '#16a34a');
-    const name = card.querySelector('.file-card-name');
-    if (name && !name.textContent.endsWith(' *')) name.textContent += ' *';
+    if (!card.querySelector('.file-card-star')) {
+      const star = document.createElement('span');
+      star.className = 'file-card-star';
+      star.title = 'Pose analyzed';
+      star.innerHTML = '&#9733;';
+      card.prepend(star);
+    }
   }
 
   setTimeout(() => {
@@ -1358,14 +1362,15 @@ async function loadMore() {
       card.ondragstart = onDragStart;
       card.onclick = () => playVideo(v.id, v.gcs_url || '', v.title || '', !!v.has_pose);
       const hasPose = !!v.has_pose;
-      const strokeColor = hasPose ? '#16a34a' : '#64c8ff';
       let thumbHtml = '';
       if (v.gcs_url) {
         thumbHtml = `<video class="file-card-thumb" data-src="${v.gcs_url}" preload="none" muted playsinline></video>`;
       }
-      card.innerHTML = thumbHtml +
-        `<svg class="file-card-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="${strokeColor}" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>` +
-        `<span class="file-card-name">${v.title || ''}${hasPose ? ' *' : ''}</span>` +
+      card.innerHTML =
+        (hasPose ? `<span class="file-card-star" title="Pose analyzed">&#9733;</span>` : '') +
+        thumbHtml +
+        `<svg class="file-card-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>` +
+        `<span class="file-card-name">${v.title || ''}</span>` +
         `<span class="file-card-date">${v.created_at ? new Date(v.created_at).toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'}) : ''}</span>` +
         `<button class="file-card-menu" onclick="event.stopPropagation(); toggleDropdown(this);">&vellip;</button>` +
         `<div class="file-dropdown">` +
