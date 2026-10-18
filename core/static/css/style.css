@@ -1132,17 +1132,30 @@
 
 /* ── Scores Toolbar ─────────────────────────────────────────────────── */
 
+/* Glass container for scores page */
+.scores-container {
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: var(--card-radius);
+  box-shadow: var(--glass-shadow), var(--glass-inset);
+}
+
 .scores-toolbar {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 8px;
+  padding: 10px 16px;
   margin-bottom: 0;
-  background: var(--dbg-bg);
-  border: 1px solid color-mix(in srgb, var(--border) 36%, transparent);
-  border-bottom: none;
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  background: rgba(255, 255, 255, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 0;
 }
 
 .scores-toolbar + .app-table {
@@ -1155,28 +1168,31 @@
   flex: 1;
   max-width: 260px;
   padding: 3px 10px;
-  height: 24px;
+  height: 28px;
   font-size: var(--u-fs-sm);
-  font-family: var(--mono);
+  font-family: var(--sans);
   color: var(--text-primary);
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: var(--radius-md);
   outline: none;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 .scores-toolbar .search-input::placeholder { color: var(--text-muted); }
-.scores-toolbar .search-input:focus { border-color: var(--accent); }
+.scores-toolbar .search-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255, 136, 0, 0.1); }
 
 .scorecard-modal {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--card-radius);
   width: 700px;
   max-width: 90vw;
   height: 80vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+  box-shadow: var(--glass-shadow-lg), var(--glass-inset);
   overflow: hidden;
   resize: both;
   min-width: 400px;

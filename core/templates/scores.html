@@ -3,34 +3,36 @@
 
 {% block page_id %}SCORES{% endblock %}
 {% block content %}
-<div class="scores-toolbar">
-  <input type="text" class="search-input" id="scorecardSearch" placeholder="...">
-<button class="btn-add-scorecard" id="btnAddScorecard" title="New scorecard">+</button>
-</div>
+<div class="scores-container">
+  <div class="scores-toolbar">
+    <input type="text" class="search-input" id="scorecardSearch" placeholder="...">
+    <button class="btn-add-scorecard" id="btnAddScorecard" title="New scorecard">+</button>
+  </div>
 
-<div class="table-wrap">
-  <table class="app-table" id="scorecardsTable">
-    <thead>
-      <tr>
-        <th class="id-col">ID</th>
-        <th class="name-col">Name</th>
-        <th class="date-col">Created</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for sc in scorecards %}
-      <tr data-id="{{ sc.id }}" onclick="openScorecard({{ sc.id }}, '{{ sc.name }}')" style="cursor:pointer">
-        <td class="id-col">{{ sc.id }}</td>
-        <td class="name-col">{{ sc.name }}</td>
-        <td class="date-col">{{ sc.created_at.strftime('%b %d, %Y') if sc.created_at else '' }}</td>
-      </tr>
-      {% else %}
-      <tr>
-        <td colspan="3" class="empty-row">No scorecards yet.</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="table-wrap">
+    <table class="app-table" id="scorecardsTable">
+      <thead>
+        <tr>
+          <th class="id-col">ID</th>
+          <th class="name-col">Name</th>
+          <th class="date-col">Created</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for sc in scorecards %}
+        <tr data-id="{{ sc.id }}" onclick="openScorecard({{ sc.id }}, '{{ sc.name }}')" style="cursor:pointer">
+          <td class="id-col">{{ sc.id }}</td>
+          <td class="name-col">{{ sc.name }}</td>
+          <td class="date-col">{{ sc.created_at.strftime('%b %d, %Y') if sc.created_at else '' }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="3" class="empty-row">No scorecards yet.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 
 <!-- Scorecard Detail Modal -->
