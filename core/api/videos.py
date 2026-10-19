@@ -278,8 +278,23 @@ def api_move_video(video_id):
 @videos_bp.route("/api/videos/<int:video_id>", methods=["DELETE"])
 def api_delete_video(video_id):
     repo = get_repo()
-    ok = VideosAdapter(repo).delete(video_id)
-    return ("", 204) if ok else ("", 404)
+    video = VideosAdapter(repo).get(video_id)
+    if not video:
+        return ("", 404)
+    # Delete GCS files
+    from core.adapters.storage import _get_client, BUCKET_NAME
+    import os
+    bucket = _get_client().bucket(BUCKET_NAME)
+    prefix = f"https://storage.googleapis.com/{BUCKET_NAME}/"
+    for url_field in ("gcs_url", "thumbnail_url"):
+        url = video.get(url_field)
+        if url and url.startswith(prefix):
+            try:
+                bucket.blob(url[len(prefix):]).delete()
+            except Exception:
+                pass
+    VideosAdapter(repo).delete(video_id)
+    return ("", 204)
 
 
 # ── Thumbnail API ─────────────────────────────────────────────────────────────
