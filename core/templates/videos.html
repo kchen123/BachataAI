@@ -952,7 +952,10 @@ function handleUploadFiles(files) {
     uploadSingleFile(files[i], i, () => {
       completed++;
       if (completed === total) {
-        setTimeout(() => window.location.reload(), 500);
+        setTimeout(() => {
+          document.getElementById('uploadModal').classList.remove('open');
+          window.location.reload();
+        }, 800);
       }
     });
   }
@@ -1021,7 +1024,7 @@ async function uploadSingleFile(file, idx, onDone) {
       xhr.send(file);
     });
 
-    pctEl.textContent = '100%';
+    pctEl.innerHTML = '100% <span style="color:var(--green);font-size:13px">&#10003;</span>';
     fillEl.style.background = 'var(--green)';
   } catch (e) {
     console.error('Upload error:', e);
