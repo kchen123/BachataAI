@@ -266,7 +266,7 @@ let videoOffset = document.querySelectorAll('.file-card[data-type="video"]').len
     });
   }, { rootMargin: '200px' });
   window._thumbObserver = observer;
-  document.querySelectorAll('.file-card-thumb').forEach(v => observer.observe(v));
+  document.querySelectorAll('video.file-card-thumb[data-src]').forEach(v => observer.observe(v));
 })();
 
 // ── Modal ──
