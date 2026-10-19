@@ -20,100 +20,121 @@
     }
 
     .login-card {
-      width: 360px;
-      background: rgba(255, 255, 255, 0.45);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
-      border: 1px solid rgba(255, 255, 255, 0.55);
+      width: 340px;
+      background: rgba(255, 255, 255, 0.42);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      border: 1px solid rgba(255, 255, 255, 0.5);
       border-radius: 20px;
-      padding: 36px;
+      padding: 40px 32px 32px;
       box-shadow:
-        0 16px 48px rgba(0, 0, 0, 0.08),
+        0 20px 60px rgba(0, 0, 0, 0.08),
         0 4px 16px rgba(0, 0, 0, 0.04),
-        inset 0 1px 0 rgba(255, 255, 255, 0.7);
+        inset 0 1px 0 rgba(255, 255, 255, 0.6);
     }
 
-    .login-card::before {
-      content: '';
-      display: block;
-      height: 3px;
-      background: linear-gradient(90deg, #ff8800, #e67a00);
-      margin: -36px -36px 28px;
-      border-radius: 20px 20px 0 0;
+    .login-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 32px;
+    }
+
+    .login-logo {
+      color: #ff8800;
+      filter: drop-shadow(0 1px 3px rgba(255, 136, 0, 0.25));
     }
 
     .login-title {
-      font-size: 18px;
+      font-size: 20px;
       font-weight: 700;
-      color: #1a1a2e;
-      margin-bottom: 24px;
-      letter-spacing: 0.02em;
+      color: #ff8800;
+      letter-spacing: 0.06em;
     }
 
-    .form-group { margin-bottom: 20px; }
+    .form-group { margin-bottom: 18px; }
 
     label {
       display: block;
-      font-size: 0.7rem;
+      font-size: 0.65rem;
       font-weight: 600;
-      color: #4a4d5c;
+      color: #6a6d7c;
       margin-bottom: 6px;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
     }
 
     input {
       width: 100%;
-      padding: 10px 14px;
-      border: 1px solid rgba(255, 255, 255, 0.5);
-      border-radius: 10px;
+      padding: 11px 14px;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 12px;
       font-size: 0.85rem;
       font-family: inherit;
       outline: none;
-      background: rgba(255, 255, 255, 0.5);
+      background: rgba(255, 255, 255, 0.55);
       color: #1a1a2e;
       transition: all 0.2s;
-      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04);
+      box-shadow:
+        inset 0 2px 4px rgba(0, 0, 0, 0.03),
+        0 1px 0 rgba(255, 255, 255, 0.5);
     }
-    input::placeholder { color: #8a8d9c; }
+    input::placeholder { color: #aaa; }
     input:focus {
-      border-color: #ff8800;
-      box-shadow: 0 0 0 3px rgba(255, 136, 0, 0.1);
+      border-color: rgba(255, 136, 0, 0.4);
+      background: rgba(255, 255, 255, 0.7);
+      box-shadow:
+        inset 0 2px 4px rgba(0, 0, 0, 0.02),
+        0 0 0 3px rgba(255, 136, 0, 0.08);
     }
 
     .btn {
       width: 100%;
-      padding: 11px;
-      margin-top: 8px;
-      background: #ff8800;
+      padding: 12px;
+      margin-top: 12px;
+      background: linear-gradient(135deg, #ff9500, #ff7800);
       color: #fff;
       border: none;
-      border-radius: 10px;
-      font-size: 0.8rem;
-      font-weight: 600;
+      border-radius: 12px;
+      font-size: 0.78rem;
+      font-weight: 700;
       font-family: inherit;
       cursor: pointer;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
       transition: all 0.2s;
-      box-shadow: 0 4px 12px rgba(255, 136, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+      box-shadow:
+        0 4px 14px rgba(255, 136, 0, 0.25),
+        inset 0 1px 0 rgba(255, 255, 255, 0.25);
     }
-    .btn:hover { background: #e67a00; box-shadow: 0 6px 16px rgba(255, 136, 0, 0.25); }
-    .btn:active { background: #cc6e00; transform: translateY(1px); }
+    .btn:hover {
+      background: linear-gradient(135deg, #ff8800, #e67000);
+      box-shadow: 0 6px 20px rgba(255, 136, 0, 0.3);
+      transform: translateY(-1px);
+    }
+    .btn:active {
+      background: linear-gradient(135deg, #e67a00, #cc6800);
+      transform: translateY(0);
+      box-shadow: 0 2px 8px rgba(255, 136, 0, 0.2);
+    }
 
     .error {
-      background: rgba(224, 64, 64, 0.1);
-      color: #e04040;
-      font-size: 0.8rem;
-      padding: 8px 12px;
-      border-radius: 10px;
-      margin-bottom: 16px;
-      border: 1px solid rgba(224, 64, 64, 0.15);
+      background: rgba(224, 64, 64, 0.08);
+      color: #d03030;
+      font-size: 0.78rem;
+      padding: 10px 14px;
+      border-radius: 12px;
+      margin-bottom: 18px;
+      border: 1px solid rgba(224, 64, 64, 0.1);
     }
   </style>
 </head>
 <body>
   <div class="login-card">
+    <div class="login-header">
+      <svg class="login-logo" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13.73 2.1a3 3 0 0 1 4.16.88l.17.28a3 3 0 0 1-.88 4.15l-6.36 4.07a3 3 0 0 1-4.16-.88l-.17-.28a3 3 0 0 1 .88-4.15z"/><path d="M17.64 13.37a3 3 0 0 1 4.16.88l.17.28a3 3 0 0 1-.88 4.15l-6.36 4.07a3 3 0 0 1-4.16-.88l-.17-.28a3 3 0 0 1 .88-4.15z"/></svg>
+      <span class="login-title">PASO</span>
+    </div>
     {% if error %}
     <div class="error">{{ error }}</div>
     {% endif %}
