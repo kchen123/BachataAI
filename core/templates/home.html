@@ -7,10 +7,9 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
   position: relative;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   border-radius: var(--card-radius);
   background: rgba(255, 255, 255, 0.15);
   backdrop-filter: blur(var(--glass-blur));
@@ -20,7 +19,7 @@
 
 /* Floating orbs */
 .home-orb {
-  position: absolute;
+  position: fixed;
   border-radius: 50%;
   filter: blur(80px);
   opacity: 0.35;
@@ -58,101 +57,9 @@
   50% { transform: translate(-30px, 20px) scale(0.9); }
 }
 
-/* Content */
-.home-content {
-  position: relative;
-  z-index: 1;
-  text-align: center;
-  animation: home-fade-up 0.8s ease-out both;
-}
-
-@keyframes home-fade-up {
-  from { opacity: 0; transform: translateY(24px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.home-logo {
-  width: 56px; height: 56px;
-  margin-bottom: 20px;
-  animation: home-pulse 3s ease-in-out infinite;
-}
-@keyframes home-pulse {
-  0%, 100% { transform: scale(1); opacity: 0.85; }
-  50% { transform: scale(1.06); opacity: 1; }
-}
-
-.home-title {
-  font-family: var(--sans);
-  font-size: 36px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  color: var(--text-primary);
-  margin: 0 0 8px 0;
-  text-transform: uppercase;
-}
-
-.home-subtitle {
-  font-family: var(--mono);
-  font-size: 12px;
-  letter-spacing: 0.15em;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  margin: 0 0 40px 0;
-}
-
-/* Nav cards */
-.home-nav {
-  display: flex;
-  gap: 16px;
-  animation: home-fade-up 0.8s ease-out 0.2s both;
-}
-
-.home-nav-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  padding: 24px 36px;
-  background: rgba(255, 255, 255, 0.35);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: var(--card-radius);
-  box-shadow: var(--glass-shadow), var(--glass-inset);
-  text-decoration: none;
-  color: var(--text-primary);
-  transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
-  cursor: pointer;
-}
-.home-nav-card:hover {
-  transform: translateY(-4px);
-  background: rgba(255, 255, 255, 0.5);
-  box-shadow: var(--glass-shadow-lg), var(--glass-inset);
-}
-.home-nav-card:active {
-  transform: translateY(0);
-}
-
-.home-nav-icon {
-  color: var(--text-muted);
-  transition: color 0.25s ease;
-}
-.home-nav-card:hover .home-nav-icon {
-  color: var(--accent);
-}
-
-.home-nav-label {
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-}
-
-/* Floating particles */
+/* Particles */
 .home-particles {
-  position: absolute;
+  position: fixed;
   inset: 0;
   overflow: hidden;
   pointer-events: none;
@@ -171,6 +78,352 @@
   90% { opacity: 1; }
   100% { transform: translateY(-20px) scale(1); opacity: 0; }
 }
+
+/* ── Sections ── */
+.home-section {
+  position: relative;
+  z-index: 1;
+  padding: 80px 48px;
+  opacity: 0;
+  transform: translateY(32px);
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+.home-section.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Hero */
+.home-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding-top: 120px;
+  padding-bottom: 100px;
+}
+.home-logo {
+  width: 64px; height: 64px;
+  margin-bottom: 24px;
+  animation: home-pulse 3s ease-in-out infinite;
+}
+@keyframes home-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50% { transform: scale(1.06); opacity: 1; }
+}
+.home-title {
+  font-family: var(--sans);
+  font-size: 42px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--text-primary);
+  margin: 0 0 12px 0;
+  text-transform: uppercase;
+}
+.home-tagline {
+  font-family: var(--sans);
+  font-size: 18px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  margin: 0 0 8px 0;
+  max-width: 500px;
+  line-height: 1.6;
+}
+.home-tagline-sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin: 0;
+}
+
+/* Divider */
+.home-divider {
+  width: 48px;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.08);
+  margin: 0 auto;
+}
+
+/* Feature rows */
+.home-features {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+.home-feature {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+  padding: 28px 32px;
+  background: rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: var(--card-radius);
+  box-shadow: var(--glass-shadow), var(--glass-inset);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.home-feature:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--glass-shadow-lg), var(--glass-inset);
+}
+.home-feature-icon {
+  flex-shrink: 0;
+  width: 40px; height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: rgba(255, 136, 0, 0.08);
+  color: var(--accent);
+}
+.home-feature-body {
+  flex: 1;
+}
+.home-feature-title {
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 6px 0;
+}
+.home-feature-desc {
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.6;
+}
+
+/* Section title */
+.home-section-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 12px 0;
+  text-align: center;
+}
+.home-section-title {
+  font-family: var(--sans);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 40px 0;
+  text-align: center;
+}
+
+/* How it works */
+.home-steps {
+  display: flex;
+  gap: 20px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+.home-step {
+  flex: 1;
+  text-align: center;
+  padding: 28px 20px;
+  background: rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: var(--card-radius);
+  box-shadow: var(--glass-shadow), var(--glass-inset);
+  transition: transform 0.3s ease;
+}
+.home-step:hover {
+  transform: translateY(-2px);
+}
+.home-step-num {
+  font-family: var(--mono);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--accent);
+  opacity: 0.6;
+  margin-bottom: 12px;
+}
+.home-step-title {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 6px 0;
+}
+.home-step-desc {
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Pricing tiers */
+.home-tiers {
+  display: flex;
+  gap: 20px;
+  max-width: 920px;
+  margin: 0 auto;
+  align-items: stretch;
+}
+.home-tier {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 36px 24px 32px;
+  background: rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: var(--card-radius);
+  box-shadow: var(--glass-shadow), var(--glass-inset);
+  transition: transform 0.35s ease, box-shadow 0.35s ease, border-color 0.35s ease;
+  position: relative;
+}
+.home-tier:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--glass-shadow-lg), var(--glass-inset);
+}
+.home-tier.featured {
+  border-color: rgba(255, 136, 0, 0.3);
+  background: rgba(255, 255, 255, 0.42);
+  transform: scale(1.03);
+  box-shadow: 0 12px 40px rgba(255, 136, 0, 0.08), var(--glass-shadow), var(--glass-inset);
+}
+.home-tier.featured:hover {
+  transform: scale(1.03) translateY(-4px);
+  box-shadow: 0 16px 48px rgba(255, 136, 0, 0.12), var(--glass-shadow-lg), var(--glass-inset);
+}
+.home-tier-badge {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: #fff;
+  background: var(--accent);
+  padding: 4px 14px;
+  border-radius: var(--radius-pill);
+  margin-bottom: 14px;
+  box-shadow: 0 2px 8px rgba(255, 136, 0, 0.2);
+}
+.home-tier-name {
+  font-family: var(--sans);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 16px 0;
+  letter-spacing: 0.02em;
+}
+.home-tier-price {
+  font-family: var(--mono);
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 2px;
+  line-height: 1;
+}
+.home-tier-price span {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.home-tier-annual {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 4px 0 0 0;
+  min-height: 16px;
+}
+.home-tier-rule {
+  width: 32px;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.06);
+  margin: 20px 0;
+}
+.home-tier-minutes {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  margin: 0 0 8px 0;
+  letter-spacing: 0.03em;
+}
+.home-tier-desc {
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin: 0;
+  flex: 1;
+}
+.home-tier-features {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0 0;
+  width: 100%;
+}
+.home-tier-features li {
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 6px 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.04);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.home-tier-features li::before {
+  content: '';
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+/* CTA */
+.home-cta {
+  text-align: center;
+  padding-bottom: 120px;
+}
+.home-cta-btn {
+  display: inline-block;
+  padding: 14px 40px;
+  background: rgba(255, 136, 0, 0.12);
+  color: var(--accent);
+  border: 1px solid rgba(255, 136, 0, 0.25);
+  border-radius: var(--radius-pill);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: background 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
+  box-shadow: none;
+}
+.home-cta-btn:hover {
+  background: rgba(255, 136, 0, 0.18);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(255, 136, 0, 0.12);
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .home-section { padding: 48px 20px; }
+  .home-hero { padding-top: 72px; padding-bottom: 60px; }
+  .home-title { font-size: 28px; }
+  .home-steps { flex-direction: column; }
+  .home-feature { flex-direction: column; gap: 12px; }
+  .home-tiers { flex-direction: column; max-width: 360px; }
+}
 </style>
 {% endblock %}
 
@@ -181,29 +434,153 @@
   <div class="home-orb home-orb-2"></div>
   <div class="home-orb home-orb-3"></div>
 
-  <div class="home-content">
+  <!-- Hero -->
+  <div class="home-section home-hero">
     <svg class="home-logo" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
       <path d="M13.73 2.1a3 3 0 0 1 4.16.88l.17.28a3 3 0 0 1-.88 4.15l-6.36 4.07a3 3 0 0 1-4.16-.88l-.17-.28a3 3 0 0 1 .88-4.15z"/>
       <path d="M17.64 13.37a3 3 0 0 1 4.16.88l.17.28a3 3 0 0 1-.88 4.15l-6.36 4.07a3 3 0 0 1-4.16-.88l-.17-.28a3 3 0 0 1 .88-4.15z"/>
     </svg>
     <h1 class="home-title">Paso</h1>
-    <p class="home-subtitle">Dance Analysis Studio</p>
-
-    <nav class="home-nav">
-      <a href="/studio" class="home-nav-card">
-        <span class="home-nav-icon">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
-        </span>
-        <span class="home-nav-label">Studio</span>
-      </a>
-      <a href="/scores" class="home-nav-card">
-        <span class="home-nav-icon">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-        </span>
-        <span class="home-nav-label">Scores</span>
-      </a>
-    </nav>
+    <p class="home-tagline">Dance analysis that sees what the mirror can't.</p>
+    <p class="home-tagline-sub">Upload. Analyse. Improve.</p>
   </div>
+
+  <div class="home-divider"></div>
+
+  <!-- How it works -->
+  <div class="home-section">
+    <p class="home-section-label">How it works</p>
+    <h2 class="home-section-title">Three steps to better movement</h2>
+    <div class="home-steps">
+      <div class="home-step">
+        <div class="home-step-num">01</div>
+        <h3 class="home-step-title">Upload</h3>
+        <p class="home-step-desc">Drop any practice video into your studio. Phone footage, studio cameras, competition clips.</p>
+      </div>
+      <div class="home-step">
+        <div class="home-step-num">02</div>
+        <h3 class="home-step-title">Analyse</h3>
+        <p class="home-step-desc">Pose detection maps every joint, frame by frame. See your skeleton, weight shifts, and timing in real time.</p>
+      </div>
+      <div class="home-step">
+        <div class="home-step-num">03</div>
+        <h3 class="home-step-title">Improve</h3>
+        <p class="home-step-desc">Score your movement, track progress over weeks, and know exactly what to work on next.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="home-divider"></div>
+
+  <!-- Features -->
+  <div class="home-section">
+    <p class="home-section-label">Features</p>
+    <h2 class="home-section-title">Built for dancers who want to get better</h2>
+    <div class="home-features">
+      <div class="home-feature">
+        <div class="home-feature-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <div class="home-feature-body">
+          <h3 class="home-feature-title">Pose Detection</h3>
+          <p class="home-feature-desc">Frame-by-frame skeletal tracking maps every joint in your body. Overlay it on your video to see exactly how you move.</p>
+        </div>
+      </div>
+      <div class="home-feature">
+        <div class="home-feature-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        </div>
+        <div class="home-feature-body">
+          <h3 class="home-feature-title">Scorecards</h3>
+          <p class="home-feature-desc">Rate movement, musicality, footwork, and styling on custom scorecards. Track your trend lines to see real progress.</p>
+        </div>
+      </div>
+      <div class="home-feature">
+        <div class="home-feature-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div class="home-feature-body">
+          <h3 class="home-feature-title">Weight Shift & Timing</h3>
+          <p class="home-feature-desc">Visualise where your weight sits on every beat. See speed graphs and body mechanics that you can't catch in a mirror.</p>
+        </div>
+      </div>
+      <div class="home-feature">
+        <div class="home-feature-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        </div>
+        <div class="home-feature-body">
+          <h3 class="home-feature-title">Body Focus</h3>
+          <p class="home-feature-desc">Isolate upper body, lower body, or full body to drill into the details that matter for each move.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="home-divider"></div>
+
+  <!-- Pricing -->
+  <div class="home-section">
+    <p class="home-section-label">Pricing</p>
+    <h2 class="home-section-title">A plan for every dancer</h2>
+    <div class="home-tiers">
+      <div class="home-tier">
+        <h3 class="home-tier-name">Free</h3>
+        <div class="home-tier-price">$0</div>
+        <p class="home-tier-annual">&nbsp;</p>
+        <div class="home-tier-rule"></div>
+        <p class="home-tier-minutes">10 min / month</p>
+        <p class="home-tier-desc">Get started with basic analysis.</p>
+        <ul class="home-tier-features">
+          <li>Basic scores</li>
+          <li>Watermarked exports</li>
+          <li>Pose overlay</li>
+        </ul>
+      </div>
+      <div class="home-tier">
+        <h3 class="home-tier-name">Dancer</h3>
+        <div class="home-tier-price">$14.99 <span>/ mo</span></div>
+        <p class="home-tier-annual">or $119 / year</p>
+        <div class="home-tier-rule"></div>
+        <p class="home-tier-minutes">60 min / month</p>
+        <p class="home-tier-desc">For social dancers practising weekly.</p>
+        <ul class="home-tier-features">
+          <li>Full scoring</li>
+          <li>Clean exports</li>
+          <li>Weight shift analysis</li>
+          <li>Speed graphs</li>
+        </ul>
+      </div>
+      <div class="home-tier">
+        <h3 class="home-tier-name">Pro</h3>
+        <div class="home-tier-price">$29.99 <span>/ mo</span></div>
+        <p class="home-tier-annual">or $239 / year</p>
+        <div class="home-tier-rule"></div>
+        <p class="home-tier-minutes">150 min / month</p>
+        <p class="home-tier-desc">For competitors and serious students.</p>
+        <ul class="home-tier-features">
+          <li>Everything in Dancer</li>
+          <li>Custom scorecards</li>
+          <li>Body focus isolation</li>
+          <li>Progress tracking</li>
+        </ul>
+      </div>
+      <div class="home-tier">
+        <h3 class="home-tier-name">Instructor</h3>
+        <div class="home-tier-price">$99 <span>/ mo</span></div>
+        <p class="home-tier-annual">&nbsp;</p>
+        <div class="home-tier-rule"></div>
+        <p class="home-tier-minutes">500 min / month</p>
+        <p class="home-tier-desc">Review and correct student videos at scale.</p>
+        <ul class="home-tier-features">
+          <li>Everything in Pro</li>
+          <li>Student video review</li>
+          <li>Bulk analysis</li>
+          <li>Priority processing</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
 </div>
 {% endblock %}
 
@@ -213,6 +590,7 @@
 </script>
 <script>
 (function() {
+  // Particles
   const container = document.getElementById('particles');
   for (let i = 0; i < 20; i++) {
     const p = document.createElement('div');
@@ -223,6 +601,17 @@
     p.style.width = p.style.height = (2 + Math.random() * 3) + 'px';
     container.appendChild(p);
   }
+
+  // Scroll reveal
+  const sections = document.querySelectorAll('.home-section');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+      }
+    });
+  }, { threshold: 0.15 });
+  sections.forEach(s => observer.observe(s));
 })();
 </script>
 {% endblock %}
