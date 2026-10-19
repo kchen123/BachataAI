@@ -789,7 +789,11 @@
   cursor: pointer;
   font-family: var(--mono);
   box-shadow: none;
+  text-align: center;
+  text-align-last: center;
+  -moz-text-align-last: center;
 }
+.pose-ctrl-select option { background: #1a1a2e; color: #fff; text-align: center; }
 .pose-ctrl-select:hover { color: rgba(255, 255, 255, 0.95); }
 
 .pose-ctrl-btn {
