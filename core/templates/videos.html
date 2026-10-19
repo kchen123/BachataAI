@@ -56,7 +56,9 @@
     <div class="file-card" data-type="video" data-id="{{ v.id }}" data-name="{{ v.title|lower }}" data-date="{{ v.created_at }}" draggable="true"
          ondragstart="onDragStart(event)"
          onclick="playVideo({{ v.id }}, '{{ v.gcs_url|e }}', '{{ v.title|e }}', {{ v.has_pose|default(false)|tojson }})">
-      {% if v.gcs_url %}
+      {% if v.thumbnail_url %}
+      <img class="file-card-thumb" src="{{ v.thumbnail_url }}" alt="" loading="lazy">
+      {% elif v.gcs_url %}
       <video class="file-card-thumb" data-src="{{ v.gcs_url }}" preload="none" muted playsinline></video>
       {% endif %}
       {% if v.has_pose %}<span class="file-card-star" title="Pose analyzed">&#9733;</span>{% endif %}
@@ -1017,6 +1019,10 @@ async function uploadSingleFile(file, idx, onDone) {
 
     pctEl.innerHTML = '100% <span style="color:var(--green);font-size:13px">&#10003;</span>';
     fillEl.style.background = 'var(--green)';
+    // Generate thumbnail in background
+    if (urlData.video && urlData.video.id) {
+      fetch('/api/videos/' + urlData.video.id + '/thumbnail', { method: 'POST' }).catch(() => {});
+    }
   } catch (e) {
     console.error('Upload error:', e);
     pctEl.textContent = '0%';
@@ -1357,7 +1363,9 @@ async function loadMore() {
       card.onclick = () => playVideo(v.id, v.gcs_url || '', v.title || '', !!v.has_pose);
       const hasPose = !!v.has_pose;
       let thumbHtml = '';
-      if (v.gcs_url) {
+      if (v.thumbnail_url) {
+        thumbHtml = `<img class="file-card-thumb" src="${v.thumbnail_url}" alt="" loading="lazy">`;
+      } else if (v.gcs_url) {
         thumbHtml = `<video class="file-card-thumb" data-src="${v.gcs_url}" preload="none" muted playsinline></video>`;
       }
       card.innerHTML =

@@ -5,7 +5,7 @@ from core.adapters.repository import get_repo
 from core.adapters.folders import FoldersAdapter
 from core.adapters.videos import VideosAdapter
 from core.adapters.users import UsersAdapter
-from core.adapters.storage import BUCKET_NAME
+from core.adapters.storage import BUCKET_NAME, generate_thumbnail
 from core.api._helpers import serialize, uid
 
 ALLOWED_EXTS = {".mp4", ".mov", ".avi", ".webm", ".mkv"}
@@ -60,6 +60,37 @@ def folder_view(folder_id):
                            folder=folder, breadcrumbs=breadcrumbs,
                            folders=folders, videos=videos,
                            has_more=has_more, user=user)
+
+
+@videos_bp.route("/api/videos/browse")
+def api_browse():
+    """Return folders + videos for a given folder (or root). Used by mobile."""
+    repo = get_repo()
+    user_id = uid()
+    fa, va = FoldersAdapter(repo), VideosAdapter(repo)
+    folder_id = request.args.get("folder_id", type=int)
+
+    if folder_id is not None:
+        folders = fa.list_children(user_id, folder_id)
+        videos = va.list_by_folder(user_id, folder_id, limit=PAGE_SIZE + 1)
+        breadcrumbs = fa.get_breadcrumbs(folder_id)
+        folder = fa.get(folder_id)
+    else:
+        folders = fa.list_root(user_id)
+        videos = va.list_unfiled(user_id, limit=PAGE_SIZE + 1)
+        breadcrumbs = []
+        folder = None
+
+    has_more = len(videos) > PAGE_SIZE
+    videos = videos[:PAGE_SIZE]
+
+    return jsonify({
+        "folder": serialize(folder) if folder else None,
+        "breadcrumbs": breadcrumbs,
+        "folders": [serialize(f) for f in folders],
+        "videos": [serialize(v) for v in videos],
+        "has_more": has_more,
+    })
 
 
 @videos_bp.route("/api/videos/list")
@@ -218,9 +249,13 @@ def api_upload_video():
     title = os.path.splitext(f.filename)[0]
     repo = get_repo()
     video = VideosAdapter(repo).create(title, uid(), folder_id, filename=filename, gcs_url=gcs_url)
-    video = repo.update("bachata.videos", video["id"], {
+    update_data = {
         "duration_sec": duration_sec, "fps": round(fps, 2), "frame_count": frame_count,
-    })
+    }
+    thumb_url = generate_thumbnail(gcs_url)
+    if thumb_url:
+        update_data["thumbnail_url"] = thumb_url
+    video = repo.update("bachata.videos", video["id"], update_data)
     return jsonify(serialize(video)), 201
 
 
@@ -245,6 +280,38 @@ def api_delete_video(video_id):
     repo = get_repo()
     ok = VideosAdapter(repo).delete(video_id)
     return ("", 204) if ok else ("", 404)
+
+
+# ── Thumbnail API ─────────────────────────────────────────────────────────────
+
+@videos_bp.route("/api/videos/<int:video_id>/thumbnail", methods=["POST"])
+def api_generate_thumbnail(video_id):
+    """Generate a thumbnail for a single video."""
+    repo = get_repo()
+    video = VideosAdapter(repo).get(video_id)
+    if not video or not video.get("gcs_url"):
+        return ("", 404)
+    thumb_url = generate_thumbnail(video["gcs_url"])
+    if thumb_url:
+        repo.update("bachata.videos", video_id, {"thumbnail_url": thumb_url})
+        return jsonify({"thumbnail_url": thumb_url})
+    return jsonify({"error": "failed"}), 500
+
+
+@videos_bp.route("/api/videos/generate-thumbnails", methods=["POST"])
+def api_generate_thumbnails_batch():
+    """Generate thumbnails for all videos missing them."""
+    repo = get_repo()
+    videos = VideosAdapter(repo).select(order_by="id")
+    generated = 0
+    for v in videos:
+        if v.get("thumbnail_url") or not v.get("gcs_url"):
+            continue
+        thumb_url = generate_thumbnail(v["gcs_url"])
+        if thumb_url:
+            repo.update("bachata.videos", v["id"], {"thumbnail_url": thumb_url})
+            generated += 1
+    return jsonify({"generated": generated, "total": len(videos)})
 
 
 # ── Account API ────────────────────────────────────────────────────────────────
