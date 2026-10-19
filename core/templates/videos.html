@@ -57,7 +57,7 @@
          ondragstart="onDragStart(event)"
          onclick="playVideo({{ v.id }}, '{{ v.gcs_url|e }}', '{{ v.title|e }}', {{ v.has_pose|default(false)|tojson }})">
       {% if v.thumbnail_url %}
-      <img class="file-card-thumb" src="{{ v.thumbnail_url }}" alt="" loading="lazy">
+      <img class="file-card-thumb" src="{{ v.thumbnail_url }}" alt="" loading="lazy" onerror="this.style.display='none'">
       {% elif v.gcs_url %}
       <video class="file-card-thumb" data-src="{{ v.gcs_url }}" preload="none" muted playsinline></video>
       {% endif %}
@@ -1344,7 +1344,7 @@ async function loadMore() {
       const hasPose = !!v.has_pose;
       let thumbHtml = '';
       if (v.thumbnail_url) {
-        thumbHtml = `<img class="file-card-thumb" src="${v.thumbnail_url}" alt="" loading="lazy">`;
+        thumbHtml = `<img class="file-card-thumb" src="${v.thumbnail_url}" alt="" loading="lazy" onerror="this.style.display='none'">`;
       } else if (v.gcs_url) {
         thumbHtml = `<video class="file-card-thumb" data-src="${v.gcs_url}" preload="none" muted playsinline></video>`;
       }
