@@ -97,6 +97,18 @@
   </div>
 </div>
 
+<!-- Delete Confirm Modal -->
+<div class="modal-overlay" id="deleteModal" onclick="if(event.target===this)closeDeleteModal()">
+  <div class="files-modal">
+    <h3>Delete</h3>
+    <p style="font-size:12px;color:var(--text-secondary);margin-bottom:16px">Are you sure you want to delete "<span id="deleteItemName"></span>"?</p>
+    <div class="files-modal-actions">
+      <button class="btn btn-sm" onclick="closeDeleteModal()">Cancel</button>
+      <button class="btn btn-sm btn-danger" id="deleteConfirmBtn" style="background:var(--red);color:#fff;border-color:var(--red)">Delete</button>
+    </div>
+  </div>
+</div>
+
 <!-- Upload Modal -->
 <div class="modal-overlay" id="uploadModal" onclick="if(event.target===this)this.classList.remove('open')">
   <div class="upload-modal">
@@ -398,20 +410,33 @@ function startRename(type, id, currentName) {
   openModal('rename', id, currentName);
 }
 
+let _deleteType, _deleteId;
+
 function confirmDelete(type, id, name) {
   document.querySelectorAll('.file-dropdown.open').forEach(d => d.classList.remove('open'));
-  if (!confirm('Delete "' + name + '"?')) return;
-  const url = type === 'folder' ? '/api/folders/' + id : '/api/videos/' + id;
+  _deleteType = type;
+  _deleteId = id;
+  document.getElementById('deleteItemName').textContent = name;
+  document.getElementById('deleteModal').classList.add('open');
+}
+
+function closeDeleteModal() {
+  document.getElementById('deleteModal').classList.remove('open');
+}
+
+document.getElementById('deleteConfirmBtn').addEventListener('click', () => {
+  const url = _deleteType === 'folder' ? '/api/folders/' + _deleteId : '/api/videos/' + _deleteId;
   fetch(url, { method: 'DELETE' }).then(res => {
     if (res.ok) {
-      const card = document.querySelector('.file-card[data-type="' + type + '"][data-id="' + id + '"]');
+      const card = document.querySelector('.file-card[data-type="' + _deleteType + '"][data-id="' + _deleteId + '"]');
       if (card) card.remove();
       if (!document.querySelector('.file-card')) {
         document.getElementById('filesGrid').innerHTML = '<div class="files-empty">This folder is empty</div>';
       }
     }
   });
-}
+  closeDeleteModal();
+});
 
 // Close modal on overlay click
 document.getElementById('filesModal').addEventListener('click', function(e) {
