@@ -861,19 +861,6 @@
 .angles-label { color: rgba(255, 255, 255, 0.5); }
 .angles-value { font-family: monospace; font-weight: 600; }
 
-.pose-toggle {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
-}
-.pose-toggle:hover { color: var(--text-primary); }
-.pose-toggle input { cursor: pointer; }
-
 /* ── Drag & Drop ────────────────────────────────────────────────────── */
 
 .file-card.drag-over {
