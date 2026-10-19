@@ -11,53 +11,78 @@
   overflow-y: auto;
   overflow-x: hidden;
   border-radius: var(--card-radius);
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border);
+  border: 1px solid rgba(255, 255, 255, 0.4);
 }
 
-/* Floating orbs */
+/* ── Floating orbs ── */
 .home-orb {
   position: fixed;
   border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.35;
   pointer-events: none;
 }
 .home-orb-1 {
-  width: 400px; height: 400px;
-  background: rgba(255, 136, 0, 0.25);
-  top: -100px; left: -80px;
-  animation: orb-drift-1 12s ease-in-out infinite;
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(255, 136, 0, 0.2) 0%, rgba(255, 170, 80, 0.08) 40%, transparent 70%);
+  filter: blur(100px);
+  top: -150px; left: -120px;
+  animation: orb-drift-1 16s ease-in-out infinite;
 }
 .home-orb-2 {
-  width: 350px; height: 350px;
-  background: rgba(160, 155, 148, 0.3);
-  bottom: -80px; right: -60px;
-  animation: orb-drift-2 14s ease-in-out infinite;
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, rgba(160, 170, 190, 0.25) 0%, rgba(140, 150, 165, 0.06) 50%, transparent 70%);
+  filter: blur(100px);
+  bottom: -120px; right: -100px;
+  animation: orb-drift-2 18s ease-in-out infinite;
 }
 .home-orb-3 {
-  width: 250px; height: 250px;
-  background: rgba(200, 195, 188, 0.25);
-  top: 40%; left: 55%;
-  animation: orb-drift-3 10s ease-in-out infinite;
+  width: 350px; height: 350px;
+  background: radial-gradient(circle, rgba(255, 200, 140, 0.15) 0%, transparent 60%);
+  filter: blur(80px);
+  top: 30%; left: 55%;
+  animation: orb-drift-3 13s ease-in-out infinite;
+}
+.home-orb-4 {
+  width: 280px; height: 280px;
+  background: radial-gradient(circle, rgba(180, 190, 210, 0.2) 0%, transparent 60%);
+  filter: blur(70px);
+  top: 15%; right: 10%;
+  animation: orb-drift-4 20s ease-in-out infinite;
+}
+.home-orb-5 {
+  width: 200px; height: 200px;
+  background: radial-gradient(circle, rgba(255, 136, 0, 0.12) 0%, transparent 60%);
+  filter: blur(60px);
+  bottom: 25%; left: 10%;
+  animation: orb-drift-5 15s ease-in-out infinite;
 }
 
 @keyframes orb-drift-1 {
   0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(60px, 40px) scale(1.1); }
+  33% { transform: translate(90px, 60px) scale(1.15); }
+  66% { transform: translate(40px, 90px) scale(0.92); }
 }
 @keyframes orb-drift-2 {
   0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(-50px, -30px) scale(1.08); }
+  50% { transform: translate(-70px, -50px) scale(1.12); }
 }
 @keyframes orb-drift-3 {
   0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(-30px, 20px) scale(0.9); }
+  50% { transform: translate(-50px, 30px) scale(0.85); }
+}
+@keyframes orb-drift-4 {
+  0%, 100% { transform: translate(0, 0) scale(1) rotate(0deg); }
+  50% { transform: translate(25px, -35px) scale(1.18) rotate(12deg); }
+}
+@keyframes orb-drift-5 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  40% { transform: translate(30px, -20px) scale(1.1); }
+  80% { transform: translate(-20px, 15px) scale(0.9); }
 }
 
-/* Particles */
+/* ── Particles ── */
 .home-particles {
   position: fixed;
   inset: 0;
@@ -67,16 +92,108 @@
 }
 .home-particle {
   position: absolute;
-  width: 3px; height: 3px;
   border-radius: 50%;
-  background: rgba(255, 136, 0, 0.2);
+  background: radial-gradient(circle, rgba(255, 180, 100, 0.3), rgba(255, 136, 0, 0.05));
+  box-shadow: 0 0 8px rgba(255, 136, 0, 0.08);
   animation: particle-float linear infinite;
 }
 @keyframes particle-float {
-  0% { transform: translateY(100vh) scale(0); opacity: 0; }
-  10% { opacity: 1; }
-  90% { opacity: 1; }
-  100% { transform: translateY(-20px) scale(1); opacity: 0; }
+  0% { transform: translateY(100vh) scale(0) rotate(0deg); opacity: 0; }
+  10% { opacity: 0.7; }
+  90% { opacity: 0.4; }
+  100% { transform: translateY(-20px) scale(1) rotate(180deg); opacity: 0; }
+}
+
+/* ── Caustic light layer ── */
+.home-caustics {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.04;
+  background:
+    radial-gradient(ellipse 200px 100px at 30% 20%, rgba(255, 255, 255, 0.8), transparent),
+    radial-gradient(ellipse 150px 200px at 70% 60%, rgba(255, 255, 255, 0.6), transparent),
+    radial-gradient(ellipse 180px 120px at 50% 80%, rgba(255, 255, 255, 0.5), transparent);
+  animation: caustic-shift 12s ease-in-out infinite alternate;
+}
+@keyframes caustic-shift {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(30px, -20px) scale(1.1); }
+}
+
+/* ══════════════════════════════════════
+   Glass card
+   ══════════════════════════════════════ */
+.glass-card {
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.35) 0%,
+    rgba(255, 255, 255, 0.18) 50%,
+    rgba(255, 255, 255, 0.25) 100%
+  );
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: var(--card-radius);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.05),
+    0 1px 4px rgba(0, 0, 0, 0.03),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.2),
+    inset 1px 0 0 rgba(255, 255, 255, 0.3),
+    inset -1px 0 0 rgba(255, 255, 255, 0.15);
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.5s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Top highlight — like light refracting through thick glass */
+.glass-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 55%;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.35) 0%,
+    rgba(255, 255, 255, 0.08) 60%,
+    transparent 100%
+  );
+  pointer-events: none;
+  border-radius: var(--card-radius) var(--card-radius) 0 0;
+}
+
+/* Shimmer sweep */
+.glass-card::after {
+  content: '';
+  position: absolute;
+  top: -50%; left: -50%;
+  width: 200%; height: 200%;
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    rgba(255, 255, 255, 0.15) 45%,
+    rgba(255, 255, 255, 0.25) 50%,
+    rgba(255, 255, 255, 0.15) 55%,
+    transparent 60%
+  );
+  transform: rotate(25deg) translateX(-100%);
+  transition: transform 0.8s ease;
+  pointer-events: none;
+}
+.glass-card:hover::after {
+  transform: rotate(25deg) translateX(50%);
+}
+
+.glass-card:hover {
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.07),
+    0 4px 16px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.3),
+    inset 1px 0 0 rgba(255, 255, 255, 0.4),
+    inset -1px 0 0 rgba(255, 255, 255, 0.2);
 }
 
 /* ── Sections ── */
@@ -85,15 +202,15 @@
   z-index: 1;
   padding: 80px 48px;
   opacity: 0;
-  transform: translateY(32px);
-  transition: opacity 0.7s ease, transform 0.7s ease;
+  transform: translateY(40px);
+  transition: opacity 0.9s cubic-bezier(0.22, 1, 0.36, 1), transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .home-section.visible {
   opacity: 1;
   transform: translateY(0);
 }
 
-/* Hero */
+/* ── Hero ── */
 .home-hero {
   display: flex;
   flex-direction: column;
@@ -102,22 +219,76 @@
   padding-top: 120px;
   padding-bottom: 100px;
 }
+.home-logo-wrap {
+  position: relative;
+  margin-bottom: 32px;
+  width: 110px; height: 110px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.home-logo-glass {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.4) 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0.25) 100%
+  );
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    inset 0 -2px 4px rgba(255, 255, 255, 0.15);
+}
+.home-logo-glass::before {
+  content: '';
+  position: absolute;
+  top: 6px; left: 12px;
+  width: 55%; height: 35%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.5), transparent);
+  border-radius: 50%;
+}
 .home-logo {
-  width: 64px; height: 64px;
-  margin-bottom: 24px;
+  width: 48px; height: 48px;
+  position: relative;
+  z-index: 1;
   animation: home-pulse 3s ease-in-out infinite;
+  filter: drop-shadow(0 2px 8px rgba(255, 136, 0, 0.25));
+}
+.home-logo-ring {
+  position: absolute;
+  inset: -14px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  animation: ring-spin 20s linear infinite;
+}
+.home-logo-ring-2 {
+  position: absolute;
+  inset: -26px;
+  border-radius: 50%;
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  animation: ring-spin 35s linear infinite reverse;
 }
 @keyframes home-pulse {
-  0%, 100% { transform: scale(1); opacity: 0.85; }
-  50% { transform: scale(1.06); opacity: 1; }
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 2px 8px rgba(255, 136, 0, 0.25)); }
+  50% { transform: scale(1.05); filter: drop-shadow(0 4px 16px rgba(255, 136, 0, 0.35)); }
+}
+@keyframes ring-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 .home-title {
   font-family: var(--sans);
-  font-size: 42px;
+  font-size: 48px;
   font-weight: 700;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.22em;
   color: var(--text-primary);
-  margin: 0 0 12px 0;
+  margin: 0 0 14px 0;
   text-transform: uppercase;
 }
 .home-tagline {
@@ -125,65 +296,139 @@
   font-size: 18px;
   font-weight: 400;
   color: var(--text-secondary);
-  margin: 0 0 8px 0;
-  max-width: 500px;
+  margin: 0 0 10px 0;
+  max-width: 460px;
   line-height: 1.6;
 }
 .home-tagline-sub {
   font-family: var(--mono);
   font-size: 11px;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.15em;
   color: var(--text-muted);
   text-transform: uppercase;
   margin: 0;
 }
 
-/* Divider */
+/* ── Divider ── */
 .home-divider {
-  width: 48px;
+  width: 60px;
   height: 1px;
-  background: rgba(0, 0, 0, 0.08);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
   margin: 0 auto;
+  position: relative;
+  z-index: 1;
 }
 
-/* Feature rows */
-.home-features {
+/* ── Section titles ── */
+.home-section-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 12px 0;
+  text-align: center;
+  opacity: 0.7;
+}
+.home-section-title {
+  font-family: var(--sans);
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 44px 0;
+  text-align: center;
+}
+
+/* ── How it works ── */
+.home-steps {
   display: flex;
-  flex-direction: column;
-  gap: 24px;
+  gap: 20px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+.home-step {
+  flex: 1;
+  text-align: center;
+  padding: 32px 22px;
+}
+.home-step-num {
+  font-family: var(--mono);
+  font-size: 32px;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--accent), rgba(255, 180, 100, 0.8));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  opacity: 0.6;
+  margin-bottom: 14px;
+}
+.home-step-title {
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 8px 0;
+  position: relative;
+  z-index: 1;
+}
+.home-step-desc {
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.6;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Features ── */
+.home-features {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
   max-width: 800px;
   margin: 0 auto;
 }
 .home-feature {
   display: flex;
   align-items: flex-start;
-  gap: 24px;
-  padding: 28px 32px;
-  background: rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  border-radius: var(--card-radius);
-  box-shadow: var(--glass-shadow), var(--glass-inset);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-.home-feature:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--glass-shadow-lg), var(--glass-inset);
+  gap: 20px;
+  padding: 28px 28px;
 }
 .home-feature-icon {
   flex-shrink: 0;
-  width: 40px; height: 40px;
+  width: 46px; height: 46px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 12px;
-  background: rgba(255, 136, 0, 0.08);
+  border-radius: 14px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.5) 0%,
+    rgba(255, 255, 255, 0.15) 100%
+  );
   color: var(--accent);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.1),
+    0 4px 12px rgba(0, 0, 0, 0.04);
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  position: relative;
+  z-index: 1;
 }
-.home-feature-body {
-  flex: 1;
+.home-feature-icon::before {
+  content: '';
+  position: absolute;
+  top: 2px; left: 4px;
+  width: 60%; height: 40%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.5), transparent);
+  border-radius: 50%;
 }
+.home-feature:hover .home-feature-icon {
+  transform: scale(1.1) rotate(-3deg);
+}
+.home-feature-body { flex: 1; position: relative; z-index: 1; }
 .home-feature-title {
   font-family: var(--sans);
   font-size: 15px;
@@ -199,71 +444,7 @@
   line-height: 1.6;
 }
 
-/* Section title */
-.home-section-label {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  margin: 0 0 12px 0;
-  text-align: center;
-}
-.home-section-title {
-  font-family: var(--sans);
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0 0 40px 0;
-  text-align: center;
-}
-
-/* How it works */
-.home-steps {
-  display: flex;
-  gap: 20px;
-  max-width: 800px;
-  margin: 0 auto;
-}
-.home-step {
-  flex: 1;
-  text-align: center;
-  padding: 28px 20px;
-  background: rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  border-radius: var(--card-radius);
-  box-shadow: var(--glass-shadow), var(--glass-inset);
-  transition: transform 0.3s ease;
-}
-.home-step:hover {
-  transform: translateY(-2px);
-}
-.home-step-num {
-  font-family: var(--mono);
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--accent);
-  opacity: 0.6;
-  margin-bottom: 12px;
-}
-.home-step-title {
-  font-family: var(--sans);
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0 0 6px 0;
-}
-.home-step-desc {
-  font-family: var(--sans);
-  font-size: 12px;
-  color: var(--text-muted);
-  margin: 0;
-  line-height: 1.5;
-}
-
-/* Pricing tiers */
+/* ── Pricing tiers ── */
 .home-tiers {
   display: flex;
   gap: 20px;
@@ -278,40 +459,6 @@
   align-items: center;
   text-align: center;
   padding: 36px 24px 32px;
-  background: rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  border-radius: var(--card-radius);
-  box-shadow: var(--glass-shadow), var(--glass-inset);
-  transition: transform 0.35s ease, box-shadow 0.35s ease, border-color 0.35s ease;
-  position: relative;
-}
-.home-tier:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--glass-shadow-lg), var(--glass-inset);
-}
-.home-tier.featured {
-  border-color: rgba(255, 136, 0, 0.3);
-  background: rgba(255, 255, 255, 0.42);
-  transform: scale(1.03);
-  box-shadow: 0 12px 40px rgba(255, 136, 0, 0.08), var(--glass-shadow), var(--glass-inset);
-}
-.home-tier.featured:hover {
-  transform: scale(1.03) translateY(-4px);
-  box-shadow: 0 16px 48px rgba(255, 136, 0, 0.12), var(--glass-shadow-lg), var(--glass-inset);
-}
-.home-tier-badge {
-  font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  color: #fff;
-  background: var(--accent);
-  padding: 4px 14px;
-  border-radius: var(--radius-pill);
-  margin-bottom: 14px;
-  box-shadow: 0 2px 8px rgba(255, 136, 0, 0.2);
 }
 .home-tier-name {
   font-family: var(--sans);
@@ -320,14 +467,18 @@
   color: var(--text-primary);
   margin: 0 0 16px 0;
   letter-spacing: 0.02em;
+  position: relative;
+  z-index: 1;
 }
 .home-tier-price {
   font-family: var(--mono);
-  font-size: 32px;
+  font-size: 34px;
   font-weight: 700;
   color: var(--text-primary);
   margin: 0 0 2px;
   line-height: 1;
+  position: relative;
+  z-index: 1;
 }
 .home-tier-price span {
   font-size: 13px;
@@ -340,20 +491,29 @@
   color: var(--text-muted);
   margin: 4px 0 0 0;
   min-height: 16px;
+  position: relative;
+  z-index: 1;
 }
 .home-tier-rule {
   width: 32px;
   height: 1px;
-  background: rgba(0, 0, 0, 0.06);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
   margin: 20px 0;
+  position: relative;
+  z-index: 1;
 }
 .home-tier-minutes {
   font-family: var(--mono);
   font-size: 13px;
   font-weight: 600;
-  color: var(--accent);
+  background: linear-gradient(135deg, var(--accent), rgba(255, 180, 100, 0.9));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
   margin: 0 0 8px 0;
   letter-spacing: 0.03em;
+  position: relative;
+  z-index: 1;
 }
 .home-tier-desc {
   font-family: var(--sans);
@@ -362,66 +522,43 @@
   line-height: 1.6;
   margin: 0;
   flex: 1;
+  position: relative;
+  z-index: 1;
 }
 .home-tier-features {
   list-style: none;
   padding: 0;
   margin: 16px 0 0;
   width: 100%;
+  position: relative;
+  z-index: 1;
 }
 .home-tier-features li {
   font-family: var(--sans);
   font-size: 12px;
   color: var(--text-secondary);
   padding: 6px 0;
-  border-top: 1px solid rgba(0, 0, 0, 0.04);
+  border-top: 1px solid rgba(255, 255, 255, 0.35);
   display: flex;
   align-items: center;
   gap: 8px;
 }
 .home-tier-features li::before {
   content: '';
-  width: 4px; height: 4px;
+  width: 5px; height: 5px;
   border-radius: 50%;
-  background: var(--accent);
-  opacity: 0.5;
+  background: radial-gradient(circle, var(--accent), rgba(255, 136, 0, 0.3));
   flex-shrink: 0;
+  box-shadow: 0 0 6px rgba(255, 136, 0, 0.15);
 }
 
-/* CTA */
-.home-cta {
-  text-align: center;
-  padding-bottom: 120px;
-}
-.home-cta-btn {
-  display: inline-block;
-  padding: 14px 40px;
-  background: rgba(255, 136, 0, 0.12);
-  color: var(--accent);
-  border: 1px solid rgba(255, 136, 0, 0.25);
-  border-radius: var(--radius-pill);
-  font-family: var(--mono);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  text-decoration: none;
-  transition: background 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
-  box-shadow: none;
-}
-.home-cta-btn:hover {
-  background: rgba(255, 136, 0, 0.18);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(255, 136, 0, 0.12);
-}
-
-/* Responsive */
+/* ── Responsive ── */
 @media (max-width: 640px) {
   .home-section { padding: 48px 20px; }
   .home-hero { padding-top: 72px; padding-bottom: 60px; }
   .home-title { font-size: 28px; }
   .home-steps { flex-direction: column; }
-  .home-feature { flex-direction: column; gap: 12px; }
+  .home-features { grid-template-columns: 1fr; }
   .home-tiers { flex-direction: column; max-width: 360px; }
 }
 </style>
@@ -429,19 +566,27 @@
 
 {% block content %}
 <div class="home-container">
+  <div class="home-caustics"></div>
   <div class="home-particles" id="particles"></div>
   <div class="home-orb home-orb-1"></div>
   <div class="home-orb home-orb-2"></div>
   <div class="home-orb home-orb-3"></div>
+  <div class="home-orb home-orb-4"></div>
+  <div class="home-orb home-orb-5"></div>
 
   <!-- Hero -->
   <div class="home-section home-hero">
-    <svg class="home-logo" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M13.73 2.1a3 3 0 0 1 4.16.88l.17.28a3 3 0 0 1-.88 4.15l-6.36 4.07a3 3 0 0 1-4.16-.88l-.17-.28a3 3 0 0 1 .88-4.15z"/>
-      <path d="M17.64 13.37a3 3 0 0 1 4.16.88l.17.28a3 3 0 0 1-.88 4.15l-6.36 4.07a3 3 0 0 1-4.16-.88l-.17-.28a3 3 0 0 1 .88-4.15z"/>
-    </svg>
+    <div class="home-logo-wrap">
+      <div class="home-logo-glass"></div>
+      <div class="home-logo-ring"></div>
+      <div class="home-logo-ring-2"></div>
+      <svg class="home-logo" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M13.73 2.1a3 3 0 0 1 4.16.88l.17.28a3 3 0 0 1-.88 4.15l-6.36 4.07a3 3 0 0 1-4.16-.88l-.17-.28a3 3 0 0 1 .88-4.15z"/>
+        <path d="M17.64 13.37a3 3 0 0 1 4.16.88l.17.28a3 3 0 0 1-.88 4.15l-6.36 4.07a3 3 0 0 1-4.16-.88l-.17-.28a3 3 0 0 1 .88-4.15z"/>
+      </svg>
+    </div>
     <h1 class="home-title">Paso</h1>
-    <p class="home-tagline">Dance analysis that sees what the mirror can't.</p>
+    <p class="home-tagline">See Your Dance Differently.</p>
     <p class="home-tagline-sub">Upload. Analyse. Improve.</p>
   </div>
 
@@ -452,17 +597,17 @@
     <p class="home-section-label">How it works</p>
     <h2 class="home-section-title">Three steps to better movement</h2>
     <div class="home-steps">
-      <div class="home-step">
+      <div class="home-step glass-card">
         <div class="home-step-num">01</div>
         <h3 class="home-step-title">Upload</h3>
         <p class="home-step-desc">Drop any practice video into your studio. Phone footage, studio cameras, competition clips.</p>
       </div>
-      <div class="home-step">
+      <div class="home-step glass-card">
         <div class="home-step-num">02</div>
         <h3 class="home-step-title">Analyse</h3>
         <p class="home-step-desc">Pose detection maps every joint, frame by frame. See your skeleton, weight shifts, and timing in real time.</p>
       </div>
-      <div class="home-step">
+      <div class="home-step glass-card">
         <div class="home-step-num">03</div>
         <h3 class="home-step-title">Improve</h3>
         <p class="home-step-desc">Score your movement, track progress over weeks, and know exactly what to work on next.</p>
@@ -477,7 +622,7 @@
     <p class="home-section-label">Features</p>
     <h2 class="home-section-title">Built for dancers who want to get better</h2>
     <div class="home-features">
-      <div class="home-feature">
+      <div class="home-feature glass-card">
         <div class="home-feature-icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         </div>
@@ -486,7 +631,7 @@
           <p class="home-feature-desc">Frame-by-frame skeletal tracking maps every joint in your body. Overlay it on your video to see exactly how you move.</p>
         </div>
       </div>
-      <div class="home-feature">
+      <div class="home-feature glass-card">
         <div class="home-feature-icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
         </div>
@@ -495,7 +640,7 @@
           <p class="home-feature-desc">Rate movement, musicality, footwork, and styling on custom scorecards. Track your trend lines to see real progress.</p>
         </div>
       </div>
-      <div class="home-feature">
+      <div class="home-feature glass-card">
         <div class="home-feature-icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         </div>
@@ -504,7 +649,7 @@
           <p class="home-feature-desc">Visualise where your weight sits on every beat. See speed graphs and body mechanics that you can't catch in a mirror.</p>
         </div>
       </div>
-      <div class="home-feature">
+      <div class="home-feature glass-card">
         <div class="home-feature-icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
         </div>
@@ -523,7 +668,7 @@
     <p class="home-section-label">Pricing</p>
     <h2 class="home-section-title">A plan for every dancer</h2>
     <div class="home-tiers">
-      <div class="home-tier">
+      <div class="home-tier glass-card">
         <h3 class="home-tier-name">Free</h3>
         <div class="home-tier-price">$0</div>
         <p class="home-tier-annual">&nbsp;</p>
@@ -536,7 +681,7 @@
           <li>Pose overlay</li>
         </ul>
       </div>
-      <div class="home-tier">
+      <div class="home-tier glass-card">
         <h3 class="home-tier-name">Dancer</h3>
         <div class="home-tier-price">$14.99 <span>/ mo</span></div>
         <p class="home-tier-annual">or $119 / year</p>
@@ -550,7 +695,7 @@
           <li>Speed graphs</li>
         </ul>
       </div>
-      <div class="home-tier">
+      <div class="home-tier glass-card">
         <h3 class="home-tier-name">Pro</h3>
         <div class="home-tier-price">$29.99 <span>/ mo</span></div>
         <p class="home-tier-annual">or $239 / year</p>
@@ -564,7 +709,7 @@
           <li>Progress tracking</li>
         </ul>
       </div>
-      <div class="home-tier">
+      <div class="home-tier glass-card">
         <h3 class="home-tier-name">Instructor</h3>
         <div class="home-tier-price">$99 <span>/ mo</span></div>
         <p class="home-tier-annual">&nbsp;</p>
@@ -592,13 +737,15 @@
 (function() {
   // Particles
   const container = document.getElementById('particles');
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 30; i++) {
     const p = document.createElement('div');
     p.className = 'home-particle';
     p.style.left = Math.random() * 100 + '%';
-    p.style.animationDuration = (6 + Math.random() * 8) + 's';
-    p.style.animationDelay = (Math.random() * 10) + 's';
-    p.style.width = p.style.height = (2 + Math.random() * 3) + 'px';
+    p.style.animationDuration = (7 + Math.random() * 12) + 's';
+    p.style.animationDelay = (Math.random() * 14) + 's';
+    const size = 2 + Math.random() * 5;
+    p.style.width = size + 'px';
+    p.style.height = size + 'px';
     container.appendChild(p);
   }
 
@@ -606,12 +753,28 @@
   const sections = document.querySelectorAll('.home-section');
   const observer = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        entry.target.classList.add('visible');
-      }
+      if (entry.isIntersecting) entry.target.classList.add('visible');
     });
-  }, { threshold: 0.15 });
+  }, { threshold: 0.12 });
   sections.forEach(s => observer.observe(s));
+
+  // 3D tilt on glass cards
+  document.querySelectorAll('.glass-card').forEach(card => {
+    card.addEventListener('mousemove', (e) => {
+      const rect = card.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width - 0.5;
+      const y = (e.clientY - rect.top) / rect.height - 0.5;
+      card.style.transform =
+        'perspective(600px) rotateY(' + (x * 8) + 'deg) rotateX(' + (-y * 8) + 'deg) translateY(-6px) scale(1.02)';
+      // Shift the highlight based on mouse
+      card.style.background =
+        'linear-gradient(' + (145 + x * 30) + 'deg, rgba(255,255,255,' + (0.4 + y * 0.1) + ') 0%, rgba(255,255,255,0.15) 50%, rgba(255,255,255,' + (0.25 - y * 0.08) + ') 100%)';
+    });
+    card.addEventListener('mouseleave', () => {
+      card.style.transform = '';
+      card.style.background = '';
+    });
+  });
 })();
 </script>
 {% endblock %}
