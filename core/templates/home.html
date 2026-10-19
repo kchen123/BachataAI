@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block title %}Home{% endblock %}
+
+{% block head %}
+<style>
+.home-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--card-radius);
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+}
+
+/* Floating orbs */
+.home-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.35;
+  pointer-events: none;
+}
+.home-orb-1 {
+  width: 400px; height: 400px;
+  background: rgba(255, 136, 0, 0.25);
+  top: -100px; left: -80px;
+  animation: orb-drift-1 12s ease-in-out infinite;
+}
+.home-orb-2 {
+  width: 350px; height: 350px;
+  background: rgba(160, 155, 148, 0.3);
+  bottom: -80px; right: -60px;
+  animation: orb-drift-2 14s ease-in-out infinite;
+}
+.home-orb-3 {
+  width: 250px; height: 250px;
+  background: rgba(200, 195, 188, 0.25);
+  top: 40%; left: 55%;
+  animation: orb-drift-3 10s ease-in-out infinite;
+}
+
+@keyframes orb-drift-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(60px, 40px) scale(1.1); }
+}
+@keyframes orb-drift-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-50px, -30px) scale(1.08); }
+}
+@keyframes orb-drift-3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-30px, 20px) scale(0.9); }
+}
+
+/* Content */
+.home-content {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  animation: home-fade-up 0.8s ease-out both;
+}
+
+@keyframes home-fade-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.home-logo {
+  width: 56px; height: 56px;
+  margin-bottom: 20px;
+  animation: home-pulse 3s ease-in-out infinite;
+}
+@keyframes home-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50% { transform: scale(1.06); opacity: 1; }
+}
+
+.home-title {
+  font-family: var(--sans);
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--text-primary);
+  margin: 0 0 8px 0;
+  text-transform: uppercase;
+}
+
+.home-subtitle {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.15em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin: 0 0 40px 0;
+}
+
+/* Nav cards */
+.home-nav {
+  display: flex;
+  gap: 16px;
+  animation: home-fade-up 0.8s ease-out 0.2s both;
+}
+
+.home-nav-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 24px 36px;
+  background: rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: var(--card-radius);
+  box-shadow: var(--glass-shadow), var(--glass-inset);
+  text-decoration: none;
+  color: var(--text-primary);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
+  cursor: pointer;
+}
+.home-nav-card:hover {
+  transform: translateY(-4px);
+  background: rgba(255, 255, 255, 0.5);
+  box-shadow: var(--glass-shadow-lg), var(--glass-inset);
+}
+.home-nav-card:active {
+  transform: translateY(0);
+}
+
+.home-nav-icon {
+  color: var(--text-muted);
+  transition: color 0.25s ease;
+}
+.home-nav-card:hover .home-nav-icon {
+  color: var(--accent);
+}
+
+.home-nav-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+/* Floating particles */
+.home-particles {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+.home-particle {
+  position: absolute;
+  width: 3px; height: 3px;
+  border-radius: 50%;
+  background: rgba(255, 136, 0, 0.2);
+  animation: particle-float linear infinite;
+}
+@keyframes particle-float {
+  0% { transform: translateY(100vh) scale(0); opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { transform: translateY(-20px) scale(1); opacity: 0; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="home-container">
+  <div class="home-particles" id="particles"></div>
+  <div class="home-orb home-orb-1"></div>
+  <div class="home-orb home-orb-2"></div>
+  <div class="home-orb home-orb-3"></div>
+
+  <div class="home-content">
+    <svg class="home-logo" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M13.73 2.1a3 3 0 0 1 4.16.88l.17.28a3 3 0 0 1-.88 4.15l-6.36 4.07a3 3 0 0 1-4.16-.88l-.17-.28a3 3 0 0 1 .88-4.15z"/>
+      <path d="M17.64 13.37a3 3 0 0 1 4.16.88l.17.28a3 3 0 0 1-.88 4.15l-6.36 4.07a3 3 0 0 1-4.16-.88l-.17-.28a3 3 0 0 1 .88-4.15z"/>
+    </svg>
+    <h1 class="home-title">Paso</h1>
+    <p class="home-subtitle">Dance Analysis Studio</p>
+
+    <nav class="home-nav">
+      <a href="/studio" class="home-nav-card">
+        <span class="home-nav-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+        </span>
+        <span class="home-nav-label">Studio</span>
+      </a>
+      <a href="/scores" class="home-nav-card">
+        <span class="home-nav-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        </span>
+        <span class="home-nav-label">Scores</span>
+      </a>
+    </nav>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.querySelector('.jobs-fab').style.display = 'none';
+</script>
+<script>
+(function() {
+  const container = document.getElementById('particles');
+  for (let i = 0; i < 20; i++) {
+    const p = document.createElement('div');
+    p.className = 'home-particle';
+    p.style.left = Math.random() * 100 + '%';
+    p.style.animationDuration = (6 + Math.random() * 8) + 's';
+    p.style.animationDelay = (Math.random() * 10) + 's';
+    p.style.width = p.style.height = (2 + Math.random() * 3) + 'px';
+    container.appendChild(p);
+  }
+})();
+</script>
+{% endblock %}

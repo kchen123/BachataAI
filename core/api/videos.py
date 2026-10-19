@@ -27,6 +27,11 @@ PAGE_SIZE = 20
 # ── Page routes ────────────────────────────────────────────────────────────────
 
 @videos_bp.route("/")
+def home():
+    return render_template("home.html")
+
+
+@videos_bp.route("/studio")
 def index():
     repo = get_repo()
     user_id = uid()
