@@ -36,9 +36,10 @@ def generate_thumbnail(gcs_url: str, width: int = 320) -> str | None:
 
     bucket = _get_client().bucket(BUCKET_NAME)
 
-    # Check if thumbnail already exists
     thumb_blob = bucket.blob(thumb_name)
+    # If it already exists, just ensure it's public
     if thumb_blob.exists():
+        thumb_blob.make_public()
         return thumb_blob.public_url
 
     # Download video to temp file
@@ -72,8 +73,9 @@ def generate_thumbnail(gcs_url: str, width: int = 320) -> str | None:
         thumb_path = tmp_path + ".jpg"
         cv2.imwrite(thumb_path, frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
 
-        # Upload
+        # Upload and make public
         thumb_blob.upload_from_filename(thumb_path, content_type="image/jpeg")
+        thumb_blob.make_public()
         os.unlink(thumb_path)
         return thumb_blob.public_url
     except Exception:
