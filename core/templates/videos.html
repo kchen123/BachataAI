@@ -168,15 +168,8 @@
       <canvas id="poseCanvas"></canvas>
     </div>
     <div class="metrics-panel hidden" id="metricsPanel">
-      <div class="metrics-tabs">
-        <button class="metrics-tab active" onclick="switchMetricsTab('speed', this)">Speed</button>
-        <button class="metrics-tab" onclick="switchMetricsTab('angles', this)">Angles</button>
-      </div>
       <div class="metrics-content" id="metricsSpeed">
         <canvas id="metricsCanvas"></canvas>
-      </div>
-      <div class="metrics-content hidden" id="metricsAngles">
-        <div class="metrics-angles-grid" id="anglesGrid"></div>
       </div>
     </div>
   </div>
@@ -896,6 +889,75 @@ function drawCurrentPose() {
       ctx.arc(offsetX + p.x * w, offsetY + p.y * h, 4, 0, Math.PI * 2);
       ctx.fill();
     }
+
+    // Weight indicator — 2D dot showing L/R and F/B weight
+    const la = lm[15] || lm['15'], ra = lm[16] || lm['16'];
+    const lhi = lm[11] || lm['11'], rhi = lm[12] || lm['12'];
+    if (la && ra && lhi && rhi && la.visibility > 0.4 && ra.visibility > 0.4 && lhi.visibility > 0.4 && rhi.visibility > 0.4) {
+      // L/R: hip center relative to ankles
+      const hipCx = (lhi.x + rhi.x) / 2;
+      const ankMidX = (la.x + ra.x) / 2;
+      const dL = Math.abs(hipCx - la.x);
+      const dR = Math.abs(hipCx - ra.x);
+      const lrTotal = dL + dR;
+      const lrFrac = lrTotal > 0.001 ? 1 - dL / lrTotal : 0.5; // 0=R, 1=L
+
+      // F/B: hip center Y relative to ankle Y (higher hips = forward lean)
+      const hipCy = (lhi.y + rhi.y) / 2;
+      const ankMidY = (la.y + ra.y) / 2;
+      const fbOffset = (ankMidY - hipCy); // normalized body height proxy
+      const torsoH = ankMidY - hipCy;
+      const hipFwd = torsoH > 0.01 ? (hipCx - ankMidX) / torsoH : 0; // forward/back lean
+
+      // Draw zone (small box below feet)
+      const zoneX = offsetX + ankMidX * w;
+      const zoneY = offsetY + (Math.max(la.y, ra.y) + 0.02) * h;
+      const zoneW = 40, zoneH = 24;
+
+      // Zone background
+      ctx.globalAlpha = 0.3;
+      ctx.fillStyle = '#000';
+      ctx.shadowBlur = 0;
+      ctx.beginPath();
+      ctx.roundRect(zoneX - zoneW/2, zoneY - zoneH/2, zoneW, zoneH, 4);
+      ctx.fill();
+
+      // Crosshair
+      ctx.globalAlpha = 0.2;
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(zoneX, zoneY - zoneH/2); ctx.lineTo(zoneX, zoneY + zoneH/2);
+      ctx.moveTo(zoneX - zoneW/2, zoneY); ctx.lineTo(zoneX + zoneW/2, zoneY);
+      ctx.stroke();
+
+      // Weight dot position within zone
+      const dotOffX = (lrFrac - 0.5) * (zoneW - 8);
+      const dotOffY = -hipFwd * (zoneH - 8) * 2;
+      const clampY = Math.max(-zoneH/2 + 4, Math.min(zoneH/2 - 4, dotOffY));
+
+      const dotColor = lrFrac > 0.55 ? '#00ff88' : lrFrac < 0.45 ? '#4da6ff' : '#fff';
+      ctx.shadowColor = dotColor;
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = dotColor;
+      ctx.globalAlpha = 0.9;
+      ctx.beginPath();
+      ctx.arc(zoneX + dotOffX, zoneY + clampY, 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Labels
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 0.4;
+      ctx.font = '7px sans-serif';
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.fillText('L', zoneX - zoneW/2 + 5, zoneY + 2);
+      ctx.fillText('R', zoneX + zoneW/2 - 5, zoneY + 2);
+      ctx.fillText('F', zoneX, zoneY - zoneH/2 + 7);
+      ctx.fillText('B', zoneX, zoneY + zoneH/2 - 2);
+      ctx.globalAlpha = 1;
+      ctx.textAlign = 'start';
+    }
   }
 }
 
@@ -1090,110 +1152,61 @@ async function uploadSingleFile(file, idx, onDone) {
 let metricsData = null;
 let metricsVisible = false;
 
-const JOINT_ANGLES = [
-  {name: 'L Elbow', a: 5, b: 7, c: 9},
-  {name: 'R Elbow', a: 6, b: 8, c: 10},
-  {name: 'L Knee',  a: 11, b: 13, c: 15},
-  {name: 'R Knee',  a: 12, b: 14, c: 16},
-  {name: 'L Hip',   a: 5, b: 11, c: 13},
-  {name: 'R Hip',   a: 6, b: 12, c: 14},
-];
-
 const SPEED_JOINTS = [5, 6, 11, 12, 13, 14]; // shoulders, hips, knees
 
-function computeJointAngle(kpts, a, b, c) {
-  const kA = kpts[String(a)], kB = kpts[String(b)], kC = kpts[String(c)];
-  if (!kA || !kB || !kC) return null;
-  if (kA.visibility < 0.5 || kB.visibility < 0.5 || kC.visibility < 0.5) return null;
-  let angle = Math.atan2(kC.y - kB.y, kC.x - kB.x) - Math.atan2(kA.y - kB.y, kA.x - kB.x);
-  angle = Math.abs(angle) * 180 / Math.PI;
-  if (angle > 180) angle = 360 - angle;
-  return Math.round(angle);
+function computeWeight(kpts) {
+  const lh = kpts['11'], rh = kpts['12'], la = kpts['15'], ra = kpts['16'];
+  if (!lh || !rh || !la || !ra) return null;
+  if (lh.visibility < 0.5 || rh.visibility < 0.5 || la.visibility < 0.5 || ra.visibility < 0.5) return null;
+  const hipCx = (lh.x + rh.x) / 2;
+  const dL = Math.abs(hipCx - la.x), dR = Math.abs(hipCx - ra.x);
+  const total = dL + dR;
+  if (total < 0.001) return 50;
+  return Math.round((1 - dL / total) * 100);
 }
 
 function computeMetrics(frames) {
   if (!frames || frames.length < 2) return null;
-
-  // Determine max persons across frames
   const maxP = Math.min(2, Math.max(...frames.map(f => (f.persons || []).length)));
   const persons = [];
 
   for (let p = 0; p < maxP; p++) {
     const speeds = [];
-    const angles = [];
-
-    for (let i = 0; i < frames.length; i++) {
+    for (let i = 1; i < frames.length; i++) {
       const f = frames[i];
       const person = (f.persons || [])[p];
-      if (!person || !person.keypoints) {
-        angles.push({t: f.timestamp_sec, values: {}});
-        continue;
-      }
-
-      // Angles
-      const av = {};
-      JOINT_ANGLES.forEach(j => {
-        const deg = computeJointAngle(person.keypoints, j.a, j.b, j.c);
-        av[j.name] = deg;
-      });
-      angles.push({t: f.timestamp_sec, values: av});
-
-      // Speed
-      if (i > 0) {
-        const prev = (frames[i - 1].persons || [])[p];
-        if (prev && prev.keypoints) {
-          const dt = f.timestamp_sec - frames[i - 1].timestamp_sec;
-          if (dt > 0) {
-            let totalSpeed = 0, count = 0;
-            SPEED_JOINTS.forEach(ji => {
-              const cur = person.keypoints[String(ji)];
-              const prv = prev.keypoints[String(ji)];
-              if (cur && prv && cur.visibility > 0.5 && prv.visibility > 0.5) {
-                const dx = cur.x - prv.x, dy = cur.y - prv.y;
-                totalSpeed += Math.sqrt(dx * dx + dy * dy) / dt;
-                count++;
-              }
-            });
-            speeds.push({t: f.timestamp_sec, speed: count > 0 ? totalSpeed / count : 0});
-          }
+      const prev = (frames[i - 1].persons || [])[p];
+      if (!person?.keypoints || !prev?.keypoints) continue;
+      const dt = f.timestamp_sec - frames[i - 1].timestamp_sec;
+      if (dt <= 0) continue;
+      let totalSpeed = 0, count = 0;
+      SPEED_JOINTS.forEach(ji => {
+        const cur = person.keypoints[String(ji)];
+        const prv = prev.keypoints[String(ji)];
+        if (cur && prv && cur.visibility > 0.5 && prv.visibility > 0.5) {
+          const dx = cur.x - prv.x, dy = cur.y - prv.y;
+          totalSpeed += Math.sqrt(dx * dx + dy * dy) / dt;
+          count++;
         }
-      }
+      });
+      speeds.push({t: f.timestamp_sec, speed: count > 0 ? totalSpeed / count : 0});
     }
-
-    // Smooth speeds (5-frame moving average)
-    const smoothed = [];
-    for (let i = 0; i < speeds.length; i++) {
+    // Smooth (5-frame moving average)
+    const smoothed = speeds.map((s, i) => {
       let sum = 0, n = 0;
-      for (let j = Math.max(0, i - 2); j <= Math.min(speeds.length - 1, i + 2); j++) {
-        sum += speeds[j].speed;
-        n++;
-      }
-      smoothed.push({t: speeds[i].t, speed: sum / n});
-    }
-
-    persons.push({speeds: smoothed, angles});
+      for (let j = Math.max(0, i - 2); j <= Math.min(speeds.length - 1, i + 2); j++) { sum += speeds[j].speed; n++; }
+      return {t: s.t, speed: sum / n};
+    });
+    persons.push({speeds: smoothed});
   }
-
   return {persons};
 }
 
 // ── Metrics UI ──────────────────────────────────────────────────────────────
 
-function switchMetricsTab(tab, btn) {
-  document.querySelectorAll('.metrics-tab').forEach(t => t.classList.remove('active'));
-  btn.classList.add('active');
-  document.querySelectorAll('.metrics-content').forEach(c => c.classList.add('hidden'));
-  document.getElementById('metrics' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.remove('hidden');
-  if (tab === 'speed') drawSpeedGraph();
-  if (tab === 'angles') updateAnglesGrid();
-}
-
 function updateMetrics() {
   if (!metricsData || !metricsVisible) return;
-  const speedTab = document.getElementById('metricsSpeed');
-  if (!speedTab.classList.contains('hidden')) drawSpeedPlayhead();
-  const anglesTab = document.getElementById('metricsAngles');
-  if (!anglesTab.classList.contains('hidden')) updateAnglesGrid();
+  drawSpeedPlayhead();
 }
 
 // ── Speed Graph ─────────────────────────────────────────────────────────────
@@ -1305,37 +1318,6 @@ function drawSpeedPlayhead() {
   ctx.moveTo(x, pad.t);
   ctx.lineTo(x, h - pad.b);
   ctx.stroke();
-}
-
-// ── Angles Grid ─────────────────────────────────────────────────────────────
-
-function updateAnglesGrid() {
-  if (!metricsData || !poseFrames) return;
-  const grid = document.getElementById('anglesGrid');
-  const player = document.getElementById('videoPlayer');
-  const currentTime = player.currentTime;
-  const colors = ['#00ff88', '#4da6ff'];
-
-  let html = '';
-  metricsData.persons.forEach((p, pi) => {
-    // Find closest frame
-    let closest = p.angles[0];
-    let minDiff = Infinity;
-    for (const a of p.angles) {
-      const diff = Math.abs(a.t - currentTime);
-      if (diff < minDiff) { minDiff = diff; closest = a; }
-    }
-
-    const label = metricsData.persons.length > 1 ? `<div class="angles-person-label" style="color:${colors[pi]}">Person ${pi + 1}</div>` : '';
-    html += '<div class="angles-person">' + label + '<div class="angles-grid-inner">';
-    JOINT_ANGLES.forEach(j => {
-      const val = closest.values[j.name];
-      html += `<div class="angles-cell"><span class="angles-label">${j.name}</span><span class="angles-value" style="color:${colors[pi]}">${val !== null && val !== undefined ? val + '°' : '--'}</span></div>`;
-    });
-    html += '</div></div>';
-  });
-
-  grid.innerHTML = html;
 }
 
 // ── Load More ──
