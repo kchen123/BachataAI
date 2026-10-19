@@ -15,6 +15,10 @@ Thumbs.db
 
 # Claude
 .claude/
+memory/
+
+# Credentials / secrets
+cookies.txt
 
 # Temp
 *.tmp
@@ -29,3 +33,10 @@ yolo26x-pose.pt
 
 # Credentials
 core/admin.json
+
+# Mobile (Expo / React Native)
+mobile/node_modules/
+mobile/.expo/
+mobile/dist/
+mobile/android/
+mobile/ios/

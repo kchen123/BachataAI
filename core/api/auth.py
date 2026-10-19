@@ -18,7 +18,7 @@ def login():
             session["logged_in"] = True
             session["user_id"] = user["id"]
             session["username"] = user["username"]
-            return redirect(request.args.get("next") or "/")
+            return redirect(request.args.get("next") or "/studio")
         return render_template("login.html", error="Invalid username or password.")
     return render_template("login.html", error=None)
 

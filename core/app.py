@@ -4,11 +4,13 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from flask import Flask, g, session, request, redirect, url_for
+from flask import Flask, g, session, request, redirect, url_for, jsonify
+from flask_cors import CORS
 from core.api.auth import auth_bp
 from core.api.videos import videos_bp
 from core.api.analysis import analysis_bp
 from core.api.scores import scores_bp
+from core.api.mobile_auth import mobile_auth_bp, verify_jwt
 
 
 def _run_migrations():
@@ -45,6 +47,7 @@ def create_app():
     app = Flask(__name__, template_folder="templates", static_folder="static")
     app.secret_key = "bachata-dev-key"
     app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024 * 1024  # 2GB
+    CORS(app, resources={r"/api/*": {"origins": "*"}})
 
     _run_migrations()
     _seed_admin()
@@ -53,14 +56,33 @@ def create_app():
     app.register_blueprint(videos_bp)
     app.register_blueprint(analysis_bp)
     app.register_blueprint(scores_bp)
+    app.register_blueprint(mobile_auth_bp)
 
     @app.before_request
     def require_login():
-        allowed = ("auth.login", "auth.logout", "static")
+        allowed = ("auth.login", "auth.logout",
+                   "mobile_auth.login", "mobile_auth.refresh",
+                   "videos.home",
+                   "static")
         if request.endpoint and request.endpoint in allowed:
             return
-        if not session.get("logged_in"):
-            return redirect(url_for("auth.login", next=request.path))
+
+        # Session auth (web)
+        if session.get("logged_in"):
+            return
+
+        # Bearer token auth (mobile)
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            payload = verify_jwt(auth_header[7:])
+            if payload:
+                g.mobile_user_id = payload["user_id"]
+                return
+
+        # Unauthenticated
+        if request.path.startswith("/api/"):
+            return jsonify({"error": "unauthorized"}), 401
+        return redirect(url_for("auth.login", next=request.path))
 
     @app.teardown_appcontext
     def close_request_repo(exc):

@@ -309,6 +309,41 @@
   margin: 0;
 }
 
+/* ── Auth bar ── */
+.home-auth {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+  z-index: 10;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.home-auth-btn {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  padding: 8px 20px;
+  border-radius: var(--radius-pill);
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+.home-auth-login {
+  background: rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  color: var(--text-primary);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+.home-auth-login:hover {
+  background: rgba(255, 255, 255, 0.45);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  transform: translateY(-1px);
+}
 /* ── Divider ── */
 .home-divider {
   width: 60px;
@@ -566,6 +601,9 @@
 
 {% block content %}
 <div class="home-container">
+  <div class="home-auth">
+    <a href="/login" class="home-auth-btn home-auth-login">Sign In</a>
+  </div>
   <div class="home-caustics"></div>
   <div class="home-particles" id="particles"></div>
   <div class="home-orb home-orb-1"></div>
@@ -732,6 +770,10 @@
 {% block scripts %}
 <script>
   document.querySelector('.jobs-fab').style.display = 'none';
+  var sidebar = document.getElementById('sidebarMenu');
+  if (sidebar) sidebar.style.display = 'none';
+  document.querySelector('main.content').style.marginTop = '0';
+  document.querySelector('main.content').style.height = '100vh';
 </script>
 <script>
 (function() {

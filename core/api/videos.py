@@ -1,6 +1,6 @@
 """API routes for folders and videos — GDrive-like file browser."""
 
-from flask import Blueprint, render_template, request, jsonify, abort, session
+from flask import Blueprint, render_template, request, jsonify, abort, session, redirect
 from core.adapters.repository import get_repo
 from core.adapters.folders import FoldersAdapter
 from core.adapters.videos import VideosAdapter
@@ -28,7 +28,9 @@ PAGE_SIZE = 20
 
 @videos_bp.route("/")
 def home():
-    return render_template("home.html")
+    if session.get("logged_in"):
+        return redirect("/studio")
+    return render_template("home.html", logged_in=False)
 
 
 @videos_bp.route("/studio")
