@@ -890,73 +890,71 @@ function drawCurrentPose() {
       ctx.fill();
     }
 
-    // Weight indicator — 2D dot showing L/R and F/B weight
-    const la = lm[15] || lm['15'], ra = lm[16] || lm['16'];
+    // Weight arrow — single arrow from torso center pointing where weight is
+    const ls = lm[5] || lm['5'], rs = lm[6] || lm['6'];
     const lhi = lm[11] || lm['11'], rhi = lm[12] || lm['12'];
-    if (la && ra && lhi && rhi && la.visibility > 0.4 && ra.visibility > 0.4 && lhi.visibility > 0.4 && rhi.visibility > 0.4) {
-      // L/R: hip center relative to ankles
+    const la = lm[15] || lm['15'], ra = lm[16] || lm['16'];
+    if (ls && rs && lhi && rhi && la && ra &&
+        ls.visibility > 0.4 && rs.visibility > 0.4 &&
+        lhi.visibility > 0.4 && rhi.visibility > 0.4 &&
+        la.visibility > 0.4 && ra.visibility > 0.4) {
+
+      const cx = offsetX + (ls.x + rs.x + lhi.x + rhi.x) / 4 * w;
+      const cy = offsetY + (ls.y + rs.y + lhi.y + rhi.y) / 4 * h;
+      const bodyScale = Math.abs(rs.x - ls.x) * w;
+
+      // L/R
       const hipCx = (lhi.x + rhi.x) / 2;
+      const dL = Math.abs(hipCx - la.x), dR = Math.abs(hipCx - ra.x);
+      const lrT = dL + dR;
+      const dx = lrT > 0.001 ? ((1 - dL / lrT) - 0.5) * 2 : 0; // -1 to 1
+
+      // F/B
       const ankMidX = (la.x + ra.x) / 2;
-      const dL = Math.abs(hipCx - la.x);
-      const dR = Math.abs(hipCx - ra.x);
-      const lrTotal = dL + dR;
-      const lrFrac = lrTotal > 0.001 ? 1 - dL / lrTotal : 0.5; // 0=R, 1=L
-
-      // F/B: hip center Y relative to ankle Y (higher hips = forward lean)
-      const hipCy = (lhi.y + rhi.y) / 2;
       const ankMidY = (la.y + ra.y) / 2;
-      const fbOffset = (ankMidY - hipCy); // normalized body height proxy
-      const torsoH = ankMidY - hipCy;
-      const hipFwd = torsoH > 0.01 ? (hipCx - ankMidX) / torsoH : 0; // forward/back lean
+      const hipCy = (lhi.y + rhi.y) / 2;
+      const tH = ankMidY - hipCy;
+      const dy = Math.abs(tH) > 0.01 ? -(hipCx - ankMidX) / Math.abs(tH) * 2 : 0;
 
-      // Draw zone (small box below feet)
-      const zoneX = offsetX + ankMidX * w;
-      const zoneY = offsetY + (Math.max(la.y, ra.y) + 0.02) * h;
-      const zoneW = 40, zoneH = 24;
+      const mag = Math.sqrt(dx * dx + dy * dy);
+      if (mag > 0.08) { // only draw if off-center enough
+        const arrLen = Math.min(mag, 1) * bodyScale * 0.8;
+        const nx = dx / mag, ny = dy / mag;
+        const tipX = cx + nx * arrLen;
+        const tipY = cy + ny * arrLen;
+        const headL = 10, headW = 5;
 
-      // Zone background
-      ctx.globalAlpha = 0.3;
-      ctx.fillStyle = '#000';
-      ctx.shadowBlur = 0;
-      ctx.beginPath();
-      ctx.roundRect(zoneX - zoneW/2, zoneY - zoneH/2, zoneW, zoneH, 4);
-      ctx.fill();
+        // Color: green=balanced, yellow=moderate, red=off-balance
+        let arrColor;
+        if (mag < 0.3) arrColor = '#00ff88';
+        else if (mag < 0.6) arrColor = '#ffaa00';
+        else arrColor = '#ff2222';
 
-      // Crosshair
-      ctx.globalAlpha = 0.2;
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 0.5;
-      ctx.beginPath();
-      ctx.moveTo(zoneX, zoneY - zoneH/2); ctx.lineTo(zoneX, zoneY + zoneH/2);
-      ctx.moveTo(zoneX - zoneW/2, zoneY); ctx.lineTo(zoneX + zoneW/2, zoneY);
-      ctx.stroke();
+        ctx.shadowBlur = 6;
+        ctx.shadowColor = arrColor;
+        ctx.strokeStyle = arrColor;
+        ctx.fillStyle = arrColor;
+        ctx.lineWidth = 3;
+        ctx.globalAlpha = 0.9;
 
-      // Weight dot position within zone
-      const dotOffX = (lrFrac - 0.5) * (zoneW - 8);
-      const dotOffY = -hipFwd * (zoneH - 8) * 2;
-      const clampY = Math.max(-zoneH/2 + 4, Math.min(zoneH/2 - 4, dotOffY));
+        // Arrow line
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(tipX, tipY);
+        ctx.stroke();
 
-      const dotColor = lrFrac > 0.55 ? '#00ff88' : lrFrac < 0.45 ? '#4da6ff' : '#fff';
-      ctx.shadowColor = dotColor;
-      ctx.shadowBlur = 8;
-      ctx.fillStyle = dotColor;
-      ctx.globalAlpha = 0.9;
-      ctx.beginPath();
-      ctx.arc(zoneX + dotOffX, zoneY + clampY, 4, 0, Math.PI * 2);
-      ctx.fill();
+        // Arrow head
+        const angle = Math.atan2(ny, nx);
+        ctx.beginPath();
+        ctx.moveTo(tipX, tipY);
+        ctx.lineTo(tipX - headL * Math.cos(angle - 0.4), tipY - headL * Math.sin(angle - 0.4));
+        ctx.lineTo(tipX - headL * Math.cos(angle + 0.4), tipY - headL * Math.sin(angle + 0.4));
+        ctx.closePath();
+        ctx.fill();
 
-      // Labels
-      ctx.shadowBlur = 0;
-      ctx.globalAlpha = 0.4;
-      ctx.font = '7px sans-serif';
-      ctx.fillStyle = '#fff';
-      ctx.textAlign = 'center';
-      ctx.fillText('L', zoneX - zoneW/2 + 5, zoneY + 2);
-      ctx.fillText('R', zoneX + zoneW/2 - 5, zoneY + 2);
-      ctx.fillText('F', zoneX, zoneY - zoneH/2 + 7);
-      ctx.fillText('B', zoneX, zoneY + zoneH/2 - 2);
-      ctx.globalAlpha = 1;
-      ctx.textAlign = 'start';
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
+      }
     }
   }
 }
