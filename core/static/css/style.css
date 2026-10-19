@@ -230,7 +230,7 @@
 }
 
 /* Hide SVG icon when thumbnail is present */
-.files-grid.view-grid .file-card-thumb + .file-card-icon { display: none; }
+.files-grid.view-grid .file-card-thumb ~ .file-card-icon { display: none; }
 
 /* Hide thumbnail in list view */
 .files-grid.view-list .file-card-thumb { display: none; }
