@@ -467,14 +467,14 @@ const SKELETON_CONNECTIONS = [
   [11,13],[13,15],[12,14],[14,16],   // legs
 ];
 
-const UPPER_KP = new Set([0,1,2,3,4,5,6,7,8,9,10]);
+const UPPER_KP = new Set([5,6,7,8,9,10]);
 const LOWER_KP = new Set([11,12,13,14,15,16]);
+const ALL_VISIBLE_KP = new Set([5,6,7,8,9,10,11,12,13,14,15,16]);
 
 function isKpVisible(idx) {
-  if (!bodyFocusFilter) return true;
   if (bodyFocusFilter === 'upper') return UPPER_KP.has(idx);
   if (bodyFocusFilter === 'lower') return LOWER_KP.has(idx);
-  return true;
+  return ALL_VISIBLE_KP.has(idx);
 }
 
 async function playVideo(videoId, url, title, hasPose) {
