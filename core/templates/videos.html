@@ -148,11 +148,11 @@
           <input type="checkbox" id="poseToggle" onchange="togglePose()">
           <span>Pose</span>
         </label>
-        <span class="pose-ctrl-sep">|</span>
-        <label class="pose-ctrl-item">
-          <input type="checkbox" id="metricsToggle" onchange="toggleMetrics()" disabled>
-          <span>Metrics</span>
-        </label>
+        <select class="pose-ctrl-select" id="bodyFocusSelect" onchange="setBodyFocus(this.value)" style="display:none">
+          <option value="">Full</option>
+          <option value="upper">Upper</option>
+          <option value="lower">Lower</option>
+        </select>
         <span class="pose-ctrl-sep">|</span>
         <select class="pose-ctrl-select" id="poseMaxPersons" onchange="updateMaxPersons()">
           <option value="1">1</option>
@@ -171,16 +171,12 @@
       <div class="metrics-tabs">
         <button class="metrics-tab active" onclick="switchMetricsTab('speed', this)">Speed</button>
         <button class="metrics-tab" onclick="switchMetricsTab('angles', this)">Angles</button>
-        <button class="metrics-tab" onclick="switchMetricsTab('rom', this)">ROM</button>
       </div>
       <div class="metrics-content" id="metricsSpeed">
         <canvas id="metricsCanvas"></canvas>
       </div>
       <div class="metrics-content hidden" id="metricsAngles">
         <div class="metrics-angles-grid" id="anglesGrid"></div>
-      </div>
-      <div class="metrics-content hidden" id="metricsROM">
-        <div class="metrics-rom-table" id="romTable"></div>
       </div>
     </div>
   </div>
@@ -251,7 +247,18 @@
 <script>
 
 const FOLDER_ID = {{ folder.id if folder else 'null' }};
+const BODY_FOCUS = '{{ body_focus }}';
 let videoOffset = document.querySelectorAll('.file-card[data-type="video"]').length;
+
+let bodyFocusFilter = '';
+
+function setBodyFocus(focus) {
+  bodyFocusFilter = focus;
+  document.querySelectorAll('#focusFilter .focus-pill').forEach(p => {
+    p.classList.toggle('active', p.dataset.focus === focus);
+  });
+  if (poseVisible) drawCurrentPose();
+}
 
 // Lazy-load thumbnail videos as they scroll into view
 (function() {
@@ -460,6 +467,16 @@ const SKELETON_CONNECTIONS = [
   [11,13],[13,15],[12,14],[14,16],   // legs
 ];
 
+const UPPER_KP = new Set([0,1,2,3,4,5,6,7,8,9,10]);
+const LOWER_KP = new Set([11,12,13,14,15,16]);
+
+function isKpVisible(idx) {
+  if (!bodyFocusFilter) return true;
+  if (bodyFocusFilter === 'upper') return UPPER_KP.has(idx);
+  if (bodyFocusFilter === 'lower') return LOWER_KP.has(idx);
+  return true;
+}
+
 async function playVideo(videoId, url, title, hasPose) {
   if (!url) return;
   currentVideoId = videoId;
@@ -502,9 +519,10 @@ function closeVideo() {
   poseFrames = null;
   metricsData = null;
   metricsVisible = false;
-  document.getElementById('metricsToggle').checked = false;
-  document.getElementById('metricsToggle').disabled = true;
   document.getElementById('metricsPanel').classList.add('hidden');
+  bodyFocusFilter = '';
+  document.getElementById('bodyFocusSelect').value = '';
+  document.getElementById('bodyFocusSelect').style.display = 'none';
   const canvas = document.getElementById('poseCanvas');
   canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
   document.getElementById('videoModal').classList.remove('open');
@@ -700,7 +718,10 @@ async function triggerAnalysis(videoId, sampleRate, resolution) {
 
 async function togglePose() {
   poseVisible = document.getElementById('poseToggle').checked;
+  document.getElementById('bodyFocusSelect').style.display = poseVisible ? '' : 'none';
   if (!poseVisible) {
+    metricsVisible = false;
+    document.getElementById('metricsPanel').classList.add('hidden');
     const canvas = document.getElementById('poseCanvas');
     canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
   } else if (poseLoading) {
@@ -732,7 +753,6 @@ async function togglePose() {
           const poseData = await poseRes.json();
           poseFrames = poseData.frames;
           metricsData = computeMetrics(poseFrames);
-          document.getElementById('metricsToggle').disabled = false;
         }
       } catch (e) {}
 
@@ -744,6 +764,13 @@ async function togglePose() {
     }
     if (poseFrames && poseFrames.length > 0) {
       drawCurrentPose();
+      // Auto-show metrics
+      metricsVisible = true;
+      const panel = document.getElementById('metricsPanel');
+      if (metricsData) {
+        panel.classList.remove('hidden');
+        drawSpeedGraph();
+      }
       const player = document.getElementById('videoPlayer');
       if (!player.paused) startPoseLoop();
     }
@@ -845,6 +872,7 @@ function drawCurrentPose() {
     ctx.shadowColor = color.shadow;
     ctx.shadowBlur = 4;
     for (const [a, b] of SKELETON_CONNECTIONS) {
+      if (!isKpVisible(a) || !isKpVisible(b)) continue;
       const pa = lm[a] || lm[String(a)];
       const pb = lm[b] || lm[String(b)];
       if (!pa || !pb) continue;
@@ -860,6 +888,7 @@ function drawCurrentPose() {
     // Draw keypoints
     ctx.shadowBlur = 0;
     for (let i = 0; i < 17; i++) {
+      if (!isKpVisible(i)) continue;
       const p = lm[i] || lm[String(i)];
       if (!p || p.visibility < 0.5) continue;
       ctx.fillStyle = color.dot;
@@ -1092,8 +1121,6 @@ function computeMetrics(frames) {
   for (let p = 0; p < maxP; p++) {
     const speeds = [];
     const angles = [];
-    const rom = {};
-    JOINT_ANGLES.forEach(j => rom[j.name] = {min: 999, max: -1});
 
     for (let i = 0; i < frames.length; i++) {
       const f = frames[i];
@@ -1108,10 +1135,6 @@ function computeMetrics(frames) {
       JOINT_ANGLES.forEach(j => {
         const deg = computeJointAngle(person.keypoints, j.a, j.b, j.c);
         av[j.name] = deg;
-        if (deg !== null) {
-          if (deg < rom[j.name].min) rom[j.name].min = deg;
-          if (deg > rom[j.name].max) rom[j.name].max = deg;
-        }
       });
       angles.push({t: f.timestamp_sec, values: av});
 
@@ -1148,13 +1171,7 @@ function computeMetrics(frames) {
       smoothed.push({t: speeds[i].t, speed: sum / n});
     }
 
-    // Fix ROM where no data
-    JOINT_ANGLES.forEach(j => {
-      if (rom[j.name].min === 999) rom[j.name] = {min: 0, max: 0};
-      rom[j.name].range = rom[j.name].max - rom[j.name].min;
-    });
-
-    persons.push({speeds: smoothed, angles, rom});
+    persons.push({speeds: smoothed, angles});
   }
 
   return {persons};
@@ -1162,25 +1179,12 @@ function computeMetrics(frames) {
 
 // ── Metrics UI ──────────────────────────────────────────────────────────────
 
-function toggleMetrics() {
-  metricsVisible = document.getElementById('metricsToggle').checked;
-  const panel = document.getElementById('metricsPanel');
-  if (metricsVisible && metricsData) {
-    panel.classList.remove('hidden');
-    drawSpeedGraph();
-    renderROM();
-  } else {
-    panel.classList.add('hidden');
-  }
-}
-
 function switchMetricsTab(tab, btn) {
   document.querySelectorAll('.metrics-tab').forEach(t => t.classList.remove('active'));
   btn.classList.add('active');
   document.querySelectorAll('.metrics-content').forEach(c => c.classList.add('hidden'));
   document.getElementById('metrics' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.remove('hidden');
   if (tab === 'speed') drawSpeedGraph();
-  if (tab === 'rom') renderROM();
   if (tab === 'angles') updateAnglesGrid();
 }
 
@@ -1334,36 +1338,6 @@ function updateAnglesGrid() {
   grid.innerHTML = html;
 }
 
-// ── ROM Table ───────────────────────────────────────────────────────────────
-
-function renderROM() {
-  if (!metricsData) return;
-  const table = document.getElementById('romTable');
-  const colors = ['#00ff88', '#4da6ff'];
-
-  let html = '<table class="rom-table"><thead><tr><th>Joint</th>';
-  metricsData.persons.forEach((_, pi) => {
-    const label = metricsData.persons.length > 1 ? `P${pi + 1} ` : '';
-    html += `<th>${label}Min</th><th>${label}Max</th><th>${label}ROM</th>`;
-  });
-  html += '</tr></thead><tbody>';
-
-  JOINT_ANGLES.forEach(j => {
-    html += `<tr><td>${j.name}</td>`;
-    metricsData.persons.forEach((p, pi) => {
-      const r = p.rom[j.name];
-      let romColor = 'var(--text-secondary)';
-      if (r.range > 90) romColor = '#00ff88';
-      else if (r.range > 45) romColor = '#ffaa00';
-      html += `<td>${r.min}°</td><td>${r.max}°</td><td style="color:${romColor};font-weight:600">${r.range}°</td>`;
-    });
-    html += '</tr>';
-  });
-
-  html += '</tbody></table>';
-  table.innerHTML = html;
-}
-
 // ── Load More ──
 async function loadMore() {
   const btn = document.getElementById('loadMoreBtn');
@@ -1371,6 +1345,7 @@ async function loadMore() {
   btn.textContent = 'Loading...';
   const params = new URLSearchParams({ offset: videoOffset });
   if (FOLDER_ID) params.set('folder_id', FOLDER_ID);
+  if (BODY_FOCUS) params.set('body_focus', BODY_FOCUS);
   try {
     const res = await fetch('/api/videos/list?' + params);
     const data = await res.json();

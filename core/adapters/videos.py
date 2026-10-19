@@ -8,14 +8,20 @@ class VideosAdapter(BaseAdapter):
     TABLE = "bachata.videos"
 
     def list_by_folder(self, user_id: int, folder_id: int,
-                       limit: int | None = None, offset: int | None = None) -> list[dict]:
-        return self.select(order_by="title", limit=limit, offset=offset,
-                           user_id=user_id, folder_id=folder_id)
+                       limit: int | None = None, offset: int | None = None,
+                       body_focus: str | None = None) -> list[dict]:
+        kw = dict(user_id=user_id, folder_id=folder_id)
+        if body_focus:
+            kw["body_focus"] = body_focus
+        return self.select(order_by="title", limit=limit, offset=offset, **kw)
 
     def list_unfiled(self, user_id: int,
-                     limit: int | None = None, offset: int | None = None) -> list[dict]:
-        return self.select(order_by="title", limit=limit, offset=offset,
-                           user_id=user_id, folder_id=None)
+                     limit: int | None = None, offset: int | None = None,
+                     body_focus: str | None = None) -> list[dict]:
+        kw = dict(user_id=user_id, folder_id=None)
+        if body_focus:
+            kw["body_focus"] = body_focus
+        return self.select(order_by="title", limit=limit, offset=offset, **kw)
 
     def create(self, title: str, user_id: int, folder_id: int | None = None,
                filename: str | None = None, gcs_url: str | None = None) -> dict:

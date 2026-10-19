@@ -30,28 +30,31 @@ PAGE_SIZE = 20
 def index():
     repo = get_repo()
     user_id = uid()
+    body_focus = request.args.get("body_focus")
     fa, va = FoldersAdapter(repo), VideosAdapter(repo)
     folders = fa.list_root(user_id)
-    videos = va.list_unfiled(user_id, limit=PAGE_SIZE + 1)
+    videos = va.list_unfiled(user_id, limit=PAGE_SIZE + 1, body_focus=body_focus)
     has_more = len(videos) > PAGE_SIZE
     videos = videos[:PAGE_SIZE]
     user = _current_user(repo)
     return render_template("videos.html",
                            folder=None, breadcrumbs=[],
                            folders=folders, videos=videos,
-                           has_more=has_more, user=user)
+                           has_more=has_more, body_focus=body_focus or '',
+                           user=user)
 
 
 @videos_bp.route("/folder/<int:folder_id>")
 def folder_view(folder_id):
     repo = get_repo()
     user_id = uid()
+    body_focus = request.args.get("body_focus")
     fa, va = FoldersAdapter(repo), VideosAdapter(repo)
     folder = fa.get(folder_id)
     if folder is None or folder["user_id"] != user_id:
         abort(404)
     folders = fa.list_children(user_id, folder_id)
-    videos = va.list_by_folder(user_id, folder_id, limit=PAGE_SIZE + 1)
+    videos = va.list_by_folder(user_id, folder_id, limit=PAGE_SIZE + 1, body_focus=body_focus)
     has_more = len(videos) > PAGE_SIZE
     videos = videos[:PAGE_SIZE]
     breadcrumbs = fa.get_breadcrumbs(folder_id)
@@ -59,7 +62,8 @@ def folder_view(folder_id):
     return render_template("videos.html",
                            folder=folder, breadcrumbs=breadcrumbs,
                            folders=folders, videos=videos,
-                           has_more=has_more, user=user)
+                           has_more=has_more, body_focus=body_focus or '',
+                           user=user)
 
 
 @videos_bp.route("/api/videos/browse")
@@ -100,10 +104,11 @@ def api_list_videos():
     va = VideosAdapter(repo)
     offset = request.args.get("offset", 0, type=int)
     folder_id = request.args.get("folder_id", type=int)
+    body_focus = request.args.get("body_focus")
     if folder_id is not None:
-        videos = va.list_by_folder(user_id, folder_id, limit=PAGE_SIZE + 1, offset=offset)
+        videos = va.list_by_folder(user_id, folder_id, limit=PAGE_SIZE + 1, offset=offset, body_focus=body_focus)
     else:
-        videos = va.list_unfiled(user_id, limit=PAGE_SIZE + 1, offset=offset)
+        videos = va.list_unfiled(user_id, limit=PAGE_SIZE + 1, offset=offset, body_focus=body_focus)
     has_more = len(videos) > PAGE_SIZE
     videos = videos[:PAGE_SIZE]
     return jsonify({"videos": [serialize(v) for v in videos], "has_more": has_more})

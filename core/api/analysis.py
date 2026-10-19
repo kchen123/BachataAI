@@ -95,7 +95,15 @@ def _sync_db_if_done(video_id):
             "pose_size_kb": prog.get("pose_size_kb", 0),
         }
         aa.set_summary(analysis["id"], summary)
-        repo.update("bachata.videos", video_id, {"has_pose": True})
+        update_data = {"has_pose": True}
+        try:
+            from core.classification import classify_body_focus
+            blob = _gcs().bucket(BUCKET_NAME).blob(summary["pose_gcs_path"])
+            pose_data = json.loads(blob.download_as_bytes())
+            update_data["body_focus"] = classify_body_focus(pose_data.get("frames", []))
+        except Exception:
+            pass
+        repo.update("bachata.videos", video_id, update_data)
 
 
 # ── Main Endpoints ──────────────────────────────────────────────────────────
@@ -334,3 +342,27 @@ def api_cleanup_jobs():
         cleaned += 1
 
     return jsonify({"cleaned": cleaned})
+
+
+@analysis_bp.route("/api/admin/classify-body-focus", methods=["POST"])
+def api_classify_body_focus():
+    """Backfill body_focus for videos with pose data."""
+    from core.classification import classify_body_focus
+    repo = get_repo()
+    videos = repo.execute(
+        "SELECT id FROM bachata.videos WHERE has_pose = TRUE AND body_focus IS NULL",
+        fetch="all_dicts",
+    )
+    classified = 0
+    for v in videos:
+        try:
+            blob = _gcs().bucket(BUCKET_NAME).blob(f"poses/{v['id']}.json")
+            if not blob.exists():
+                continue
+            pose_data = json.loads(blob.download_as_bytes())
+            focus = classify_body_focus(pose_data.get("frames", []))
+            repo.update("bachata.videos", v["id"], {"body_focus": focus})
+            classified += 1
+        except Exception:
+            pass
+    return jsonify({"classified": classified, "total": len(videos)})
