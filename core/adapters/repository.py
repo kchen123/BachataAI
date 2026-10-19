@@ -7,8 +7,6 @@ import threading
 import psycopg2
 import psycopg2.pool
 from pathlib import Path
-from contextlib import contextmanager
-
 _ADMIN_PATH = Path(__file__).parent / "db.json"
 
 
@@ -126,14 +124,6 @@ class Repository:
         params = list(data.values()) + [id]
         return self._exec_row(sql, params)
 
-    def update_no_timestamp(self, table: str, id: int, data: dict) -> dict | None:
-        if not data:
-            return self.get(table, id)
-        set_clause = ", ".join(f"{col} = %s" for col in data.keys())
-        sql = f"UPDATE {table} SET {set_clause} WHERE id = %s RETURNING *"
-        params = list(data.values()) + [id]
-        return self._exec_row(sql, params)
-
     def delete(self, table: str, id: int) -> bool:
         sql = f"DELETE FROM {table} WHERE id = %s RETURNING id"
         row = self._exec_row(sql, [id])
@@ -159,15 +149,6 @@ class Repository:
         self.conn.commit()
         cur.close()
         return result
-
-    @contextmanager
-    def transaction(self):
-        try:
-            yield self
-            self.conn.commit()
-        except Exception:
-            self.conn.rollback()
-            raise
 
     def close(self):
         if self._owned and self.conn:
@@ -217,9 +198,6 @@ class BaseAdapter:
                limit: int | None = None, offset: int | None = None,
                **filters) -> list[dict]:
         return self.repo.select(self.TABLE, filters or None, order_by, limit, offset)
-
-    def list(self, order_by: str | None = None) -> list[dict]:
-        return self.repo.select(self.TABLE, order_by=order_by)
 
     def update(self, id: int, **kwargs) -> dict | None:
         return self.repo.update(self.TABLE, id, kwargs)

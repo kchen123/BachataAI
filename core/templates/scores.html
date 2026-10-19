@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Scores{% endblock %}
 
-{% block page_id %}SCORES{% endblock %}
 {% block content %}
 <div class="scores-container">
   <div class="scores-toolbar">
@@ -107,20 +106,6 @@
 
 {% block scripts %}
 <script>
-(function() {
-  function hms() {
-    const parts = new Intl.DateTimeFormat("en-US", {
-      timeZone: "America/New_York", hour: "numeric", minute: "numeric",
-      second: "numeric", hour12: false,
-    }).formatToParts(new Date());
-    const g = t => (parts.find(p => p.type === t) || {}).value || "00";
-    const p = n => String(n).padStart(2, "0");
-    return p(+g("hour")) + ":" + g("minute") + ":" + g("second");
-  }
-  const el = document.querySelector("#mainClock .time");
-  if (el) { const tick = () => { el.textContent = hms(); }; tick(); setInterval(tick, 1000); }
-})();
-
 const search = document.getElementById('scorecardSearch');
 const tbody = document.querySelector('#scorecardsTable tbody');
 
@@ -306,9 +291,5 @@ async function confirmDeleteScorecard() {
   }
 }
 
-async function deleteMetric(id) {
-  const res = await fetch('/api/metrics/' + id, { method: 'DELETE' });
-  if (res.ok) loadMetrics(currentScorecardId);
-}
 </script>
 {% endblock %}

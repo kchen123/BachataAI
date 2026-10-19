@@ -1,7 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Videos{% endblock %}
+{% block title %}Studio{% endblock %}
 
-{% block page_id %}CORE{% endblock %}
 {% block content %}
 <div class="files-container">
   <div class="files-bar">
@@ -114,15 +113,7 @@
         <p class="upload-drop-formats">MP4, MOV, AVI, WebM — multiple files supported</p>
         <input type="file" id="uploadFile" accept="video/*" multiple hidden onchange="handleUploadFiles(this.files)">
       </div>
-      <div class="upload-progress-box hidden" id="uploadProgress">
-        <div class="upload-progress-info">
-          <span id="uploadName"></span>
-          <span id="uploadPct">0%</span>
-        </div>
-        <div class="upload-progress-bar">
-          <div class="upload-progress-fill" id="uploadFill"></div>
-        </div>
-      </div>
+      <div class="upload-progress-box hidden" id="uploadProgress"></div>
     </div>
   </div>
 </div>

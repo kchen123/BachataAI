@@ -320,7 +320,6 @@ def api_delete_job(analysis_id):
 def api_cleanup_jobs():
     repo = get_repo()
     aa = AnalysesAdapter(repo)
-    from datetime import datetime, timezone, timedelta
     stuck = aa.select(status="running")
     cleaned = 0
     for a in stuck:
