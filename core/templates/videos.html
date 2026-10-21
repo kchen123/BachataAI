@@ -636,6 +636,15 @@ function clearProcessingCard(videoId, status) {
       star.innerHTML = '&#9733;';
       card.prepend(star);
     }
+    // Update onclick so reopening the modal shows pose controls
+    const old = card.getAttribute('onclick');
+    if (old) card.setAttribute('onclick', old.replace(/,\s*false\s*\)$/, ', true)'));
+    // If modal is currently open for this video, show pose controls immediately
+    if (currentVideoId == videoId) {
+      poseHasAnalysis = true;
+      document.getElementById('poseAnalyze').classList.add('hidden');
+      document.getElementById('poseControls').classList.remove('hidden');
+    }
   }
 
   setTimeout(() => {
