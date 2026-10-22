@@ -169,6 +169,8 @@ def _run_analysis(req: AnalyzeRequest):
         frames = []
         frame_num = 0
         processed = 0
+        # After first frame with selected_boxes, compute reference area for filtering
+        ref_area = None  # will be set from first matched frame
 
         while cap.isOpened():
             ret, frame = cap.read()
@@ -219,7 +221,11 @@ def _run_analysis(req: AnalyzeRequest):
                         persons.append(person_data)
 
                 # Filter out small bboxes (background people/audience)
-                persons = [p for p in persons if p["bbox_area"] > 0.02]
+                if ref_area is not None:
+                    # Use relative filtering: keep persons >= 40% of reference area
+                    persons = [p for p in persons if p["bbox_area"] > ref_area * 0.4]
+                else:
+                    persons = [p for p in persons if p["bbox_area"] > 0.02]
 
                 # If user selected specific boxes, only keep persons that overlap
                 if req.selected_boxes:
@@ -238,6 +244,10 @@ def _run_analysis(req: AnalyzeRequest):
                                 p["label"] = best_label
                             matched.append(p)
                     persons = matched
+
+                    # Set reference area from first matched frame
+                    if ref_area is None and len(matched) > 0:
+                        ref_area = sum(p["bbox_area"] for p in matched) / len(matched)
 
                 # Sort by distance to frame center (closest first)
                 persons.sort(key=lambda p: abs(p["center_x"] - 0.5))
