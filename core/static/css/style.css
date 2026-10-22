@@ -643,8 +643,8 @@
   -webkit-backdrop-filter: blur(var(--glass-blur));
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: var(--card-radius);
-  width: 90vw;
-  max-width: 960px;
+  width: 94vw;
+  max-width: 1200px;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   overflow: hidden;
   resize: both;
@@ -724,7 +724,7 @@
 .video-modal video {
   width: 100%;
   display: block;
-  max-height: 70vh;
+  max-height: 80vh;
 }
 
 #poseCanvas {
@@ -747,11 +747,14 @@
   z-index: 20;
 }
 .label-panel.hidden { display: none; }
-.label-panel-header {
-  padding: 8px 12px;
-  font-size: 12px;
+.label-panel-top {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 10px 16px;
+  font-size: 13px;
   color: var(--text-secondary);
-  text-align: center;
 }
 #labelCanvas {
   flex: 1;

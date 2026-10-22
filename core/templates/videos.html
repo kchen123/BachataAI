@@ -133,7 +133,7 @@
 </div>
 
 <!-- Video Player Modal -->
-<div class="modal-overlay" id="videoModal" onclick="if(event.target===this)closeVideo()">
+<div class="modal-overlay" id="videoModal" onclick="if(event.target===this)maybeCloseVideo()">
   <div class="video-modal">
     <div class="video-title-bar">
       <span class="video-bar-id" id="videoId"></span>
@@ -163,15 +163,15 @@
       {% if user.role == 'admin' %}
       <!-- Label Lead/Follow overlay (admin only) -->
       <div class="label-panel hidden" id="labelPanel">
-        <div class="label-panel-header">
-          <span id="labelMsg">Click a box to assign: Lead or Follow</span>
+        <div class="label-panel-top">
+          <span id="labelMsg">Click to assign: Lead or Follow</span>
+          <div class="label-actions">
+            <button class="btn btn-sm btn-accent" id="labelSaveBtn" onclick="saveLabelRoles()">Analyze</button>
+            <button class="btn btn-sm" onclick="skipLabel()">Skip</button>
+          </div>
         </div>
         <canvas id="labelCanvas"></canvas>
         <div class="label-persons" id="labelPersonBtns"></div>
-        <div class="label-actions">
-          <button class="btn btn-sm btn-accent" id="labelSaveBtn" onclick="saveLabelRoles()">Analyze</button>
-          <button class="btn btn-sm" onclick="skipLabel()">Skip</button>
-        </div>
       </div>
       {% endif %}
     </div>
@@ -518,6 +518,12 @@ async function playVideo(videoId, url, title, hasPose) {
   player.addEventListener('seeked', drawCurrentPose);
 }
 
+function maybeCloseVideo() {
+  const lp = document.getElementById('labelPanel');
+  if (lp && !lp.classList.contains('hidden')) return;  // frozen during labeling
+  closeVideo();
+}
+
 function closeVideo() {
   closeLabelPanel();
   stopPoseLoop();
@@ -557,6 +563,7 @@ async function openDetectLabel(videoId) {
   const player = document.getElementById('videoPlayer');
   document.getElementById('labelMsg').textContent = 'Detecting persons...';
   document.getElementById('labelSaveBtn').textContent = 'Analyze';
+  document.querySelector('.video-controls-bar').classList.add('hidden');
   panel.classList.remove('hidden');
 
   // Call detect endpoint
@@ -710,6 +717,8 @@ function skipLabel() {
 function closeLabelPanel() {
   const p = document.getElementById('labelPanel');
   if (p) p.classList.add('hidden');
+  const cb = document.querySelector('.video-controls-bar');
+  if (cb) cb.classList.remove('hidden');
 }
 
 // Drag video modal
