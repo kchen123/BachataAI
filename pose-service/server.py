@@ -191,12 +191,6 @@ def _run_analysis(req: AnalyzeRequest):
         ref_area = None  # will be set from first matched frame
         # Cap persons per frame to the number of user-selected boxes
         max_persons = len(req.selected_boxes) if req.selected_boxes else None
-        # Track ID → role mapping, built from early frames where IoU matching works
-        track_to_role = {}
-        prev_persons = []  # last frame's persons, for carry-forward on occlusion
-
-        # Reset YOLO tracker state for this new video
-        MODEL.predictor = None
 
         while cap.isOpened():
             ret, frame = cap.read()
@@ -205,7 +199,7 @@ def _run_analysis(req: AnalyzeRequest):
 
             if frame_num % req.sample_every_n == 0:
                 h, w = frame.shape[:2]
-                results = MODEL.track(frame, verbose=False, imgsz=req.resolution, persist=True)
+                results = MODEL(frame, verbose=False, imgsz=req.resolution)
 
                 persons = []
                 if results and results[0].keypoints is not None:
@@ -248,8 +242,8 @@ def _run_analysis(req: AnalyzeRequest):
 
                 # Filter out small bboxes (background people/audience)
                 if ref_area is not None:
-                    # Use relative filtering: keep persons >= 20% of reference area
-                    persons = [p for p in persons if p["bbox_area"] > ref_area * 0.2]
+                    # Use relative filtering: keep persons >= 40% of reference area
+                    persons = [p for p in persons if p["bbox_area"] > ref_area * 0.4]
                 else:
                     persons = [p for p in persons if p["bbox_area"] > 0.02]
 
@@ -272,11 +266,6 @@ def _run_analysis(req: AnalyzeRequest):
                     matched = [p for p in persons if p["_best_iou"] > 0.2]
 
                     if matched:
-                        # If we matched fewer than expected, fill from unmatched by area
-                        if max_persons and len(matched) < max_persons:
-                            unmatched = sorted([p for p in persons if p["_best_iou"] <= 0.2],
-                                               key=lambda p: p["bbox_area"], reverse=True)
-                            matched.extend(unmatched[:max_persons - len(matched)])
                         persons = matched
                     else:
                         # IoU matching failed (people moved far from frame-1 boxes).
@@ -284,20 +273,6 @@ def _run_analysis(req: AnalyzeRequest):
                         persons.sort(key=lambda p: p["bbox_area"], reverse=True)
                         if max_persons:
                             persons = persons[:max_persons]
-
-                    # Record track_id → role from IoU-matched frames
-                    for p in persons:
-                        tid = p.get("track_id", -1)
-                        label = p.get("label")
-                        if tid >= 0 and label and tid not in track_to_role:
-                            track_to_role[tid] = label
-
-                    # Apply known track_id → role to persons missing a label
-                    for p in persons:
-                        if not p.get("label"):
-                            tid = p.get("track_id", -1)
-                            if tid in track_to_role:
-                                p["label"] = track_to_role[tid]
 
                     # Set reference area from first matched frame
                     if ref_area is None and len(persons) > 0:
@@ -309,17 +284,6 @@ def _run_analysis(req: AnalyzeRequest):
                 # Enforce max_persons cap (e.g. 2 ticked = at most 2 per frame)
                 if max_persons and len(persons) > max_persons:
                     persons = persons[:max_persons]
-
-                # If fewer persons than expected, carry forward last known pose
-                # so skeletons don't vanish during brief occlusions
-                if max_persons and len(persons) < max_persons and prev_persons:
-                    current_tids = {p.get("track_id", -1) for p in persons}
-                    for pp in prev_persons:
-                        if len(persons) >= max_persons:
-                            break
-                        if pp.get("track_id", -1) not in current_tids and pp.get("track_id", -1) >= 0:
-                            persons.append(pp)
-                prev_persons = [p.copy() for p in persons]
 
                 # Clean up internal fields before saving
                 for p in persons:
@@ -367,7 +331,6 @@ def _run_analysis(req: AnalyzeRequest):
             "frame_count": frame_num,
             "fps": round(fps, 2),
             "frames": frames,
-            "role_labels": {str(k): v for k, v in track_to_role.items()},
         })
 
         pose_blob = bucket.blob(f"poses/{req.video_id}.json")
