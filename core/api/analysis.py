@@ -103,6 +103,10 @@ def _sync_db_if_done(video_id):
             blob = _gcs().bucket(BUCKET_NAME).blob(summary["pose_gcs_path"])
             pose_data = json.loads(blob.download_as_bytes())
             update_data["body_focus"] = classify_body_focus(pose_data.get("frames", []))
+            # Save track_id → role mapping from pose service (built via YOLO tracking)
+            rl = pose_data.get("role_labels")
+            if rl:
+                update_data["role_labels"] = json.dumps(rl)
         except Exception:
             pass
         repo.update("bachata.videos", video_id, update_data)
@@ -331,7 +335,13 @@ def api_get_role_labels(video_id):
     video = VideosAdapter(repo).get(video_id)
     if not video:
         return jsonify({"error": "video not found"}), 404
-    return jsonify({"labels": video.get("role_labels")})
+    rl = video.get("role_labels")
+    if isinstance(rl, str):
+        try:
+            rl = json.loads(rl)
+        except Exception:
+            rl = None
+    return jsonify({"labels": rl})
 
 
 @analysis_bp.route("/api/videos/<int:video_id>/role-labels", methods=["PUT"])

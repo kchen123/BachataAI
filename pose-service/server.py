@@ -191,6 +191,11 @@ def _run_analysis(req: AnalyzeRequest):
         ref_area = None  # will be set from first matched frame
         # Cap persons per frame to the number of user-selected boxes
         max_persons = len(req.selected_boxes) if req.selected_boxes else None
+        # Track ID → role mapping, built from early frames where IoU matching works
+        track_to_role = {}
+
+        # Reset YOLO tracker state for this new video
+        MODEL.predictor = None
 
         while cap.isOpened():
             ret, frame = cap.read()
@@ -199,7 +204,7 @@ def _run_analysis(req: AnalyzeRequest):
 
             if frame_num % req.sample_every_n == 0:
                 h, w = frame.shape[:2]
-                results = MODEL(frame, verbose=False, imgsz=req.resolution)
+                results = MODEL.track(frame, verbose=False, imgsz=req.resolution, persist=True)
 
                 persons = []
                 if results and results[0].keypoints is not None:
@@ -274,6 +279,13 @@ def _run_analysis(req: AnalyzeRequest):
                         if max_persons:
                             persons = persons[:max_persons]
 
+                    # Record track_id → role from IoU-matched frames
+                    for p in persons:
+                        tid = p.get("track_id", -1)
+                        label = p.get("label")
+                        if tid >= 0 and label and tid not in track_to_role:
+                            track_to_role[tid] = label
+
                     # Set reference area from first matched frame
                     if ref_area is None and len(persons) > 0:
                         ref_area = sum(p["bbox_area"] for p in persons) / len(persons)
@@ -331,6 +343,7 @@ def _run_analysis(req: AnalyzeRequest):
             "frame_count": frame_num,
             "fps": round(fps, 2),
             "frames": frames,
+            "role_labels": {str(k): v for k, v in track_to_role.items()},
         })
 
         pose_blob = bucket.blob(f"poses/{req.video_id}.json")
