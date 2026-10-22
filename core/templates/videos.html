@@ -951,7 +951,7 @@ function clearProcessingCard(videoId, status) {
     if (c) c.remove();
   }, 2000);
 
-  refreshJobsPanel();
+  if (typeof refreshJobsPanel === 'function') refreshJobsPanel();
 }
 
 let _cancelVideoId = null;
