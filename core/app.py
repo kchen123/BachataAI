@@ -6,6 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from flask import Flask, g, session, request, redirect, url_for, jsonify
 from flask_cors import CORS
+from core.adapters.repository import get_repo
 from core.api.auth import auth_bp
 from core.api.videos import videos_bp
 from core.api.analysis import analysis_bp
@@ -55,6 +56,22 @@ def create_app():
     app.register_blueprint(videos_bp)
     app.register_blueprint(analysis_bp)
     app.register_blueprint(scores_bp)
+
+    @app.context_processor
+    def inject_user_tier():
+        if session.get("logged_in") and session.get("user_id"):
+            from core.adapters.users import UsersAdapter
+            from core.adapters.tiers import UserTiersAdapter, TiersAdapter
+            repo = get_repo()
+            user = UsersAdapter(repo).get(session["user_id"])
+            if user:
+                ut = UserTiersAdapter(repo).get_by_user(user["id"])
+                tier_name = None
+                if ut:
+                    tier = TiersAdapter(repo).get(ut["tier_id"])
+                    tier_name = tier["name"] if tier else None
+                return {"is_admin": user.get("role") == "admin", "user_tier": tier_name}
+        return {"is_admin": False, "user_tier": None}
 
     @app.before_request
     def require_login():
