@@ -553,7 +553,6 @@ let labelBoxes = [];
 let labelAssign = {};
 let labelVideoId = null;
 let labelDetectedBoxes = [];
-let labelFrameSnapshot = null;
 
 async function openDetectLabel(videoId) {
   labelVideoId = videoId;
@@ -563,17 +562,9 @@ async function openDetectLabel(videoId) {
   if (!panel) { triggerAnalysis(videoId, 2, 640); return; }
 
   const player = document.getElementById('videoPlayer');
-  const canvas = document.getElementById('labelCanvas');
   player.pause();
 
-  // 1. Capture current frame to canvas immediately (video still visible)
-  const vw = player.videoWidth || 640, vh = player.videoHeight || 360;
-  canvas.width = vw;
-  canvas.height = vh;
-  canvas.getContext('2d').drawImage(player, 0, 0, vw, vh);
-  labelFrameSnapshot = canvas.getContext('2d').getImageData(0, 0, vw, vh);
-
-  // 2. Hide video, show label panel
+  // Hide video (visibility so wrapper keeps size), show label panel
   player.classList.add('hidden');
   document.getElementById('poseCanvas').classList.add('hidden');
   document.querySelector('.video-controls-bar').classList.add('hidden');
@@ -581,7 +572,10 @@ async function openDetectLabel(videoId) {
   document.getElementById('labelSaveBtn').textContent = 'Analyze';
   panel.classList.remove('hidden');
 
-  // 3. Call detect API
+  // Draw the paused frame onto the label canvas
+  _drawLabelOverlay();
+
+  // Call detect API
   try {
     const res = await fetch('/api/videos/' + videoId + '/detect', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -593,7 +587,6 @@ async function openDetectLabel(videoId) {
     return;
   }
 
-  // 4. Update UI
   const n = labelDetectedBoxes.length;
   if (n === 0) document.getElementById('labelMsg').textContent = 'No persons detected. Click Analyze to run anyway.';
   else if (n === 1) document.getElementById('labelMsg').textContent = 'Solo dancer. Label optional.';
@@ -605,9 +598,13 @@ async function openDetectLabel(videoId) {
 
 function _drawLabelOverlay() {
   const canvas = document.getElementById('labelCanvas');
-  if (!canvas || !labelFrameSnapshot) return;
+  const player = document.getElementById('videoPlayer');
+  if (!canvas || !player) return;
+  const vw = player.videoWidth || 640, vh = player.videoHeight || 360;
+  canvas.width = vw;
+  canvas.height = vh;
   const ctx = canvas.getContext('2d');
-  ctx.putImageData(labelFrameSnapshot, 0, 0);
+  ctx.drawImage(player, 0, 0, vw, vh);
 
   const W = canvas.width, H = canvas.height;
   labelBoxes = [];
@@ -751,7 +748,6 @@ function closeLabelPanel() {
   if (player) player.classList.remove('hidden');
   const pc = document.getElementById('poseCanvas');
   if (pc) pc.classList.remove('hidden');
-  labelFrameSnapshot = null;
 }
 
 // Drag video modal
