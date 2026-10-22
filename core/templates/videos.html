@@ -595,20 +595,15 @@ async function openDetectLabel(videoId) {
 
   _renderPersonButtons();
 
-  // Seek to start, capture frame, then hide video
+  // Seek to start, capture frame (which hides video)
   player.currentTime = 0;
   const onSeek = () => {
     player.removeEventListener('seeked', onSeek);
     _captureFrame();
-    player.classList.add('hidden');
   };
   player.addEventListener('seeked', onSeek);
-  // If already at 0, fire manually
   if (player.currentTime === 0) {
-    setTimeout(() => {
-      _captureFrame();
-      player.classList.add('hidden');
-    }, 300);
+    setTimeout(() => _captureFrame(), 300);
   }
 }
 
@@ -616,24 +611,16 @@ function _captureFrame() {
   const canvas = document.getElementById('labelCanvas');
   if (!canvas) return;
   const player = document.getElementById('videoPlayer');
-  const vw = player.videoWidth || 640;
-  const vh = player.videoHeight || 360;
-  // Size canvas to match video aspect within available width
-  const panel = document.getElementById('labelPanel');
-  const availW = panel ? panel.clientWidth : 800;
-  const availH = window.innerHeight * 0.75;
-  const videoAspect = vw / vh;
-  let cw, ch;
-  if (availW / availH > videoAspect) {
-    ch = availH; cw = ch * videoAspect;
-  } else {
-    cw = availW; ch = cw / videoAspect;
-  }
-  canvas.width = Math.round(cw);
-  canvas.height = Math.round(ch);
+  // Use the player's rendered size (before it's hidden)
+  const cw = player.clientWidth || player.videoWidth || 640;
+  const ch = player.clientHeight || player.videoHeight || 360;
+  canvas.width = cw;
+  canvas.height = ch;
   const ctx = canvas.getContext('2d');
-  ctx.drawImage(player, 0, 0, canvas.width, canvas.height);
-  labelFrameSnapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(player, 0, 0, cw, ch);
+  labelFrameSnapshot = ctx.getImageData(0, 0, cw, ch);
+  // Now safe to hide video
+  player.classList.add('hidden');
   _drawLabelOverlay();
 }
 

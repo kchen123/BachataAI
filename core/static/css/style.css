@@ -719,6 +719,7 @@
 
 .video-wrapper {
   position: relative;
+  overflow: hidden;
 }
 
 .video-modal video {
@@ -726,6 +727,7 @@
   display: block;
   max-height: 80vh;
 }
+.video-modal video.hidden { display: none; }
 
 #poseCanvas {
   position: absolute;
@@ -736,10 +738,12 @@
 
 /* ── Label Lead/Follow Panel ──────────────────────────────────────── */
 .label-panel {
-  background: rgba(0, 0, 0, 0.95);
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 10, 15, 1);
   display: flex;
   flex-direction: column;
-  align-items: center;
+  z-index: 20;
 }
 .label-panel.hidden { display: none; }
 .label-panel-top {
@@ -751,11 +755,15 @@
   font-size: 12px;
   color: var(--text-secondary);
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 #labelCanvas {
+  flex: 1;
+  min-height: 0;
   cursor: pointer;
   display: block;
-  max-width: 100%;
+  width: 100%;
+  object-fit: contain;
 }
 .label-persons {
   display: flex;
