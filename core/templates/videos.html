@@ -562,18 +562,29 @@ async function openDetectLabel(videoId) {
   if (!panel) { triggerAnalysis(videoId, 2, 640); return; }
 
   const player = document.getElementById('videoPlayer');
-  player.pause();
 
-  // Hide video (visibility so wrapper keeps size), show label panel
-  player.classList.add('hidden');
-  document.getElementById('poseCanvas').classList.add('hidden');
-  document.querySelector('.video-controls-bar').classList.add('hidden');
+  // Wait for video to have a frame ready
+  function _proceed() {
+    player.pause();
+    player.classList.add('hidden');
+    document.getElementById('poseCanvas').classList.add('hidden');
+    document.querySelector('.video-controls-bar').classList.add('hidden');
+    panel.classList.remove('hidden');
+    _drawLabelOverlay();
+  }
+
   document.getElementById('labelMsg').textContent = 'Detecting persons...';
   document.getElementById('labelSaveBtn').textContent = 'Analyze';
-  panel.classList.remove('hidden');
 
-  // Draw the paused frame onto the label canvas
-  _drawLabelOverlay();
+  if (player.readyState >= 2) {
+    _proceed();
+  } else {
+    panel.classList.remove('hidden');
+    player.addEventListener('loadeddata', function _once() {
+      player.removeEventListener('loadeddata', _once);
+      _proceed();
+    });
+  }
 
   // Call detect API
   try {
