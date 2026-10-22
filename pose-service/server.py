@@ -286,6 +286,13 @@ def _run_analysis(req: AnalyzeRequest):
                         if tid >= 0 and label and tid not in track_to_role:
                             track_to_role[tid] = label
 
+                    # Apply known track_id → role to persons missing a label
+                    for p in persons:
+                        if not p.get("label"):
+                            tid = p.get("track_id", -1)
+                            if tid in track_to_role:
+                                p["label"] = track_to_role[tid]
+
                     # Set reference area from first matched frame
                     if ref_area is None and len(persons) > 0:
                         ref_area = sum(p["bbox_area"] for p in persons) / len(persons)
