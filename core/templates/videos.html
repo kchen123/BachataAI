@@ -558,6 +558,7 @@ const ROLE_COLORS = { lead: '#00ff88', follow: '#4da6ff' };
 let labelBoxes = [];     // normalized boxes [{x1,y1,x2,y2,idx}]
 let labelAssign = {};    // idx → "lead"|"follow"
 let labelVideoId = null;
+let _labelFrameCache = null; // offscreen canvas holding captured frame
 
 async function openDetectLabel(videoId) {
   labelVideoId = videoId;
@@ -577,8 +578,19 @@ async function openDetectLabel(videoId) {
   }
   player.pause();
 
-  // Step 2: Draw frame to canvas, then hide video and show label panel
-  _drawLabelFrame();
+  // Step 2: Capture frame to offscreen cache while video is still visible
+  const vw = player.videoWidth || 640, vh = player.videoHeight || 360;
+  _labelFrameCache = document.createElement('canvas');
+  _labelFrameCache.width = vw;
+  _labelFrameCache.height = vh;
+  _labelFrameCache.getContext('2d').drawImage(player, 0, 0, vw, vh);
+  // Also draw to visible canvas immediately
+  const canvas = document.getElementById('labelCanvas');
+  canvas.width = vw;
+  canvas.height = vh;
+  canvas.getContext('2d').drawImage(_labelFrameCache, 0, 0);
+
+  // Step 3: Hide video, show label panel
   player.style.display = 'none';
   document.querySelector('.video-controls-bar').classList.add('hidden');
   document.getElementById('poseCanvas').style.display = 'none';
@@ -586,10 +598,6 @@ async function openDetectLabel(videoId) {
   document.getElementById('labelSaveBtn').textContent = 'Analyze';
   document.getElementById('labelPersonBtns').innerHTML = '';
   panel.classList.remove('hidden');
-
-  // Step 3: Draw the paused video frame onto the label canvas
-  // Video is still in the DOM (just behind the panel), so drawImage works
-  _drawLabelFrame();
 
   // Step 4: Call detect API to get bounding boxes
   try {
@@ -616,16 +624,15 @@ async function openDetectLabel(videoId) {
   _renderLabelUI();
 }
 
-// Draw the video frame + skeletons onto the label canvas
+// Draw the cached frame + skeletons onto the label canvas
 function _drawLabelFrame() {
   const canvas = document.getElementById('labelCanvas');
-  const player = document.getElementById('videoPlayer');
-  if (!canvas || !player || !player.videoWidth) return;
+  if (!canvas || !_labelFrameCache) return;
 
-  canvas.width = player.videoWidth;
-  canvas.height = player.videoHeight;
+  canvas.width = _labelFrameCache.width;
+  canvas.height = _labelFrameCache.height;
   const ctx = canvas.getContext('2d');
-  ctx.drawImage(player, 0, 0, canvas.width, canvas.height);
+  ctx.drawImage(_labelFrameCache, 0, 0);
 
   const W = canvas.width, H = canvas.height;
   for (const box of labelBoxes) {
@@ -811,6 +818,7 @@ function closeLabelPanel() {
   document.getElementById('videoPlayer').style.display = '';
   document.querySelector('.video-controls-bar').classList.remove('hidden');
   document.getElementById('poseCanvas').style.display = '';
+  _labelFrameCache = null;
 }
 
 // Drag video modal
