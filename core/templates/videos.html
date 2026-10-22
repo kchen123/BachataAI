@@ -160,8 +160,6 @@
     <div class="video-wrapper">
       <video id="videoPlayer" controls autoplay></video>
       <canvas id="poseCanvas"></canvas>
-      {% if user.role == 'admin' %}
-      <!-- Label Lead/Follow overlay (admin only) -->
       <div class="label-panel hidden" id="labelPanel">
         <div class="label-panel-top">
           <span id="labelMsg">Select persons to track</span>
@@ -173,7 +171,6 @@
         </div>
         <canvas id="labelCanvas"></canvas>
       </div>
-      {% endif %}
     </div>
     <div class="metrics-panel hidden" id="metricsPanel">
       <div class="metrics-content" id="metricsSpeed">
@@ -862,11 +859,7 @@ function confirmRerunAction() {
 
 function runAnalysis(videoId) {
   const vid = videoId || currentVideoId;
-  {% if user.role == 'admin' %}
   openDetectLabel(vid);
-  {% else %}
-  triggerAnalysis(vid, 2, 640);
-  {% endif %}
 }
 
 
