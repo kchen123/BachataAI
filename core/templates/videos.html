@@ -164,12 +164,12 @@
       <!-- Label Lead/Follow overlay (admin only) -->
       <div class="label-panel hidden" id="labelPanel">
         <div class="label-panel-top">
+          <span id="labelMsg">Select persons to track</span>
+          <div class="label-persons" id="labelPersonBtns"></div>
           <div class="label-actions">
             <button class="btn btn-sm btn-accent" id="labelSaveBtn" onclick="saveLabelRoles()">Analyze</button>
             <button class="btn btn-sm" onclick="skipLabel()">Skip</button>
           </div>
-          <span id="labelMsg">Select persons to track</span>
-          <div class="label-persons" id="labelPersonBtns"></div>
         </div>
         <canvas id="labelCanvas"></canvas>
       </div>
@@ -553,6 +553,7 @@ let labelBoxes = [];     // [{x,y,w,h, nx1,ny1,nx2,ny2}] canvas + normalized coo
 let labelAssign = {};    // index → "lead"|"follow"
 let labelVideoId = null;
 let labelDetectedBoxes = []; // raw detected boxes from /detect
+let labelFrameSnapshot = null; // cached ImageData of first frame
 
 async function openDetectLabel(videoId) {
   labelVideoId = videoId;
@@ -561,6 +562,9 @@ async function openDetectLabel(videoId) {
   if (!panel) { triggerAnalysis(videoId, 2, 640); return; }
 
   const player = document.getElementById('videoPlayer');
+  player.pause();
+  player.classList.add('hidden');
+  document.getElementById('poseCanvas').classList.add('hidden');
   document.getElementById('labelMsg').textContent = 'Detecting persons...';
   document.getElementById('labelSaveBtn').textContent = 'Analyze';
   document.querySelector('.video-controls-bar').classList.add('hidden');
@@ -597,7 +601,7 @@ async function openDetectLabel(videoId) {
   setTimeout(() => _drawLabelCanvas(), 200);
 }
 
-function _drawLabelCanvas() {
+function _captureFrame() {
   const canvas = document.getElementById('labelCanvas');
   if (!canvas) return;
   const player = document.getElementById('videoPlayer');
@@ -617,6 +621,31 @@ function _drawLabelCanvas() {
     offX = (canvas.width - drawW) / 2; offY = 0;
   }
   ctx.drawImage(player, offX, offY, drawW, drawH);
+  labelFrameSnapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  _drawLabelOverlay();
+}
+
+function _drawLabelCanvas() {
+  _captureFrame();
+}
+
+function _drawLabelOverlay() {
+  const canvas = document.getElementById('labelCanvas');
+  if (!canvas || !labelFrameSnapshot) return;
+  const ctx = canvas.getContext('2d');
+  ctx.putImageData(labelFrameSnapshot, 0, 0);
+
+  const vw = document.getElementById('videoPlayer').videoWidth || 1;
+  const vh = document.getElementById('videoPlayer').videoHeight || 1;
+  const videoAspect = vw / vh, canvasAspect = canvas.width / canvas.height;
+  let drawW, drawH, offX, offY;
+  if (videoAspect > canvasAspect) {
+    drawW = canvas.width; drawH = canvas.width / videoAspect;
+    offX = 0; offY = (canvas.height - drawH) / 2;
+  } else {
+    drawH = canvas.height; drawW = canvas.height * videoAspect;
+    offX = (canvas.width - drawW) / 2; offY = 0;
+  }
 
   labelBoxes = [];
   labelDetectedBoxes.forEach((det, idx) => {
@@ -659,7 +688,7 @@ function _cycleRole(idx) {
   for (const [k, v] of Object.entries(labelAssign)) {
     if (k !== key && v === labelAssign[key]) delete labelAssign[k];
   }
-  _drawLabelCanvas();
+  _drawLabelOverlay();
 }
 
 function _renderPersonButtons() {
@@ -687,7 +716,7 @@ function _renderPersonButtons() {
         if (k !== key && v === labelAssign[key]) delete labelAssign[k];
       }
       _renderPersonButtons();
-      _drawLabelCanvas();
+      _drawLabelOverlay();
     };
 
     const span = document.createElement('span');
@@ -756,6 +785,11 @@ function closeLabelPanel() {
   if (p) p.classList.add('hidden');
   const cb = document.querySelector('.video-controls-bar');
   if (cb) cb.classList.remove('hidden');
+  const player = document.getElementById('videoPlayer');
+  if (player) player.classList.remove('hidden');
+  const pc = document.getElementById('poseCanvas');
+  if (pc) pc.classList.remove('hidden');
+  labelFrameSnapshot = null;
 }
 
 // Drag video modal
