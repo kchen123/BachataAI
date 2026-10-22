@@ -549,86 +549,58 @@ function closeVideo() {
 }
 
 // ── Label Lead/Follow ──────────────────────────────────────────────────────
-let labelBoxes = [];     // [{x,y,w,h, nx1,ny1,nx2,ny2}] canvas + normalized coords
-let labelAssign = {};    // index → "lead"|"follow"
+let labelBoxes = [];
+let labelAssign = {};
 let labelVideoId = null;
-let labelDetectedBoxes = []; // raw detected boxes from /detect
-let labelFrameSnapshot = null; // cached ImageData of first frame
+let labelDetectedBoxes = [];
+let labelFrameSnapshot = null;
 
 async function openDetectLabel(videoId) {
   labelVideoId = videoId;
   labelAssign = {};
+  labelDetectedBoxes = [];
   const panel = document.getElementById('labelPanel');
   if (!panel) { triggerAnalysis(videoId, 2, 640); return; }
 
   const player = document.getElementById('videoPlayer');
+  const canvas = document.getElementById('labelCanvas');
   player.pause();
+
+  // 1. Capture current frame to canvas immediately (video still visible)
+  const vw = player.videoWidth || 640, vh = player.videoHeight || 360;
+  canvas.width = vw;
+  canvas.height = vh;
+  canvas.getContext('2d').drawImage(player, 0, 0, vw, vh);
+  labelFrameSnapshot = canvas.getContext('2d').getImageData(0, 0, vw, vh);
+
+  // 2. Hide video, show label panel
+  player.classList.add('hidden');
+  document.getElementById('poseCanvas').classList.add('hidden');
+  document.querySelector('.video-controls-bar').classList.add('hidden');
   document.getElementById('labelMsg').textContent = 'Detecting persons...';
   document.getElementById('labelSaveBtn').textContent = 'Analyze';
-  document.querySelector('.video-controls-bar').classList.add('hidden');
-  document.getElementById('poseCanvas').classList.add('hidden');
   panel.classList.remove('hidden');
 
-  // Call detect endpoint
+  // 3. Call detect API
   try {
     const res = await fetch('/api/videos/' + videoId + '/detect', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
     });
     if (!res.ok) throw new Error('detect failed');
-    const data = await res.json();
-    labelDetectedBoxes = data.persons || [];
+    labelDetectedBoxes = (await res.json()).persons || [];
   } catch (e) {
     document.getElementById('labelMsg').textContent = 'Detection failed — click Analyze to run without labels.';
-    labelDetectedBoxes = [];
     return;
   }
 
+  // 4. Update UI
   const n = labelDetectedBoxes.length;
-  if (n === 0) {
-    document.getElementById('labelMsg').textContent = 'No persons detected. Click Analyze to run anyway.';
-  } else if (n === 1) {
-    document.getElementById('labelMsg').textContent = 'Solo dancer. Label optional.';
-  } else {
-    document.getElementById('labelMsg').textContent = `${n} persons found. Select lead and follow.`;
-  }
+  if (n === 0) document.getElementById('labelMsg').textContent = 'No persons detected. Click Analyze to run anyway.';
+  else if (n === 1) document.getElementById('labelMsg').textContent = 'Solo dancer. Label optional.';
+  else document.getElementById('labelMsg').textContent = n + ' persons found. Select lead and follow.';
 
   _renderPersonButtons();
-
-  // Seek to start, capture frame (which hides video)
-  player.currentTime = 0;
-  const onSeek = () => {
-    player.removeEventListener('seeked', onSeek);
-    _captureFrame();
-  };
-  player.addEventListener('seeked', onSeek);
-  if (player.currentTime === 0) {
-    setTimeout(() => _captureFrame(), 300);
-  }
-}
-
-function _captureFrame() {
-  const canvas = document.getElementById('labelCanvas');
-  if (!canvas) return;
-  const player = document.getElementById('videoPlayer');
-  const cw = player.videoWidth;
-  const ch = player.videoHeight;
-  if (!cw || !ch) {
-    // Video metadata not ready — retry
-    setTimeout(() => _captureFrame(), 200);
-    return;
-  }
-  canvas.width = cw;
-  canvas.height = ch;
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(player, 0, 0, cw, ch);
-  labelFrameSnapshot = ctx.getImageData(0, 0, cw, ch);
-  player.classList.add('hidden');
   _drawLabelOverlay();
-}
-
-function _drawLabelCanvas() {
-  _captureFrame();
 }
 
 function _drawLabelOverlay() {
@@ -637,15 +609,11 @@ function _drawLabelOverlay() {
   const ctx = canvas.getContext('2d');
   ctx.putImageData(labelFrameSnapshot, 0, 0);
 
-  const drawW = canvas.width, drawH = canvas.height;
-  const offX = 0, offY = 0;
-
+  const W = canvas.width, H = canvas.height;
   labelBoxes = [];
   labelDetectedBoxes.forEach((det, idx) => {
-    const bx = offX + det.x1 * drawW;
-    const by = offY + det.y1 * drawH;
-    const bw = (det.x2 - det.x1) * drawW;
-    const bh = (det.y2 - det.y1) * drawH;
+    const bx = det.x1 * W, by = det.y1 * H;
+    const bw = (det.x2 - det.x1) * W, bh = (det.y2 - det.y1) * H;
     labelBoxes.push({ x: bx, y: by, w: bw, h: bh, idx,
       nx1: det.x1, ny1: det.y1, nx2: det.x2, ny2: det.y2 });
 
@@ -655,13 +623,11 @@ function _drawLabelOverlay() {
     else if (role === 'follow') { boxColor = '#4da6ff'; ctx.fillStyle = 'rgba(77,166,255,0.2)'; }
     else { boxColor = '#ffcc00'; ctx.fillStyle = 'rgba(255,204,0,0.1)'; }
 
-    // Draw box
     ctx.strokeStyle = boxColor;
     ctx.lineWidth = 4;
     ctx.strokeRect(bx, by, bw, bh);
     ctx.fillRect(bx, by, bw, bh);
 
-    // Number label on box
     const numLabel = role ? role.charAt(0).toUpperCase() + role.slice(1) : 'P' + (idx + 1);
     ctx.font = 'bold 18px sans-serif';
     ctx.lineWidth = 4;
@@ -729,7 +695,7 @@ function _renderPersonButtons() {
           if (k !== key && v === sel.value) delete labelAssign[k];
         }
         _renderPersonButtons();
-        _drawLabelCanvas();
+        _drawLabelOverlay();
       }
     };
 
