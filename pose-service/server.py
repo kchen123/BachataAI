@@ -193,6 +193,7 @@ def _run_analysis(req: AnalyzeRequest):
         max_persons = len(req.selected_boxes) if req.selected_boxes else None
         # Track ID → role mapping, built from early frames where IoU matching works
         track_to_role = {}
+        prev_persons = []  # last frame's persons, for carry-forward on occlusion
 
         # Reset YOLO tracker state for this new video
         MODEL.predictor = None
@@ -308,6 +309,17 @@ def _run_analysis(req: AnalyzeRequest):
                 # Enforce max_persons cap (e.g. 2 ticked = at most 2 per frame)
                 if max_persons and len(persons) > max_persons:
                     persons = persons[:max_persons]
+
+                # If fewer persons than expected, carry forward last known pose
+                # so skeletons don't vanish during brief occlusions
+                if max_persons and len(persons) < max_persons and prev_persons:
+                    current_tids = {p.get("track_id", -1) for p in persons}
+                    for pp in prev_persons:
+                        if len(persons) >= max_persons:
+                            break
+                        if pp.get("track_id", -1) not in current_tids and pp.get("track_id", -1) >= 0:
+                            persons.append(pp)
+                prev_persons = [p.copy() for p in persons]
 
                 # Clean up internal fields before saving
                 for p in persons:

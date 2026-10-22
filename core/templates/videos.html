@@ -1169,10 +1169,10 @@ function drawCurrentPose() {
     const rawLm = persons[pIdx].keypoints;
     if (!rawLm) continue;
     const lm = typeof rawLm === 'string' ? JSON.parse(rawLm) : rawLm;
-    // Use role labels for color if available, else fall back to positional index
+    // Use role for color: check person's own label first, then roleLabels map, else positional
     const tid = String(persons[pIdx].track_id);
-    const role = roleLabels && roleLabels[tid];
-    const color = role ? ROLE_COLOR[role] : (COLORS[pIdx] || COLORS[COLORS.length - 1]);
+    const role = persons[pIdx].label || (roleLabels && roleLabels[tid]) || null;
+    const color = role ? (ROLE_COLOR[role] || COLORS[pIdx] || COLORS[COLORS.length - 1]) : (COLORS[pIdx] || COLORS[COLORS.length - 1]);
 
     // Draw connections
     ctx.strokeStyle = color.line;
