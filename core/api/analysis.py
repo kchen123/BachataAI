@@ -126,7 +126,7 @@ def api_detect_first_frame(video_id):
             f"{POSE_SERVICE_URL}/detect-first-frame",
             json={"gcs_bucket": BUCKET_NAME, "gcs_blob": video["filename"]},
             headers=_auth_headers(),
-            timeout=60,
+            timeout=120,
         )
         return jsonify(resp.json()), resp.status_code
     except Exception as e:

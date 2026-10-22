@@ -611,8 +611,9 @@ async function openDetectLabel(videoId) {
       keypoints: p.keypoints || null
     }));
   } catch (e) {
-    document.getElementById('labelMsg').textContent = 'Detection failed — click Analyze to run without labels.';
-    return;
+    document.getElementById('labelMsg').textContent = 'Detection failed (' + e.message + '). Click Analyze to run without labels.';
+    document.getElementById('labelSaveBtn').textContent = 'Analyze';
+    // Don't return — let user click Analyze/Skip without labels
   }
 
   // Step 5: Show results
