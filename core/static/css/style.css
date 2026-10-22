@@ -579,14 +579,6 @@
   margin-top: 12px;
 }
 
-.upload-progress-info {
-  display: flex;
-  justify-content: space-between;
-  font-size: 11px;
-  color: var(--text-secondary);
-  margin-bottom: 6px;
-}
-
 .upload-progress-bar {
   height: 3px;
   background: var(--bg-card-hover);

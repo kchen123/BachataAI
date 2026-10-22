@@ -548,6 +548,13 @@ function closeVideo() {
 }
 
 // ── Label Lead/Follow ──────────────────────────────────────────────────────
+const LABEL_COLORS = [
+  '#00ff88', '#4da6ff', '#ff6b6b', '#ffcc00',
+  '#cc66ff', '#ff8844', '#44ffcc', '#ff44aa',
+  '#88ff44', '#44aaff',
+];
+const ROLE_COLORS = { lead: '#00ff88', follow: '#4da6ff' };
+
 let labelBoxes = [];     // normalized boxes [{x1,y1,x2,y2,idx}]
 let labelAssign = {};    // idx → "lead"|"follow"
 let labelVideoId = null;
@@ -618,14 +625,6 @@ function _drawLabelFrame() {
   const ctx = canvas.getContext('2d');
   ctx.drawImage(player, 0, 0, canvas.width, canvas.height);
 
-  // Distinct colors per person so checkboxes match skeletons
-  const LABEL_COLORS = [
-    '#00ff88', '#4da6ff', '#ff6b6b', '#ffcc00',
-    '#cc66ff', '#ff8844', '#44ffcc', '#ff44aa',
-    '#88ff44', '#44aaff',
-  ];
-  const ROLE_COLORS = { lead: '#00ff88', follow: '#4da6ff' };
-
   const W = canvas.width, H = canvas.height;
   for (const box of labelBoxes) {
     const role = labelAssign[String(box.idx)];
@@ -691,12 +690,6 @@ function _renderLabelUI() {
     const key = String(box.idx);
     const role = labelAssign[key];
 
-    const LABEL_COLORS = [
-      '#00ff88', '#4da6ff', '#ff6b6b', '#ffcc00',
-      '#cc66ff', '#ff8844', '#44ffcc', '#ff44aa',
-      '#88ff44', '#44aaff',
-    ];
-    const ROLE_COLORS = { lead: '#00ff88', follow: '#4da6ff' };
     const dotColor = role ? ROLE_COLORS[role] : LABEL_COLORS[box.idx % LABEL_COLORS.length];
 
     const item = document.createElement('label');
@@ -864,15 +857,12 @@ function runAnalysis(videoId) {
   {% endif %}
 }
 
-let maxPersons = 0;  // show all detected persons
+
 
 function showProcessingCard(videoId) {
   const card = document.querySelector('.file-card[data-type="video"][data-id="' + videoId + '"]');
   if (!card || card.classList.contains('processing')) return;
   card.classList.add('processing');
-  // Hide analyze button
-  const analyzeBtn = card.querySelector('.file-card-analyze');
-  if (analyzeBtn) analyzeBtn.classList.add('hidden');
   const nameEl = card.querySelector('.file-card-name');
   const origText = nameEl.textContent;
   nameEl.innerHTML = origText + '<span class="processing-status" id="pStatus' + videoId + '">Running...</span><button class="btn btn-sm processing-cancel" onclick="event.stopPropagation(); cancelAnalysis(' + videoId + ')">Cancel</button>';
@@ -1118,14 +1108,7 @@ function drawCurrentPose() {
   let persons = closest.persons || [{ keypoints: closest.keypoints || closest.landmarks }];
   if (!persons.length) return;
 
-  // Filter to max persons — sort by distance to center, keep closest
-  if (maxPersons > 0 && persons.length > maxPersons) {
-    persons = [...persons].sort((a, b) => {
-      const aCx = a.center_x || 0.5;
-      const bCx = b.center_x || 0.5;
-      return Math.abs(aCx - 0.5) - Math.abs(bCx - 0.5);
-    }).slice(0, maxPersons);
-  }
+
 
   // Calculate actual video area within the player (handles letterboxing/pillarboxing)
   const vw = player.videoWidth || 1;
@@ -1459,17 +1442,6 @@ let metricsData = null;
 let metricsVisible = false;
 
 const SPEED_JOINTS = [5, 6, 11, 12, 13, 14]; // shoulders, hips, knees
-
-function computeWeight(kpts) {
-  const lh = kpts['11'], rh = kpts['12'], la = kpts['15'], ra = kpts['16'];
-  if (!lh || !rh || !la || !ra) return null;
-  if (lh.visibility < 0.5 || rh.visibility < 0.5 || la.visibility < 0.5 || ra.visibility < 0.5) return null;
-  const hipCx = (lh.x + rh.x) / 2;
-  const dL = Math.abs(hipCx - la.x), dR = Math.abs(hipCx - ra.x);
-  const total = dL + dR;
-  if (total < 0.001) return 50;
-  return Math.round((1 - dL / total) * 100);
-}
 
 function computeMetrics(frames) {
   if (!frames || frames.length < 2) return null;
