@@ -618,10 +618,18 @@ function _drawLabelFrame() {
   const ctx = canvas.getContext('2d');
   ctx.drawImage(player, 0, 0, canvas.width, canvas.height);
 
+  // Distinct colors per person so checkboxes match skeletons
+  const LABEL_COLORS = [
+    '#00ff88', '#4da6ff', '#ff6b6b', '#ffcc00',
+    '#cc66ff', '#ff8844', '#44ffcc', '#ff44aa',
+    '#88ff44', '#44aaff',
+  ];
+  const ROLE_COLORS = { lead: '#00ff88', follow: '#4da6ff' };
+
   const W = canvas.width, H = canvas.height;
   for (const box of labelBoxes) {
     const role = labelAssign[String(box.idx)];
-    const color = role === 'lead' ? '#00ff88' : role === 'follow' ? '#4da6ff' : '#ffcc00';
+    const color = role ? ROLE_COLORS[role] : LABEL_COLORS[box.idx % LABEL_COLORS.length];
     const kp = box.keypoints;
 
     if (kp) {
@@ -629,7 +637,7 @@ function _drawLabelFrame() {
       ctx.strokeStyle = color;
       ctx.lineWidth = 3;
       ctx.shadowColor = color;
-      ctx.shadowBlur = 6;
+      ctx.shadowBlur = 8;
       for (const [a, b] of SKELETON_CONNECTIONS) {
         const pa = kp[a] || kp[String(a)];
         const pb = kp[b] || kp[String(b)];
@@ -651,19 +659,22 @@ function _drawLabelFrame() {
         ctx.fill();
       }
 
-      // Label near the head (nose keypoint 0, or fallback to bbox top)
+      // Big label near the head
       const nose = kp[0] || kp['0'];
       let lx, ly;
       if (nose && nose.visibility > 0.4) {
-        lx = nose.x * W; ly = nose.y * H - 20;
+        lx = nose.x * W - 10; ly = nose.y * H - 25;
       } else {
-        lx = box.x1 * W + 6; ly = box.y1 * H + 24;
+        lx = box.x1 * W + 6; ly = box.y1 * H + 30;
       }
       const label = role ? role.charAt(0).toUpperCase() + role.slice(1) : 'P' + (box.idx + 1);
-      ctx.font = 'bold 22px sans-serif';
-      ctx.strokeStyle = '#000';
-      ctx.lineWidth = 4;
-      ctx.strokeText(label, lx, ly);
+      // Background pill
+      ctx.font = 'bold 24px sans-serif';
+      const tw = ctx.measureText(label).width;
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      ctx.beginPath();
+      ctx.roundRect(lx - 4, ly - 22, tw + 8, 28, 4);
+      ctx.fill();
       ctx.fillStyle = color;
       ctx.fillText(label, lx, ly);
     }
@@ -680,24 +691,46 @@ function _renderLabelUI() {
     const key = String(box.idx);
     const role = labelAssign[key];
 
+    const LABEL_COLORS = [
+      '#00ff88', '#4da6ff', '#ff6b6b', '#ffcc00',
+      '#cc66ff', '#ff8844', '#44ffcc', '#ff44aa',
+      '#88ff44', '#44aaff',
+    ];
+    const ROLE_COLORS = { lead: '#00ff88', follow: '#4da6ff' };
+    const dotColor = role ? ROLE_COLORS[role] : LABEL_COLORS[box.idx % LABEL_COLORS.length];
+
     const item = document.createElement('label');
     item.className = 'label-person-item';
+    item.style.borderColor = dotColor;
 
     const cb = document.createElement('input');
     cb.type = 'checkbox';
     cb.checked = !!role;
 
+    const dot = document.createElement('span');
+    dot.style.cssText = 'width:10px;height:10px;border-radius:50%;background:' + dotColor + ';flex-shrink:0;';
+
     const span = document.createElement('span');
-    span.textContent = 'Person ' + (box.idx + 1);
+    span.textContent = 'P' + (box.idx + 1);
 
     const sel = document.createElement('select');
     sel.className = 'label-role-select';
     sel.innerHTML = '<option value="lead">Lead</option><option value="follow">Follow</option>';
     sel.value = role || 'lead';
 
+    // Auto-default: if lead exists, new selection defaults to follow and vice versa
+    const hasLead = Object.values(labelAssign).includes('lead');
+    const hasFollow = Object.values(labelAssign).includes('follow');
+    if (!role) {
+      sel.value = hasLead && !hasFollow ? 'follow' : 'lead';
+    }
+
     cb.onchange = () => {
-      if (cb.checked) labelAssign[key] = sel.value;
-      else delete labelAssign[key];
+      if (cb.checked) {
+        labelAssign[key] = sel.value;
+      } else {
+        delete labelAssign[key];
+      }
       _dedupRoles(key);
       _renderLabelUI();
     };
@@ -710,6 +743,7 @@ function _renderLabelUI() {
     };
 
     item.appendChild(cb);
+    item.appendChild(dot);
     item.appendChild(span);
     item.appendChild(sel);
     container.appendChild(item);
