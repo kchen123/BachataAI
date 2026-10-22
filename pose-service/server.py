@@ -247,8 +247,8 @@ def _run_analysis(req: AnalyzeRequest):
 
                 # Filter out small bboxes (background people/audience)
                 if ref_area is not None:
-                    # Use relative filtering: keep persons >= 40% of reference area
-                    persons = [p for p in persons if p["bbox_area"] > ref_area * 0.4]
+                    # Use relative filtering: keep persons >= 20% of reference area
+                    persons = [p for p in persons if p["bbox_area"] > ref_area * 0.2]
                 else:
                     persons = [p for p in persons if p["bbox_area"] > 0.02]
 
@@ -271,6 +271,11 @@ def _run_analysis(req: AnalyzeRequest):
                     matched = [p for p in persons if p["_best_iou"] > 0.2]
 
                     if matched:
+                        # If we matched fewer than expected, fill from unmatched by area
+                        if max_persons and len(matched) < max_persons:
+                            unmatched = sorted([p for p in persons if p["_best_iou"] <= 0.2],
+                                               key=lambda p: p["bbox_area"], reverse=True)
+                            matched.extend(unmatched[:max_persons - len(matched)])
                         persons = matched
                     else:
                         # IoU matching failed (people moved far from frame-1 boxes).
