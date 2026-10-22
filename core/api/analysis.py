@@ -111,6 +111,28 @@ def _sync_db_if_done(video_id):
 # ── Main Endpoints ──────────────────────────────────────────────────────────
 
 
+@analysis_bp.route("/api/videos/<int:video_id>/detect", methods=["POST"])
+def api_detect_first_frame(video_id):
+    """Quick detection of persons in the first frame — for labeling before analysis."""
+    repo = get_repo()
+    video = VideosAdapter(repo).get(video_id)
+    if not video:
+        return jsonify({"error": "video not found"}), 404
+    if not video.get("filename"):
+        return jsonify({"error": "video has no file"}), 400
+
+    try:
+        resp = requests.post(
+            f"{POSE_SERVICE_URL}/detect-first-frame",
+            json={"gcs_bucket": BUCKET_NAME, "gcs_blob": video["filename"]},
+            headers=_auth_headers(),
+            timeout=60,
+        )
+        return jsonify(resp.json()), resp.status_code
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @analysis_bp.route("/api/videos/<int:video_id>/analyze", methods=["POST"])
 def api_run_analysis(video_id):
     repo = get_repo()
@@ -141,24 +163,37 @@ def api_run_analysis(video_id):
     body = request.get_json(silent=True) or {}
     sample_every_n = body.get("sample_every_n", 2)
     resolution = body.get("resolution", 640)
+    selected_boxes = body.get("selected_boxes")  # optional user-labeled boxes
 
     analysis = aa.create(video_id=video_id, model="yolo26x-pose")
     aa.set_status(analysis["id"], "running")
 
+    # Save role labels to video if provided
+    if selected_boxes:
+        labels = {}
+        for sb in selected_boxes:
+            if sb.get("label"):
+                # Use box index as temp key — will be mapped to track_id after analysis
+                labels[str(len(labels))] = sb["label"]
+        if labels:
+            repo.update("bachata.videos", video_id, {"role_labels": json.dumps(labels)})
+
     # Send to GPU — fire and forget via thread
-    # GPU blocks synchronously (keeps its container alive)
-    # Flask doesn't need the response — progress is in GCS
+    gpu_payload = {
+        "gcs_bucket": BUCKET_NAME,
+        "gcs_blob": video["filename"],
+        "video_id": video_id,
+        "sample_every_n": sample_every_n,
+        "resolution": resolution,
+    }
+    if selected_boxes:
+        gpu_payload["selected_boxes"] = selected_boxes
+
     def _send():
         try:
             requests.post(
                 f"{POSE_SERVICE_URL}/analyze",
-                json={
-                    "gcs_bucket": BUCKET_NAME,
-                    "gcs_blob": video["filename"],
-                    "video_id": video_id,
-                    "sample_every_n": sample_every_n,
-                    "resolution": resolution,
-                },
+                json=gpu_payload,
                 headers=_auth_headers(),
                 timeout=3600,
             )

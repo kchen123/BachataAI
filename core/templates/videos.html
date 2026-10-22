@@ -178,8 +178,8 @@
         </div>
         <canvas id="labelCanvas"></canvas>
         <div class="label-actions">
-          <button class="btn btn-sm" onclick="saveLabelRoles()">Save</button>
-          <button class="btn btn-sm" onclick="closeLabelPanel()">Skip</button>
+          <button class="btn btn-sm btn-accent" id="labelSaveBtn" onclick="saveLabelRoles()">Analyze</button>
+          <button class="btn btn-sm" onclick="skipLabel()">Skip</button>
         </div>
       </div>
       {% endif %}
@@ -556,71 +556,135 @@ function closeVideo() {
 }
 
 // ── Label Lead/Follow ──────────────────────────────────────────────────────
-let labelPersons = [];
-let labelAssign = {};
-let labelBoxes = [];
+let labelBoxes = [];     // [{x,y,w,h, nx1,ny1,nx2,ny2, label}] canvas + normalized coords
+let labelAssign = {};    // index → "lead"|"follow"
+let labelMode = 'pre';   // 'pre' = before analysis, 'post' = relabel after
+let labelVideoId = null;
+let labelDetectedBoxes = []; // raw detected boxes from /detect
+
+async function openDetectLabel(videoId) {
+  labelVideoId = videoId;
+  labelMode = 'pre';
+  labelAssign = {};
+  const panel = document.getElementById('labelPanel');
+  if (!panel) { triggerAnalysis(videoId, 2, 640); return; }
+
+  const player = document.getElementById('videoPlayer');
+  document.getElementById('labelMsg').textContent = 'Detecting persons...';
+  document.getElementById('labelSaveBtn').textContent = 'Analyze';
+  panel.classList.remove('hidden');
+
+  // Call detect endpoint
+  try {
+    const res = await fetch('/api/videos/' + videoId + '/detect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) throw new Error('detect failed');
+    const data = await res.json();
+    labelDetectedBoxes = data.persons || [];
+  } catch (e) {
+    document.getElementById('labelMsg').textContent = 'Detection failed — click Analyze to run without labels.';
+    labelDetectedBoxes = [];
+    return;
+  }
+
+  const n = labelDetectedBoxes.length;
+  if (n === 0) {
+    document.getElementById('labelMsg').textContent = 'No persons detected. Click Analyze to run anyway.';
+  } else if (n === 1) {
+    document.getElementById('labelMsg').textContent = 'Solo dancer detected. Click the box to label, or Analyze to skip.';
+  } else {
+    document.getElementById('labelMsg').textContent = `${n} persons found. Click to label: Lead (green) → Follow (blue). Then Analyze.`;
+  }
+
+  // Seek to start and draw
+  player.currentTime = 0;
+  const drawAfterSeek = () => { player.removeEventListener('seeked', drawAfterSeek); _drawLabelCanvas(); };
+  player.addEventListener('seeked', drawAfterSeek);
+  setTimeout(() => _drawLabelCanvas(), 200);
+}
 
 function openLabelPanel() {
+  // Post-analysis relabel using existing pose data
+  labelVideoId = currentVideoId;
+  labelMode = 'post';
+  labelAssign = {};
   const panel = document.getElementById('labelPanel');
   const player = document.getElementById('videoPlayer');
   player.pause();
+  document.getElementById('labelSaveBtn').textContent = 'Save';
 
-  // Ensure pose data is loaded
   if (!poseFrames) {
-    togglePose();  // triggers load
+    togglePose();
     const check = setInterval(() => {
-      if (poseFrames) { clearInterval(check); _initLabelPanel(); }
+      if (poseFrames) { clearInterval(check); _initPostLabel(); }
     }, 200);
   } else {
-    _initLabelPanel();
+    _initPostLabel();
   }
   panel.classList.remove('hidden');
 }
 
-function _initLabelPanel() {
-  // Find first frame with persons
+function _initPostLabel() {
+  // Build detected boxes from first frame's keypoints
   let firstFrame = null;
   for (const f of poseFrames) {
     if (f.persons && f.persons.length > 0) { firstFrame = f; break; }
   }
   if (!firstFrame) {
-    document.getElementById('labelMsg').textContent = 'No persons detected in this video.';
+    document.getElementById('labelMsg').textContent = 'No persons detected.';
     return;
   }
 
-  labelPersons = firstFrame.persons;
-  // Pre-populate from existing role_labels
-  labelAssign = roleLabels ? Object.assign({}, roleLabels) : {};
+  labelDetectedBoxes = [];
+  for (const person of firstFrame.persons) {
+    const kp = person.keypoints;
+    if (!kp) continue;
+    let minX = 1, maxX = 0, minY = 1, maxY = 0, count = 0;
+    for (const k of Object.values(kp)) {
+      if (k.visibility < 0.5) continue;
+      minX = Math.min(minX, k.x); maxX = Math.max(maxX, k.x);
+      minY = Math.min(minY, k.y); maxY = Math.max(maxY, k.y);
+      count++;
+    }
+    if (count < 3) continue;
+    const pad = 0.03;
+    labelDetectedBoxes.push({
+      x1: Math.max(0, minX - pad), y1: Math.max(0, minY - pad),
+      x2: Math.min(1, maxX + pad), y2: Math.min(1, maxY + pad),
+      center_x: (minX + maxX) / 2,
+    });
+  }
 
-  const n = labelPersons.length;
-  if (n === 1) document.getElementById('labelMsg').textContent = 'Solo dancer detected — labeling optional. Click the box to assign a role.';
-  else if (n === 2) document.getElementById('labelMsg').textContent = 'Click a box to assign: Lead (green) or Follow (blue).';
-  else document.getElementById('labelMsg').textContent = `${n} persons detected. Select the Lead and Follow.`;
+  // Pre-populate from existing labels
+  if (roleLabels) {
+    Object.entries(roleLabels).forEach(([k, v]) => { labelAssign[k] = v; });
+  }
 
-  // Seek video to this frame's time and draw
+  const n = labelDetectedBoxes.length;
+  if (n === 1) document.getElementById('labelMsg').textContent = 'Solo dancer. Click the box to label.';
+  else if (n === 2) document.getElementById('labelMsg').textContent = 'Click a box: Lead (green) → Follow (blue).';
+  else document.getElementById('labelMsg').textContent = `${n} persons detected. Select Lead and Follow.`;
+
   const player = document.getElementById('videoPlayer');
   player.currentTime = firstFrame.timestamp_sec || 0;
-  player.addEventListener('seeked', function _drawOnce() {
-    player.removeEventListener('seeked', _drawOnce);
-    _drawLabelCanvas();
-  });
-  // If already at that time, draw now
-  setTimeout(() => _drawLabelCanvas(), 100);
+  const draw = () => { player.removeEventListener('seeked', draw); _drawLabelCanvas(); };
+  player.addEventListener('seeked', draw);
+  setTimeout(() => _drawLabelCanvas(), 200);
 }
 
 function _drawLabelCanvas() {
   const canvas = document.getElementById('labelCanvas');
+  if (!canvas) return;
   const player = document.getElementById('videoPlayer');
   const wrapper = canvas.parentElement;
   canvas.width = wrapper.clientWidth;
   canvas.height = wrapper.clientHeight;
   const ctx = canvas.getContext('2d');
 
-  // Draw video frame
-  const vw = player.videoWidth || 1;
-  const vh = player.videoHeight || 1;
-  const videoAspect = vw / vh;
-  const canvasAspect = canvas.width / canvas.height;
+  const vw = player.videoWidth || 1, vh = player.videoHeight || 1;
+  const videoAspect = vw / vh, canvasAspect = canvas.width / canvas.height;
   let drawW, drawH, offX, offY;
   if (videoAspect > canvasAspect) {
     drawW = canvas.width; drawH = canvas.width / videoAspect;
@@ -631,76 +695,47 @@ function _drawLabelCanvas() {
   }
   ctx.drawImage(player, offX, offY, drawW, drawH);
 
-  // Compute bounding boxes from keypoints and draw
   labelBoxes = [];
-  for (const person of labelPersons) {
-    const kp = person.keypoints;
-    if (!kp) continue;
-    let minX = 1, maxX = 0, minY = 1, maxY = 0;
-    let count = 0;
-    for (const k of Object.values(kp)) {
-      if (k.visibility < 0.5) continue;
-      minX = Math.min(minX, k.x); maxX = Math.max(maxX, k.x);
-      minY = Math.min(minY, k.y); maxY = Math.max(maxY, k.y);
-      count++;
-    }
-    if (count < 3) continue;
-    // Add padding
-    const pad = 0.03;
-    minX = Math.max(0, minX - pad); maxX = Math.min(1, maxX + pad);
-    minY = Math.max(0, minY - pad); maxY = Math.min(1, maxY + pad);
+  labelDetectedBoxes.forEach((det, idx) => {
+    const bx = offX + det.x1 * drawW;
+    const by = offY + det.y1 * drawH;
+    const bw = (det.x2 - det.x1) * drawW;
+    const bh = (det.y2 - det.y1) * drawH;
+    labelBoxes.push({ x: bx, y: by, w: bw, h: bh, idx,
+      nx1: det.x1, ny1: det.y1, nx2: det.x2, ny2: det.y2 });
 
-    const bx = offX + minX * drawW;
-    const by = offY + minY * drawH;
-    const bw = (maxX - minX) * drawW;
-    const bh = (maxY - minY) * drawH;
-    const tid = String(person.track_id);
-    labelBoxes.push({ x: bx, y: by, w: bw, h: bh, track_id: tid });
-
-    // Color based on assignment
-    const role = labelAssign[tid];
+    const role = labelAssign[String(idx)];
     if (role === 'lead') { ctx.strokeStyle = '#00ff88'; ctx.fillStyle = 'rgba(0,255,136,0.15)'; }
     else if (role === 'follow') { ctx.strokeStyle = '#4da6ff'; ctx.fillStyle = 'rgba(77,166,255,0.15)'; }
-    else { ctx.strokeStyle = '#888'; ctx.fillStyle = 'rgba(255,255,255,0.05)'; }
+    else { ctx.strokeStyle = '#888'; ctx.fillStyle = 'rgba(255,255,255,0.08)'; }
 
     ctx.lineWidth = 3;
     ctx.strokeRect(bx, by, bw, bh);
     ctx.fillRect(bx, by, bw, bh);
 
-    // Label text
     if (role) {
       ctx.font = 'bold 14px sans-serif';
       ctx.fillStyle = role === 'lead' ? '#00ff88' : '#4da6ff';
       ctx.fillText(role.charAt(0).toUpperCase() + role.slice(1), bx + 4, by - 6);
     }
-  }
+  });
 }
 
-// Click handler on label canvas (only exists for admin)
+// Click handler on label canvas
 const _labelCanvas = document.getElementById('labelCanvas');
 if (_labelCanvas) _labelCanvas.addEventListener('click', function(e) {
   const rect = this.getBoundingClientRect();
-  const cx = e.clientX - rect.left;
-  const cy = e.clientY - rect.top;
+  const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
   for (const box of labelBoxes) {
     if (cx >= box.x && cx <= box.x + box.w && cy >= box.y && cy <= box.y + box.h) {
-      const tid = box.track_id;
-      const current = labelAssign[tid];
-      // Cycle: unlabeled → lead → follow → unlabeled
-      // But also clear any other person with the same role
-      if (!current) {
-        // If someone else is "lead", keep them; assign this as lead
-        labelAssign[tid] = 'lead';
-      } else if (current === 'lead') {
-        labelAssign[tid] = 'follow';
-      } else {
-        delete labelAssign[tid];
-      }
-      // Ensure no duplicate roles
-      for (const [otherTid, otherRole] of Object.entries(labelAssign)) {
-        if (otherTid !== tid && otherRole === labelAssign[tid]) {
-          delete labelAssign[otherTid];
-        }
+      const key = String(box.idx);
+      const current = labelAssign[key];
+      if (!current) labelAssign[key] = 'lead';
+      else if (current === 'lead') labelAssign[key] = 'follow';
+      else delete labelAssign[key];
+      // No duplicate roles
+      for (const [k, v] of Object.entries(labelAssign)) {
+        if (k !== key && v === labelAssign[key]) delete labelAssign[k];
       }
       _drawLabelCanvas();
       break;
@@ -709,16 +744,39 @@ if (_labelCanvas) _labelCanvas.addEventListener('click', function(e) {
 });
 
 async function saveLabelRoles() {
-  const labels = Object.keys(labelAssign).length > 0 ? labelAssign : null;
-  await fetch('/api/videos/' + currentVideoId + '/role-labels', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ labels }),
-  });
-  roleLabels = labels;
-  const btn = document.getElementById('labelRolesBtn');
-  if (btn) btn.textContent = labels ? 'Re-label' : 'Label';
+  if (labelMode === 'pre') {
+    // Build selected_boxes with labels for the analyze call
+    const selectedBoxes = [];
+    for (const box of labelBoxes) {
+      const role = labelAssign[String(box.idx)];
+      if (role) {
+        selectedBoxes.push({ x1: box.nx1, y1: box.ny1, x2: box.nx2, y2: box.ny2, label: role });
+      }
+    }
+    closeLabelPanel();
+    triggerAnalysis(labelVideoId, 2, 640, selectedBoxes.length > 0 ? selectedBoxes : null);
+  } else {
+    // Post-analysis: save labels via API
+    const labels = {};
+    for (const [k, v] of Object.entries(labelAssign)) { labels[k] = v; }
+    const payload = Object.keys(labels).length > 0 ? labels : null;
+    await fetch('/api/videos/' + labelVideoId + '/role-labels', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ labels: payload }),
+    });
+    roleLabels = payload;
+    const btn = document.getElementById('labelRolesBtn');
+    if (btn) btn.textContent = payload ? 'Re-label' : 'Label';
+    closeLabelPanel();
+  }
+}
+
+function skipLabel() {
   closeLabelPanel();
+  if (labelMode === 'pre') {
+    triggerAnalysis(labelVideoId, 2, 640);
+  }
 }
 
 function closeLabelPanel() {
@@ -765,7 +823,12 @@ function confirmRerunAction() {
 }
 
 function runAnalysis(videoId) {
-  triggerAnalysis(videoId || currentVideoId, 2, 640);
+  const vid = videoId || currentVideoId;
+  {% if user.role == 'admin' %}
+  openDetectLabel(vid);
+  {% else %}
+  triggerAnalysis(vid, 2, 640);
+  {% endif %}
 }
 
 let maxPersons = 2;
@@ -846,9 +909,6 @@ function clearProcessingCard(videoId, status) {
       poseHasAnalysis = true;
       document.getElementById('poseAnalyze').classList.add('hidden');
       document.getElementById('poseControls').classList.remove('hidden');
-      // Auto-prompt labeling for admin after analysis completes
-      const labelBtn = document.getElementById('labelRolesBtn');
-      if (labelBtn) setTimeout(() => openLabelPanel(), 1500);
     }
   }
 
@@ -885,13 +945,14 @@ function closeCancelModal() {
   _cancelVideoId = null;
 }
 
-async function triggerAnalysis(videoId, sampleRate, resolution) {
+async function triggerAnalysis(videoId, sampleRate, resolution, selectedBoxes) {
   closeVideo();
   showProcessingCard(videoId);
 
   const body = {};
   if (sampleRate) body.sample_every_n = sampleRate;
   if (resolution) body.resolution = resolution;
+  if (selectedBoxes) body.selected_boxes = selectedBoxes;
 
   const res = await fetch('/api/videos/' + videoId + '/analyze', {
     method: 'POST',

@@ -28,12 +28,19 @@ def _gcs():
     return GCS_CLIENT
 
 
+class DetectRequest(BaseModel):
+    gcs_bucket: str = "bachataai-videos"
+    gcs_blob: str
+    resolution: int = 640
+
+
 class AnalyzeRequest(BaseModel):
     gcs_bucket: str = "bachataai-videos"
     gcs_blob: str
     video_id: int
     sample_every_n: int = 2
     resolution: int = 640
+    selected_boxes: list | None = None  # [{x1,y1,x2,y2,label}] normalized 0-1
 
 
 @app.get("/health")
@@ -58,6 +65,65 @@ def _write_progress(bucket, video_id, data, force=False):
         return True
     except Exception:
         return True
+
+
+@app.post("/detect-first-frame")
+def detect_first_frame(req: DetectRequest):
+    """Run detection on the first frame only — returns bounding boxes for labeling."""
+    bucket = _gcs().bucket(req.gcs_bucket)
+    blob = bucket.blob(req.gcs_blob)
+    if not blob.exists():
+        raise HTTPException(status_code=404, detail="Video file not found")
+
+    suffix = os.path.splitext(req.gcs_blob)[1] or ".mp4"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp_path = tmp.name
+        blob.download_to_filename(tmp_path)
+
+    try:
+        cap = cv2.VideoCapture(tmp_path)
+        if not cap.isOpened():
+            raise HTTPException(status_code=400, detail="Could not open video")
+
+        ret, frame = cap.read()
+        cap.release()
+        if not ret:
+            raise HTTPException(status_code=400, detail="Could not read first frame")
+
+        h, w = frame.shape[:2]
+        results = MODEL(frame, verbose=False, imgsz=req.resolution)
+        persons = []
+        if results and results[0].boxes is not None:
+            boxes = results[0].boxes
+            for i in range(len(boxes.xyxy)):
+                box = boxes.xyxy[i]
+                x1, y1, x2, y2 = float(box[0]) / w, float(box[1]) / h, float(box[2]) / w, float(box[3]) / h
+                area = (x2 - x1) * (y2 - y1)
+                if area < 0.02:
+                    continue
+                persons.append({
+                    "x1": round(x1, 4), "y1": round(y1, 4),
+                    "x2": round(x2, 4), "y2": round(y2, 4),
+                    "center_x": round((x1 + x2) / 2, 4),
+                    "area": round(area, 4),
+                })
+        persons.sort(key=lambda p: abs(p["center_x"] - 0.5))
+        return {"persons": persons}
+    finally:
+        os.unlink(tmp_path)
+
+
+def _iou(a, b):
+    """Compute IoU between two boxes {x1,y1,x2,y2}."""
+    ix1 = max(a["x1"], b["x1"])
+    iy1 = max(a["y1"], b["y1"])
+    ix2 = min(a["x2"], b["x2"])
+    iy2 = min(a["y2"], b["y2"])
+    inter = max(0, ix2 - ix1) * max(0, iy2 - iy1)
+    area_a = (a["x2"] - a["x1"]) * (a["y2"] - a["y1"])
+    area_b = (b["x2"] - b["x1"]) * (b["y2"] - b["y1"])
+    union = area_a + area_b - inter
+    return inter / union if union > 0 else 0
 
 
 def _run_analysis(req: AnalyzeRequest):
@@ -142,10 +208,37 @@ def _run_analysis(req: AnalyzeRequest):
                                 "z": 0.0,
                                 "visibility": round(vis, 3),
                             }
-                        persons.append({"keypoints": person_kpts, "center_x": round(cx, 4), "bbox_area": round(bbox_area, 4), "track_id": track_id})
+                        person_data = {"keypoints": person_kpts, "center_x": round(cx, 4), "bbox_area": round(bbox_area, 4), "track_id": track_id}
+                        # Store bbox for IoU matching with selected_boxes
+                        if boxes is not None and len(boxes.xyxy) > p_idx:
+                            box = boxes.xyxy[p_idx]
+                            person_data["bbox"] = {
+                                "x1": round(float(box[0]) / w, 4), "y1": round(float(box[1]) / h, 4),
+                                "x2": round(float(box[2]) / w, 4), "y2": round(float(box[3]) / h, 4),
+                            }
+                        persons.append(person_data)
 
                 # Filter out small bboxes (background people/audience)
                 persons = [p for p in persons if p["bbox_area"] > 0.02]
+
+                # If user selected specific boxes, only keep persons that overlap
+                if req.selected_boxes:
+                    matched = []
+                    for p in persons:
+                        if "bbox" not in p:
+                            continue
+                        best_iou, best_label = 0, None
+                        for sb in req.selected_boxes:
+                            score = _iou(p["bbox"], sb)
+                            if score > best_iou:
+                                best_iou = score
+                                best_label = sb.get("label")
+                        if best_iou > 0.2:
+                            if best_label:
+                                p["label"] = best_label
+                            matched.append(p)
+                    persons = matched
+
                 # Sort by distance to frame center (closest first)
                 persons.sort(key=lambda p: abs(p["center_x"] - 0.5))
 
