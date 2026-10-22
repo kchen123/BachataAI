@@ -563,11 +563,10 @@ async function openDetectLabel(videoId) {
 
   const player = document.getElementById('videoPlayer');
   player.pause();
-  player.classList.add('hidden');
-  document.getElementById('poseCanvas').classList.add('hidden');
   document.getElementById('labelMsg').textContent = 'Detecting persons...';
   document.getElementById('labelSaveBtn').textContent = 'Analyze';
   document.querySelector('.video-controls-bar').classList.add('hidden');
+  document.getElementById('poseCanvas').classList.add('hidden');
   panel.classList.remove('hidden');
 
   // Call detect endpoint
@@ -589,38 +588,51 @@ async function openDetectLabel(videoId) {
   if (n === 0) {
     document.getElementById('labelMsg').textContent = 'No persons detected. Click Analyze to run anyway.';
   } else if (n === 1) {
-    document.getElementById('labelMsg').textContent = 'Solo dancer detected. Click the box to label, or Analyze to skip.';
+    document.getElementById('labelMsg').textContent = 'Solo dancer. Label optional.';
   } else {
-    document.getElementById('labelMsg').textContent = `${n} persons found. Click to label: Lead (green) → Follow (blue). Then Analyze.`;
+    document.getElementById('labelMsg').textContent = `${n} persons found. Select lead and follow.`;
   }
 
-  // Seek to start and draw
+  _renderPersonButtons();
+
+  // Seek to start, capture frame, then hide video
   player.currentTime = 0;
-  const drawAfterSeek = () => { player.removeEventListener('seeked', drawAfterSeek); _drawLabelCanvas(); };
-  player.addEventListener('seeked', drawAfterSeek);
-  setTimeout(() => _drawLabelCanvas(), 200);
+  const onSeek = () => {
+    player.removeEventListener('seeked', onSeek);
+    _captureFrame();
+    player.classList.add('hidden');
+  };
+  player.addEventListener('seeked', onSeek);
+  // If already at 0, fire manually
+  if (player.currentTime === 0) {
+    setTimeout(() => {
+      _captureFrame();
+      player.classList.add('hidden');
+    }, 300);
+  }
 }
 
 function _captureFrame() {
   const canvas = document.getElementById('labelCanvas');
   if (!canvas) return;
   const player = document.getElementById('videoPlayer');
-  const wrapper = canvas.parentElement;
-  canvas.width = wrapper.clientWidth;
-  canvas.height = wrapper.clientHeight;
-  const ctx = canvas.getContext('2d');
-
-  const vw = player.videoWidth || 1, vh = player.videoHeight || 1;
-  const videoAspect = vw / vh, canvasAspect = canvas.width / canvas.height;
-  let drawW, drawH, offX, offY;
-  if (videoAspect > canvasAspect) {
-    drawW = canvas.width; drawH = canvas.width / videoAspect;
-    offX = 0; offY = (canvas.height - drawH) / 2;
+  const vw = player.videoWidth || 640;
+  const vh = player.videoHeight || 360;
+  // Size canvas to match video aspect within available width
+  const panel = document.getElementById('labelPanel');
+  const availW = panel ? panel.clientWidth : 800;
+  const availH = window.innerHeight * 0.75;
+  const videoAspect = vw / vh;
+  let cw, ch;
+  if (availW / availH > videoAspect) {
+    ch = availH; cw = ch * videoAspect;
   } else {
-    drawH = canvas.height; drawW = canvas.height * videoAspect;
-    offX = (canvas.width - drawW) / 2; offY = 0;
+    cw = availW; ch = cw / videoAspect;
   }
-  ctx.drawImage(player, offX, offY, drawW, drawH);
+  canvas.width = Math.round(cw);
+  canvas.height = Math.round(ch);
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(player, 0, 0, canvas.width, canvas.height);
   labelFrameSnapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
   _drawLabelOverlay();
 }
@@ -635,17 +647,8 @@ function _drawLabelOverlay() {
   const ctx = canvas.getContext('2d');
   ctx.putImageData(labelFrameSnapshot, 0, 0);
 
-  const vw = document.getElementById('videoPlayer').videoWidth || 1;
-  const vh = document.getElementById('videoPlayer').videoHeight || 1;
-  const videoAspect = vw / vh, canvasAspect = canvas.width / canvas.height;
-  let drawW, drawH, offX, offY;
-  if (videoAspect > canvasAspect) {
-    drawW = canvas.width; drawH = canvas.width / videoAspect;
-    offX = 0; offY = (canvas.height - drawH) / 2;
-  } else {
-    drawH = canvas.height; drawW = canvas.height * videoAspect;
-    offX = (canvas.width - drawW) / 2; offY = 0;
-  }
+  const drawW = canvas.width, drawH = canvas.height;
+  const offX = 0, offY = 0;
 
   labelBoxes = [];
   labelDetectedBoxes.forEach((det, idx) => {

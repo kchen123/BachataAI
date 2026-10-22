@@ -736,15 +736,10 @@
 
 /* ── Label Lead/Follow Panel ──────────────────────────────────────── */
 .label-panel {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.85);
+  background: rgba(0, 0, 0, 0.95);
   display: flex;
   flex-direction: column;
-  z-index: 20;
+  align-items: center;
 }
 .label-panel.hidden { display: none; }
 .label-panel-top {
@@ -758,9 +753,9 @@
   flex-wrap: wrap;
 }
 #labelCanvas {
-  flex: 1;
-  width: 100%;
   cursor: pointer;
+  display: block;
+  max-width: 100%;
 }
 .label-persons {
   display: flex;
