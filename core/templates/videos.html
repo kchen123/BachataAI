@@ -167,6 +167,7 @@
           <span id="labelMsg">Click a box to assign: Lead or Follow</span>
         </div>
         <canvas id="labelCanvas"></canvas>
+        <div class="label-persons" id="labelPersonBtns"></div>
         <div class="label-actions">
           <button class="btn btn-sm btn-accent" id="labelSaveBtn" onclick="saveLabelRoles()">Analyze</button>
           <button class="btn btn-sm" onclick="skipLabel()">Skip</button>
@@ -628,34 +629,65 @@ function _drawLabelCanvas() {
     ctx.strokeRect(bx, by, bw, bh);
     ctx.fillRect(bx, by, bw, bh);
 
-    if (role) {
-      ctx.font = 'bold 14px sans-serif';
-      ctx.fillStyle = role === 'lead' ? '#00ff88' : '#4da6ff';
-      ctx.fillText(role.charAt(0).toUpperCase() + role.slice(1), bx + 4, by - 6);
-    }
+    // Number label on box
+    ctx.font = 'bold 16px sans-serif';
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 3;
+    const numLabel = role ? role.charAt(0).toUpperCase() + role.slice(1) : 'Person ' + (idx + 1);
+    ctx.strokeText(numLabel, bx + 6, by + 20);
+    ctx.fillText(numLabel, bx + 6, by + 20);
+  });
+
+  _renderPersonButtons();
+}
+
+function _cycleRole(idx) {
+  const key = String(idx);
+  const current = labelAssign[key];
+  if (!current) labelAssign[key] = 'lead';
+  else if (current === 'lead') labelAssign[key] = 'follow';
+  else delete labelAssign[key];
+  // No duplicate roles
+  for (const [k, v] of Object.entries(labelAssign)) {
+    if (k !== key && v === labelAssign[key]) delete labelAssign[k];
+  }
+  _drawLabelCanvas();
+}
+
+function _renderPersonButtons() {
+  const container = document.getElementById('labelPersonBtns');
+  if (!container) return;
+  container.innerHTML = '';
+  labelDetectedBoxes.forEach((det, idx) => {
+    const role = labelAssign[String(idx)];
+    const btn = document.createElement('button');
+    btn.className = 'label-person-btn';
+    if (role === 'lead') btn.classList.add('label-lead');
+    else if (role === 'follow') btn.classList.add('label-follow');
+    btn.textContent = role ? role.charAt(0).toUpperCase() + role.slice(1) : 'Person ' + (idx + 1);
+    btn.onclick = () => _cycleRole(idx);
+    container.appendChild(btn);
   });
 }
 
-// Click handler on label canvas
+// Click handler on label canvas — generous hit area
 const _labelCanvas = document.getElementById('labelCanvas');
 if (_labelCanvas) _labelCanvas.addEventListener('click', function(e) {
   const rect = this.getBoundingClientRect();
   const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+  // Find closest box center within reasonable distance
+  let bestIdx = -1, bestDist = Infinity;
   for (const box of labelBoxes) {
-    if (cx >= box.x && cx <= box.x + box.w && cy >= box.y && cy <= box.y + box.h) {
-      const key = String(box.idx);
-      const current = labelAssign[key];
-      if (!current) labelAssign[key] = 'lead';
-      else if (current === 'lead') labelAssign[key] = 'follow';
-      else delete labelAssign[key];
-      // No duplicate roles
-      for (const [k, v] of Object.entries(labelAssign)) {
-        if (k !== key && v === labelAssign[key]) delete labelAssign[k];
-      }
-      _drawLabelCanvas();
-      break;
+    const bcx = box.x + box.w / 2, bcy = box.y + box.h / 2;
+    const dist = Math.hypot(cx - bcx, cy - bcy);
+    const maxDist = Math.max(box.w, box.h);  // generous hit radius
+    if (dist < maxDist && dist < bestDist) {
+      bestDist = dist;
+      bestIdx = box.idx;
     }
   }
+  if (bestIdx >= 0) _cycleRole(bestIdx);
 });
 
 function saveLabelRoles() {
