@@ -846,6 +846,9 @@ function clearProcessingCard(videoId, status) {
       poseHasAnalysis = true;
       document.getElementById('poseAnalyze').classList.add('hidden');
       document.getElementById('poseControls').classList.remove('hidden');
+      // Auto-prompt labeling for admin after analysis completes
+      const labelBtn = document.getElementById('labelRolesBtn');
+      if (labelBtn) setTimeout(() => openLabelPanel(), 1500);
     }
   }
 
