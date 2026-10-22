@@ -594,7 +594,7 @@ async function openDetectLabel(videoId) {
   player.style.display = 'none';
   document.querySelector('.video-controls-bar').classList.add('hidden');
   document.getElementById('poseCanvas').style.display = 'none';
-  document.getElementById('labelMsg').textContent = 'Detecting persons...';
+  document.getElementById('labelMsg').textContent = 'Warming up GPU & detecting persons... (first time may take 30-60s)';
   document.getElementById('labelSaveBtn').textContent = 'Analyze';
   document.getElementById('labelPersonBtns').innerHTML = '';
   panel.classList.remove('hidden');
