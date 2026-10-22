@@ -647,22 +647,25 @@ function _drawLabelOverlay() {
       nx1: det.x1, ny1: det.y1, nx2: det.x2, ny2: det.y2 });
 
     const role = labelAssign[String(idx)];
-    if (role === 'lead') { ctx.strokeStyle = '#00ff88'; ctx.fillStyle = 'rgba(0,255,136,0.15)'; }
-    else if (role === 'follow') { ctx.strokeStyle = '#4da6ff'; ctx.fillStyle = 'rgba(77,166,255,0.15)'; }
-    else { ctx.strokeStyle = '#888'; ctx.fillStyle = 'rgba(255,255,255,0.08)'; }
+    let boxColor;
+    if (role === 'lead') { boxColor = '#00ff88'; ctx.fillStyle = 'rgba(0,255,136,0.2)'; }
+    else if (role === 'follow') { boxColor = '#4da6ff'; ctx.fillStyle = 'rgba(77,166,255,0.2)'; }
+    else { boxColor = '#ffcc00'; ctx.fillStyle = 'rgba(255,204,0,0.1)'; }
 
-    ctx.lineWidth = 3;
+    // Draw box
+    ctx.strokeStyle = boxColor;
+    ctx.lineWidth = 4;
     ctx.strokeRect(bx, by, bw, bh);
     ctx.fillRect(bx, by, bw, bh);
 
     // Number label on box
-    ctx.font = 'bold 16px sans-serif';
-    ctx.fillStyle = '#fff';
+    const numLabel = role ? role.charAt(0).toUpperCase() + role.slice(1) : 'P' + (idx + 1);
+    ctx.font = 'bold 18px sans-serif';
+    ctx.lineWidth = 4;
     ctx.strokeStyle = '#000';
-    ctx.lineWidth = 3;
-    const numLabel = role ? role.charAt(0).toUpperCase() + role.slice(1) : 'Person ' + (idx + 1);
-    ctx.strokeText(numLabel, bx + 6, by + 20);
-    ctx.fillText(numLabel, bx + 6, by + 20);
+    ctx.strokeText(numLabel, bx + 6, by + 22);
+    ctx.fillStyle = boxColor;
+    ctx.fillText(numLabel, bx + 6, by + 22);
   });
 
   _renderPersonButtons();
