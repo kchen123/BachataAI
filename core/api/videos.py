@@ -30,7 +30,10 @@ PAGE_SIZE = 20
 def home():
     if session.get("logged_in"):
         return redirect("/studio")
-    return render_template("home.html", logged_in=False)
+    from core.adapters.tiers import TiersAdapter
+    repo = get_repo()
+    tiers = TiersAdapter(repo).select(order_by="id ASC")
+    return render_template("home.html", logged_in=False, tiers=tiers)
 
 
 @videos_bp.route("/studio")
