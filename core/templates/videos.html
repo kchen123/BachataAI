@@ -633,6 +633,7 @@ function _drawLabelFrame() {
   ctx.drawImage(_labelFrameCache, 0, 0);
 
   const W = canvas.width, H = canvas.height;
+  const _pendingLabels = [];
   for (const box of labelBoxes) {
     const role = labelAssign[String(box.idx)];
     const color = role ? ROLE_COLORS[role] : LABEL_COLORS[box.idx % LABEL_COLORS.length];
@@ -665,7 +666,7 @@ function _drawLabelFrame() {
         ctx.fill();
       }
 
-      // Big label near the head
+      // Big label near the head — collect for overlap check
       const nose = kp[0] || kp['0'];
       let lx, ly;
       if (nose && nose.visibility > 0.4) {
@@ -674,16 +675,34 @@ function _drawLabelFrame() {
         lx = box.x1 * W + 6; ly = box.y1 * H + 30;
       }
       const label = role ? role.charAt(0).toUpperCase() + role.slice(1) : 'P' + (box.idx + 1);
-      // Background pill
       ctx.font = 'bold 24px sans-serif';
       const tw = ctx.measureText(label).width;
-      ctx.fillStyle = 'rgba(0,0,0,0.7)';
-      ctx.beginPath();
-      ctx.roundRect(lx - 4, ly - 22, tw + 8, 28, 4);
-      ctx.fill();
-      ctx.fillStyle = color;
-      ctx.fillText(label, lx, ly);
+      _pendingLabels.push({lx, ly, label, tw, color});
     }
+  }
+
+  // Resolve overlapping labels — nudge vertically
+  for (let i = 0; i < _pendingLabels.length; i++) {
+    for (let j = i + 1; j < _pendingLabels.length; j++) {
+      const a = _pendingLabels[i], b = _pendingLabels[j];
+      const overlapX = Math.abs(a.lx - b.lx) < Math.max(a.tw, b.tw) + 12;
+      const overlapY = Math.abs(a.ly - b.ly) < 32;
+      if (overlapX && overlapY) {
+        if (a.ly <= b.ly) { a.ly -= 18; b.ly += 18; }
+        else { b.ly -= 18; a.ly += 18; }
+      }
+    }
+  }
+
+  // Draw all labels
+  for (const lb of _pendingLabels) {
+    ctx.font = 'bold 24px sans-serif';
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.beginPath();
+    ctx.roundRect(lb.lx - 4, lb.ly - 22, lb.tw + 8, 28, 4);
+    ctx.fill();
+    ctx.fillStyle = lb.color;
+    ctx.fillText(lb.label, lb.lx, lb.ly);
   }
 }
 
