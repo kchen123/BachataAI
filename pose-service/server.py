@@ -69,7 +69,7 @@ def _write_progress(bucket, video_id, data, force=False):
 
 @app.post("/detect-first-frame")
 def detect_first_frame(req: DetectRequest):
-    """Run detection on the first frame only — returns bounding boxes for labeling."""
+    """Run pose estimation on first frame — returns bboxes + keypoints for labeling."""
     bucket = _gcs().bucket(req.gcs_bucket)
     blob = bucket.blob(req.gcs_blob)
     if not blob.exists():
@@ -93,19 +93,37 @@ def detect_first_frame(req: DetectRequest):
         h, w = frame.shape[:2]
         results = MODEL(frame, verbose=False, imgsz=req.resolution)
         persons = []
-        if results and results[0].boxes is not None:
+        if results and results[0].keypoints is not None:
+            kpts = results[0].keypoints
             boxes = results[0].boxes
-            for i in range(len(boxes.xyxy)):
-                box = boxes.xyxy[i]
-                x1, y1, x2, y2 = float(box[0]) / w, float(box[1]) / h, float(box[2]) / w, float(box[3]) / h
+            for i in range(len(kpts.xy) if kpts.xy is not None else 0):
+                # Bbox
+                x1, y1, x2, y2 = 0, 0, 1, 1
+                if boxes is not None and len(boxes.xyxy) > i:
+                    box = boxes.xyxy[i]
+                    x1, y1, x2, y2 = float(box[0]) / w, float(box[1]) / h, float(box[2]) / w, float(box[3]) / h
                 area = (x2 - x1) * (y2 - y1)
                 if area < 0.02:
                     continue
+
+                # Keypoints
+                xy = kpts.xy[i]
+                conf = kpts.conf[i] if kpts.conf is not None else None
+                person_kpts = {}
+                for k in range(len(xy)):
+                    vis = float(conf[k]) if conf is not None else 1.0
+                    person_kpts[str(k)] = {
+                        "x": round(float(xy[k][0]) / w, 5),
+                        "y": round(float(xy[k][1]) / h, 5),
+                        "visibility": round(vis, 3),
+                    }
+
                 persons.append({
                     "x1": round(x1, 4), "y1": round(y1, 4),
                     "x2": round(x2, 4), "y2": round(y2, 4),
                     "center_x": round((x1 + x2) / 2, 4),
                     "area": round(area, 4),
+                    "keypoints": person_kpts,
                 })
         persons.sort(key=lambda p: abs(p["center_x"] - 0.5))
         return {"persons": persons}

@@ -590,7 +590,8 @@ async function openDetectLabel(videoId) {
     if (!res.ok) throw new Error('detect failed');
     const data = await res.json();
     labelBoxes = (data.persons || []).map((p, i) => ({
-      x1: p.x1, y1: p.y1, x2: p.x2, y2: p.y2, idx: i
+      x1: p.x1, y1: p.y1, x2: p.x2, y2: p.y2, idx: i,
+      keypoints: p.keypoints || null
     }));
   } catch (e) {
     document.getElementById('labelMsg').textContent = 'Detection failed — click Analyze to run without labels.';
@@ -606,44 +607,66 @@ async function openDetectLabel(videoId) {
   _renderLabelUI();
 }
 
-// Draw the video frame + any bounding boxes onto the label canvas
+// Draw the video frame + skeletons onto the label canvas
 function _drawLabelFrame() {
   const canvas = document.getElementById('labelCanvas');
   const player = document.getElementById('videoPlayer');
   if (!canvas || !player || !player.videoWidth) return;
 
-  // Match canvas pixels to video pixels (no CSS scaling mismatch)
   canvas.width = player.videoWidth;
   canvas.height = player.videoHeight;
   const ctx = canvas.getContext('2d');
   ctx.drawImage(player, 0, 0, canvas.width, canvas.height);
 
-  // Draw boxes
   const W = canvas.width, H = canvas.height;
   for (const box of labelBoxes) {
-    const bx = box.x1 * W, by = box.y1 * H;
-    const bw = (box.x2 - box.x1) * W, bh = (box.y2 - box.y1) * H;
     const role = labelAssign[String(box.idx)];
     const color = role === 'lead' ? '#00ff88' : role === 'follow' ? '#4da6ff' : '#ffcc00';
+    const kp = box.keypoints;
 
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 4;
-    ctx.strokeRect(bx, by, bw, bh);
-    ctx.fillStyle = color.replace(')', ',0.15)').replace('rgb', 'rgba').replace('#', '');
-    // Simple semi-transparent fill
-    ctx.globalAlpha = 0.15;
-    ctx.fillStyle = color;
-    ctx.fillRect(bx, by, bw, bh);
-    ctx.globalAlpha = 1;
+    if (kp) {
+      // Draw skeleton connections
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 3;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 6;
+      for (const [a, b] of SKELETON_CONNECTIONS) {
+        const pa = kp[a] || kp[String(a)];
+        const pb = kp[b] || kp[String(b)];
+        if (!pa || !pb || pa.visibility < 0.4 || pb.visibility < 0.4) continue;
+        ctx.beginPath();
+        ctx.moveTo(pa.x * W, pa.y * H);
+        ctx.lineTo(pb.x * W, pb.y * H);
+        ctx.stroke();
+      }
+      ctx.shadowBlur = 0;
 
-    // Label
-    const label = role ? role.charAt(0).toUpperCase() + role.slice(1) : 'P' + (box.idx + 1);
-    ctx.font = 'bold 20px sans-serif';
-    ctx.strokeStyle = '#000';
-    ctx.lineWidth = 4;
-    ctx.strokeText(label, bx + 6, by + 24);
-    ctx.fillStyle = color;
-    ctx.fillText(label, bx + 6, by + 24);
+      // Draw keypoint dots
+      for (let i = 0; i < 17; i++) {
+        const p = kp[i] || kp[String(i)];
+        if (!p || p.visibility < 0.4) continue;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(p.x * W, p.y * H, 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Label near the head (nose keypoint 0, or fallback to bbox top)
+      const nose = kp[0] || kp['0'];
+      let lx, ly;
+      if (nose && nose.visibility > 0.4) {
+        lx = nose.x * W; ly = nose.y * H - 20;
+      } else {
+        lx = box.x1 * W + 6; ly = box.y1 * H + 24;
+      }
+      const label = role ? role.charAt(0).toUpperCase() + role.slice(1) : 'P' + (box.idx + 1);
+      ctx.font = 'bold 22px sans-serif';
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 4;
+      ctx.strokeText(label, lx, ly);
+      ctx.fillStyle = color;
+      ctx.fillText(label, lx, ly);
+    }
   }
 }
 
