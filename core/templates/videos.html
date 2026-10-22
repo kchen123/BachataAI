@@ -164,14 +164,14 @@
       <!-- Label Lead/Follow overlay (admin only) -->
       <div class="label-panel hidden" id="labelPanel">
         <div class="label-panel-top">
-          <span id="labelMsg">Click to assign: Lead or Follow</span>
           <div class="label-actions">
             <button class="btn btn-sm btn-accent" id="labelSaveBtn" onclick="saveLabelRoles()">Analyze</button>
             <button class="btn btn-sm" onclick="skipLabel()">Skip</button>
           </div>
+          <span id="labelMsg">Select persons to track</span>
+          <div class="label-persons" id="labelPersonBtns"></div>
         </div>
         <canvas id="labelCanvas"></canvas>
-        <div class="label-persons" id="labelPersonBtns"></div>
       </div>
       {% endif %}
     </div>
@@ -667,14 +667,51 @@ function _renderPersonButtons() {
   if (!container) return;
   container.innerHTML = '';
   labelDetectedBoxes.forEach((det, idx) => {
-    const role = labelAssign[String(idx)];
-    const btn = document.createElement('button');
-    btn.className = 'label-person-btn';
-    if (role === 'lead') btn.classList.add('label-lead');
-    else if (role === 'follow') btn.classList.add('label-follow');
-    btn.textContent = role ? role.charAt(0).toUpperCase() + role.slice(1) : 'Person ' + (idx + 1);
-    btn.onclick = () => _cycleRole(idx);
-    container.appendChild(btn);
+    const key = String(idx);
+    const role = labelAssign[key];
+
+    const label = document.createElement('label');
+    label.className = 'label-person-item';
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = !!role;
+    cb.onchange = () => {
+      if (cb.checked) {
+        labelAssign[key] = sel.value;
+      } else {
+        delete labelAssign[key];
+      }
+      // No duplicate roles
+      for (const [k, v] of Object.entries(labelAssign)) {
+        if (k !== key && v === labelAssign[key]) delete labelAssign[k];
+      }
+      _renderPersonButtons();
+      _drawLabelCanvas();
+    };
+
+    const span = document.createElement('span');
+    span.textContent = 'Person ' + (idx + 1);
+
+    const sel = document.createElement('select');
+    sel.className = 'label-role-select';
+    sel.innerHTML = '<option value="lead">Lead</option><option value="follow">Follow</option>';
+    sel.value = role || 'lead';
+    sel.onchange = () => {
+      if (cb.checked) {
+        labelAssign[key] = sel.value;
+        for (const [k, v] of Object.entries(labelAssign)) {
+          if (k !== key && v === sel.value) delete labelAssign[k];
+        }
+        _renderPersonButtons();
+        _drawLabelCanvas();
+      }
+    };
+
+    label.appendChild(cb);
+    label.appendChild(span);
+    label.appendChild(sel);
+    container.appendChild(label);
   });
 }
 
