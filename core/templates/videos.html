@@ -577,7 +577,9 @@ async function openDetectLabel(videoId) {
   }
   player.pause();
 
-  // Step 2: Show label panel (overlays the video-wrapper via position:absolute)
+  // Step 2: Draw frame to canvas, then hide video and show label panel
+  _drawLabelFrame();
+  player.style.display = 'none';
   document.querySelector('.video-controls-bar').classList.add('hidden');
   document.getElementById('poseCanvas').style.display = 'none';
   document.getElementById('labelMsg').textContent = 'Detecting persons...';
@@ -806,6 +808,7 @@ function skipLabel() {
 function closeLabelPanel() {
   const p = document.getElementById('labelPanel');
   if (p) p.classList.add('hidden');
+  document.getElementById('videoPlayer').style.display = '';
   document.querySelector('.video-controls-bar').classList.remove('hidden');
   document.getElementById('poseCanvas').style.display = '';
 }
