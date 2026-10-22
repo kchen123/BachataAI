@@ -268,15 +268,7 @@
 .file-card-meta,
 .file-card-date { display: none; }
 
-.files-grid.view-list .file-card-id {
-  display: block;
-  font-size: 10px;
-  color: var(--text-muted);
-  width: 30px;
-  flex-shrink: 0;
-  font-variant-numeric: tabular-nums;
-  font-family: var(--mono);
-}
+
 
 /* View toggle buttons */
 .view-btn { padding: 4px 6px !important; }
