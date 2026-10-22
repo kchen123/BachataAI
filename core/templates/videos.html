@@ -549,188 +549,192 @@ function closeVideo() {
 }
 
 // ── Label Lead/Follow ──────────────────────────────────────────────────────
-let labelBoxes = [];
-let labelAssign = {};
+let labelBoxes = [];     // normalized boxes [{x1,y1,x2,y2,idx}]
+let labelAssign = {};    // idx → "lead"|"follow"
 let labelVideoId = null;
-let labelDetectedBoxes = [];
 
 async function openDetectLabel(videoId) {
   labelVideoId = videoId;
   labelAssign = {};
-  labelDetectedBoxes = [];
+  labelBoxes = [];
+
   const panel = document.getElementById('labelPanel');
   if (!panel) { triggerAnalysis(videoId, 2, 640); return; }
 
   const player = document.getElementById('videoPlayer');
 
-  // Wait for video to have a frame ready
-  function _proceed() {
-    player.pause();
-    player.classList.add('hidden');
-    document.getElementById('poseCanvas').classList.add('hidden');
-    document.querySelector('.video-controls-bar').classList.add('hidden');
-    panel.classList.remove('hidden');
-    _drawLabelOverlay();
-  }
-
-  document.getElementById('labelMsg').textContent = 'Detecting persons...';
-  document.getElementById('labelSaveBtn').textContent = 'Analyze';
-
-  if (player.readyState >= 2) {
-    _proceed();
-  } else {
-    panel.classList.remove('hidden');
-    player.addEventListener('loadeddata', function _once() {
-      player.removeEventListener('loadeddata', _once);
-      _proceed();
+  // Step 1: Make sure video has a frame we can draw
+  if (player.readyState < 2) {
+    await new Promise(resolve => {
+      player.addEventListener('loadeddata', resolve, { once: true });
     });
   }
+  player.pause();
 
-  // Call detect API
+  // Step 2: Show label panel (overlays the video-wrapper via position:absolute)
+  document.querySelector('.video-controls-bar').classList.add('hidden');
+  document.getElementById('poseCanvas').style.display = 'none';
+  document.getElementById('labelMsg').textContent = 'Detecting persons...';
+  document.getElementById('labelSaveBtn').textContent = 'Analyze';
+  document.getElementById('labelPersonBtns').innerHTML = '';
+  panel.classList.remove('hidden');
+
+  // Step 3: Draw the paused video frame onto the label canvas
+  // Video is still in the DOM (just behind the panel), so drawImage works
+  _drawLabelFrame();
+
+  // Step 4: Call detect API to get bounding boxes
   try {
     const res = await fetch('/api/videos/' + videoId + '/detect', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
     });
     if (!res.ok) throw new Error('detect failed');
-    labelDetectedBoxes = (await res.json()).persons || [];
+    const data = await res.json();
+    labelBoxes = (data.persons || []).map((p, i) => ({
+      x1: p.x1, y1: p.y1, x2: p.x2, y2: p.y2, idx: i
+    }));
   } catch (e) {
     document.getElementById('labelMsg').textContent = 'Detection failed — click Analyze to run without labels.';
     return;
   }
 
-  const n = labelDetectedBoxes.length;
+  // Step 5: Show results
+  const n = labelBoxes.length;
   if (n === 0) document.getElementById('labelMsg').textContent = 'No persons detected. Click Analyze to run anyway.';
   else if (n === 1) document.getElementById('labelMsg').textContent = 'Solo dancer. Label optional.';
   else document.getElementById('labelMsg').textContent = n + ' persons found. Select lead and follow.';
 
-  _renderPersonButtons();
-  _drawLabelOverlay();
+  _renderLabelUI();
 }
 
-function _drawLabelOverlay() {
+// Draw the video frame + any bounding boxes onto the label canvas
+function _drawLabelFrame() {
   const canvas = document.getElementById('labelCanvas');
   const player = document.getElementById('videoPlayer');
-  if (!canvas || !player) return;
-  const vw = player.videoWidth || 640, vh = player.videoHeight || 360;
-  canvas.width = vw;
-  canvas.height = vh;
+  if (!canvas || !player || !player.videoWidth) return;
+
+  // Match canvas pixels to video pixels (no CSS scaling mismatch)
+  canvas.width = player.videoWidth;
+  canvas.height = player.videoHeight;
   const ctx = canvas.getContext('2d');
-  ctx.drawImage(player, 0, 0, vw, vh);
+  ctx.drawImage(player, 0, 0, canvas.width, canvas.height);
 
+  // Draw boxes
   const W = canvas.width, H = canvas.height;
-  labelBoxes = [];
-  labelDetectedBoxes.forEach((det, idx) => {
-    const bx = det.x1 * W, by = det.y1 * H;
-    const bw = (det.x2 - det.x1) * W, bh = (det.y2 - det.y1) * H;
-    labelBoxes.push({ x: bx, y: by, w: bw, h: bh, idx,
-      nx1: det.x1, ny1: det.y1, nx2: det.x2, ny2: det.y2 });
+  for (const box of labelBoxes) {
+    const bx = box.x1 * W, by = box.y1 * H;
+    const bw = (box.x2 - box.x1) * W, bh = (box.y2 - box.y1) * H;
+    const role = labelAssign[String(box.idx)];
+    const color = role === 'lead' ? '#00ff88' : role === 'follow' ? '#4da6ff' : '#ffcc00';
 
-    const role = labelAssign[String(idx)];
-    let boxColor;
-    if (role === 'lead') { boxColor = '#00ff88'; ctx.fillStyle = 'rgba(0,255,136,0.2)'; }
-    else if (role === 'follow') { boxColor = '#4da6ff'; ctx.fillStyle = 'rgba(77,166,255,0.2)'; }
-    else { boxColor = '#ffcc00'; ctx.fillStyle = 'rgba(255,204,0,0.1)'; }
-
-    ctx.strokeStyle = boxColor;
+    ctx.strokeStyle = color;
     ctx.lineWidth = 4;
     ctx.strokeRect(bx, by, bw, bh);
+    ctx.fillStyle = color.replace(')', ',0.15)').replace('rgb', 'rgba').replace('#', '');
+    // Simple semi-transparent fill
+    ctx.globalAlpha = 0.15;
+    ctx.fillStyle = color;
     ctx.fillRect(bx, by, bw, bh);
+    ctx.globalAlpha = 1;
 
-    const numLabel = role ? role.charAt(0).toUpperCase() + role.slice(1) : 'P' + (idx + 1);
-    ctx.font = 'bold 18px sans-serif';
-    ctx.lineWidth = 4;
+    // Label
+    const label = role ? role.charAt(0).toUpperCase() + role.slice(1) : 'P' + (box.idx + 1);
+    ctx.font = 'bold 20px sans-serif';
     ctx.strokeStyle = '#000';
-    ctx.strokeText(numLabel, bx + 6, by + 22);
-    ctx.fillStyle = boxColor;
-    ctx.fillText(numLabel, bx + 6, by + 22);
-  });
-
-  _renderPersonButtons();
-}
-
-function _cycleRole(idx) {
-  const key = String(idx);
-  const current = labelAssign[key];
-  if (!current) labelAssign[key] = 'lead';
-  else if (current === 'lead') labelAssign[key] = 'follow';
-  else delete labelAssign[key];
-  // No duplicate roles
-  for (const [k, v] of Object.entries(labelAssign)) {
-    if (k !== key && v === labelAssign[key]) delete labelAssign[k];
+    ctx.lineWidth = 4;
+    ctx.strokeText(label, bx + 6, by + 24);
+    ctx.fillStyle = color;
+    ctx.fillText(label, bx + 6, by + 24);
   }
-  _drawLabelOverlay();
 }
 
-function _renderPersonButtons() {
+// Render checkboxes + redraw canvas
+function _renderLabelUI() {
   const container = document.getElementById('labelPersonBtns');
   if (!container) return;
   container.innerHTML = '';
-  labelDetectedBoxes.forEach((det, idx) => {
-    const key = String(idx);
+
+  for (const box of labelBoxes) {
+    const key = String(box.idx);
     const role = labelAssign[key];
 
-    const label = document.createElement('label');
-    label.className = 'label-person-item';
+    const item = document.createElement('label');
+    item.className = 'label-person-item';
 
     const cb = document.createElement('input');
     cb.type = 'checkbox';
     cb.checked = !!role;
-    cb.onchange = () => {
-      if (cb.checked) {
-        labelAssign[key] = sel.value;
-      } else {
-        delete labelAssign[key];
-      }
-      // No duplicate roles
-      for (const [k, v] of Object.entries(labelAssign)) {
-        if (k !== key && v === labelAssign[key]) delete labelAssign[k];
-      }
-      _renderPersonButtons();
-      _drawLabelOverlay();
-    };
 
     const span = document.createElement('span');
-    span.textContent = 'Person ' + (idx + 1);
+    span.textContent = 'Person ' + (box.idx + 1);
 
     const sel = document.createElement('select');
     sel.className = 'label-role-select';
     sel.innerHTML = '<option value="lead">Lead</option><option value="follow">Follow</option>';
     sel.value = role || 'lead';
+
+    cb.onchange = () => {
+      if (cb.checked) labelAssign[key] = sel.value;
+      else delete labelAssign[key];
+      _dedupRoles(key);
+      _renderLabelUI();
+    };
     sel.onchange = () => {
       if (cb.checked) {
         labelAssign[key] = sel.value;
-        for (const [k, v] of Object.entries(labelAssign)) {
-          if (k !== key && v === sel.value) delete labelAssign[k];
-        }
-        _renderPersonButtons();
-        _drawLabelOverlay();
+        _dedupRoles(key);
+        _renderLabelUI();
       }
     };
 
-    label.appendChild(cb);
-    label.appendChild(span);
-    label.appendChild(sel);
-    container.appendChild(label);
-  });
+    item.appendChild(cb);
+    item.appendChild(span);
+    item.appendChild(sel);
+    container.appendChild(item);
+  }
+
+  _drawLabelFrame();
 }
 
-// Click handler on label canvas — generous hit area
-const _labelCanvas = document.getElementById('labelCanvas');
-if (_labelCanvas) _labelCanvas.addEventListener('click', function(e) {
+function _dedupRoles(changedKey) {
+  const role = labelAssign[changedKey];
+  if (!role) return;
+  for (const [k, v] of Object.entries(labelAssign)) {
+    if (k !== changedKey && v === role) delete labelAssign[k];
+  }
+}
+
+// Canvas click — scale mouse coords to canvas pixel coords
+const _lc = document.getElementById('labelCanvas');
+if (_lc) _lc.addEventListener('click', function(e) {
+  if (!labelBoxes.length) return;
   const rect = this.getBoundingClientRect();
-  const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
-  // Find closest box center within reasonable distance
+  const scaleX = this.width / rect.width;
+  const scaleY = this.height / rect.height;
+  const mx = (e.clientX - rect.left) * scaleX;
+  const my = (e.clientY - rect.top) * scaleY;
+  const W = this.width, H = this.height;
+
   let bestIdx = -1, bestDist = Infinity;
   for (const box of labelBoxes) {
-    const bcx = box.x + box.w / 2, bcy = box.y + box.h / 2;
-    const dist = Math.hypot(cx - bcx, cy - bcy);
-    const maxDist = Math.max(box.w, box.h);  // generous hit radius
+    const bcx = (box.x1 + box.x2) / 2 * W;
+    const bcy = (box.y1 + box.y2) / 2 * H;
+    const dist = Math.hypot(mx - bcx, my - bcy);
+    const maxDist = Math.max((box.x2 - box.x1) * W, (box.y2 - box.y1) * H);
     if (dist < maxDist && dist < bestDist) {
       bestDist = dist;
       bestIdx = box.idx;
     }
   }
-  if (bestIdx >= 0) _cycleRole(bestIdx);
+  if (bestIdx >= 0) {
+    const key = String(bestIdx);
+    const cur = labelAssign[key];
+    if (!cur) labelAssign[key] = 'lead';
+    else if (cur === 'lead') labelAssign[key] = 'follow';
+    else delete labelAssign[key];
+    _dedupRoles(key);
+    _renderLabelUI();
+  }
 });
 
 function saveLabelRoles() {
@@ -738,7 +742,7 @@ function saveLabelRoles() {
   for (const box of labelBoxes) {
     const role = labelAssign[String(box.idx)];
     if (role) {
-      selectedBoxes.push({ x1: box.nx1, y1: box.ny1, x2: box.nx2, y2: box.ny2, label: role });
+      selectedBoxes.push({ x1: box.x1, y1: box.y1, x2: box.x2, y2: box.y2, label: role });
     }
   }
   closeLabelPanel();
@@ -753,12 +757,8 @@ function skipLabel() {
 function closeLabelPanel() {
   const p = document.getElementById('labelPanel');
   if (p) p.classList.add('hidden');
-  const cb = document.querySelector('.video-controls-bar');
-  if (cb) cb.classList.remove('hidden');
-  const player = document.getElementById('videoPlayer');
-  if (player) player.classList.remove('hidden');
-  const pc = document.getElementById('poseCanvas');
-  if (pc) pc.classList.remove('hidden');
+  document.querySelector('.video-controls-bar').classList.remove('hidden');
+  document.getElementById('poseCanvas').style.display = '';
 }
 
 // Drag video modal

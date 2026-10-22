@@ -727,7 +727,6 @@
   display: block;
   max-height: 80vh;
 }
-.video-modal video.hidden { visibility: hidden; }
 
 #poseCanvas {
   position: absolute;
@@ -762,7 +761,7 @@
   cursor: pointer;
   display: block;
   max-width: 100%;
-  max-height: 80vh;
+  height: auto;
 }
 .label-persons {
   display: flex;
