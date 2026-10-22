@@ -189,6 +189,8 @@ def _run_analysis(req: AnalyzeRequest):
         processed = 0
         # After first frame with selected_boxes, compute reference area for filtering
         ref_area = None  # will be set from first matched frame
+        # Cap persons per frame to the number of user-selected boxes
+        max_persons = len(req.selected_boxes) if req.selected_boxes else None
 
         while cap.isOpened():
             ret, frame = cap.read()
@@ -247,9 +249,9 @@ def _run_analysis(req: AnalyzeRequest):
 
                 # If user selected specific boxes, only keep persons that overlap
                 if req.selected_boxes:
-                    matched = []
                     for p in persons:
                         if "bbox" not in p:
+                            p["_best_iou"] = 0
                             continue
                         best_iou, best_label = 0, None
                         for sb in req.selected_boxes:
@@ -257,18 +259,35 @@ def _run_analysis(req: AnalyzeRequest):
                             if score > best_iou:
                                 best_iou = score
                                 best_label = sb.get("label")
-                        if best_iou > 0.2:
-                            if best_label:
-                                p["label"] = best_label
-                            matched.append(p)
-                    persons = matched
+                        p["_best_iou"] = best_iou
+                        if best_label and best_iou > 0.2:
+                            p["label"] = best_label
+
+                    matched = [p for p in persons if p["_best_iou"] > 0.2]
+
+                    if matched:
+                        persons = matched
+                    else:
+                        # IoU matching failed (people moved far from frame-1 boxes).
+                        # Fall back to the largest N persons by bbox area.
+                        persons.sort(key=lambda p: p["bbox_area"], reverse=True)
+                        if max_persons:
+                            persons = persons[:max_persons]
 
                     # Set reference area from first matched frame
-                    if ref_area is None and len(matched) > 0:
-                        ref_area = sum(p["bbox_area"] for p in matched) / len(matched)
+                    if ref_area is None and len(persons) > 0:
+                        ref_area = sum(p["bbox_area"] for p in persons) / len(persons)
 
                 # Sort by distance to frame center (closest first)
                 persons.sort(key=lambda p: abs(p["center_x"] - 0.5))
+
+                # Enforce max_persons cap (e.g. 2 ticked = at most 2 per frame)
+                if max_persons and len(persons) > max_persons:
+                    persons = persons[:max_persons]
+
+                # Clean up internal fields before saving
+                for p in persons:
+                    p.pop("_best_iou", None)
 
                 frames.append({
                     "frame_num": frame_num,
