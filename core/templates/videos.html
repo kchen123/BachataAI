@@ -161,11 +161,28 @@
         </select>
         <span class="pose-ctrl-sep">|</span>
         <button class="pose-ctrl-btn" onclick="confirmRerun()">Re-run</button>
+        {% if user.role == 'admin' %}
+        <span class="pose-ctrl-sep">|</span>
+        <button class="pose-ctrl-btn" id="labelRolesBtn" onclick="openLabelPanel()">Label</button>
+        {% endif %}
       </div>
     </div>
     <div class="video-wrapper">
       <video id="videoPlayer" controls autoplay></video>
       <canvas id="poseCanvas"></canvas>
+      {% if user.role == 'admin' %}
+      <!-- Label Lead/Follow overlay (admin only) -->
+      <div class="label-panel hidden" id="labelPanel">
+        <div class="label-panel-header">
+          <span id="labelMsg">Click a box to assign: Lead or Follow</span>
+        </div>
+        <canvas id="labelCanvas"></canvas>
+        <div class="label-actions">
+          <button class="btn btn-sm" onclick="saveLabelRoles()">Save</button>
+          <button class="btn btn-sm" onclick="closeLabelPanel()">Skip</button>
+        </div>
+      </div>
+      {% endif %}
     </div>
     <div class="metrics-panel hidden" id="metricsPanel">
       <div class="metrics-content" id="metricsSpeed">
@@ -451,6 +468,7 @@ let videoFps = 30;
 let currentVideoId = null;
 let poseLoading = true;  // true while fetching analysis data
 let poseHasAnalysis = false;
+let roleLabels = null;  // {track_id: "lead"|"follow"} or null
 
 const SKELETON_CONNECTIONS = [
   [0,1],[0,2],[1,3],[2,4],           // face
@@ -495,6 +513,18 @@ async function playVideo(videoId, url, title, hasPose) {
     poseControls.classList.add('hidden');
   }
 
+  // Fetch role labels
+  roleLabels = null;
+  const labelBtn = document.getElementById('labelRolesBtn');
+  if (poseHasAnalysis) {
+    fetch('/api/videos/' + videoId + '/role-labels').then(r => r.json()).then(data => {
+      roleLabels = data.labels || null;
+      if (labelBtn) labelBtn.textContent = roleLabels ? 'Re-label' : 'Label';
+    }).catch(() => {});
+  } else if (labelBtn) {
+    labelBtn.textContent = 'Label';
+  }
+
   // Start drawing loop
   player.addEventListener('play', startPoseLoop);
   player.addEventListener('pause', stopPoseLoop);
@@ -502,6 +532,7 @@ async function playVideo(videoId, url, title, hasPose) {
 }
 
 function closeVideo() {
+  closeLabelPanel();
   stopPoseLoop();
   const player = document.getElementById('videoPlayer');
   player.removeEventListener('play', startPoseLoop);
@@ -522,6 +553,177 @@ function closeVideo() {
   // Reset position
   const modal = document.querySelector('.video-modal');
   modal.style.transform = '';
+}
+
+// ── Label Lead/Follow ──────────────────────────────────────────────────────
+let labelPersons = [];
+let labelAssign = {};
+let labelBoxes = [];
+
+function openLabelPanel() {
+  const panel = document.getElementById('labelPanel');
+  const player = document.getElementById('videoPlayer');
+  player.pause();
+
+  // Ensure pose data is loaded
+  if (!poseFrames) {
+    togglePose();  // triggers load
+    const check = setInterval(() => {
+      if (poseFrames) { clearInterval(check); _initLabelPanel(); }
+    }, 200);
+  } else {
+    _initLabelPanel();
+  }
+  panel.classList.remove('hidden');
+}
+
+function _initLabelPanel() {
+  // Find first frame with persons
+  let firstFrame = null;
+  for (const f of poseFrames) {
+    if (f.persons && f.persons.length > 0) { firstFrame = f; break; }
+  }
+  if (!firstFrame) {
+    document.getElementById('labelMsg').textContent = 'No persons detected in this video.';
+    return;
+  }
+
+  labelPersons = firstFrame.persons;
+  // Pre-populate from existing role_labels
+  labelAssign = roleLabels ? Object.assign({}, roleLabels) : {};
+
+  const n = labelPersons.length;
+  if (n === 1) document.getElementById('labelMsg').textContent = 'Solo dancer detected — labeling optional. Click the box to assign a role.';
+  else if (n === 2) document.getElementById('labelMsg').textContent = 'Click a box to assign: Lead (green) or Follow (blue).';
+  else document.getElementById('labelMsg').textContent = `${n} persons detected. Select the Lead and Follow.`;
+
+  // Seek video to this frame's time and draw
+  const player = document.getElementById('videoPlayer');
+  player.currentTime = firstFrame.timestamp_sec || 0;
+  player.addEventListener('seeked', function _drawOnce() {
+    player.removeEventListener('seeked', _drawOnce);
+    _drawLabelCanvas();
+  });
+  // If already at that time, draw now
+  setTimeout(() => _drawLabelCanvas(), 100);
+}
+
+function _drawLabelCanvas() {
+  const canvas = document.getElementById('labelCanvas');
+  const player = document.getElementById('videoPlayer');
+  const wrapper = canvas.parentElement;
+  canvas.width = wrapper.clientWidth;
+  canvas.height = wrapper.clientHeight;
+  const ctx = canvas.getContext('2d');
+
+  // Draw video frame
+  const vw = player.videoWidth || 1;
+  const vh = player.videoHeight || 1;
+  const videoAspect = vw / vh;
+  const canvasAspect = canvas.width / canvas.height;
+  let drawW, drawH, offX, offY;
+  if (videoAspect > canvasAspect) {
+    drawW = canvas.width; drawH = canvas.width / videoAspect;
+    offX = 0; offY = (canvas.height - drawH) / 2;
+  } else {
+    drawH = canvas.height; drawW = canvas.height * videoAspect;
+    offX = (canvas.width - drawW) / 2; offY = 0;
+  }
+  ctx.drawImage(player, offX, offY, drawW, drawH);
+
+  // Compute bounding boxes from keypoints and draw
+  labelBoxes = [];
+  for (const person of labelPersons) {
+    const kp = person.keypoints;
+    if (!kp) continue;
+    let minX = 1, maxX = 0, minY = 1, maxY = 0;
+    let count = 0;
+    for (const k of Object.values(kp)) {
+      if (k.visibility < 0.5) continue;
+      minX = Math.min(minX, k.x); maxX = Math.max(maxX, k.x);
+      minY = Math.min(minY, k.y); maxY = Math.max(maxY, k.y);
+      count++;
+    }
+    if (count < 3) continue;
+    // Add padding
+    const pad = 0.03;
+    minX = Math.max(0, minX - pad); maxX = Math.min(1, maxX + pad);
+    minY = Math.max(0, minY - pad); maxY = Math.min(1, maxY + pad);
+
+    const bx = offX + minX * drawW;
+    const by = offY + minY * drawH;
+    const bw = (maxX - minX) * drawW;
+    const bh = (maxY - minY) * drawH;
+    const tid = String(person.track_id);
+    labelBoxes.push({ x: bx, y: by, w: bw, h: bh, track_id: tid });
+
+    // Color based on assignment
+    const role = labelAssign[tid];
+    if (role === 'lead') { ctx.strokeStyle = '#00ff88'; ctx.fillStyle = 'rgba(0,255,136,0.15)'; }
+    else if (role === 'follow') { ctx.strokeStyle = '#4da6ff'; ctx.fillStyle = 'rgba(77,166,255,0.15)'; }
+    else { ctx.strokeStyle = '#888'; ctx.fillStyle = 'rgba(255,255,255,0.05)'; }
+
+    ctx.lineWidth = 3;
+    ctx.strokeRect(bx, by, bw, bh);
+    ctx.fillRect(bx, by, bw, bh);
+
+    // Label text
+    if (role) {
+      ctx.font = 'bold 14px sans-serif';
+      ctx.fillStyle = role === 'lead' ? '#00ff88' : '#4da6ff';
+      ctx.fillText(role.charAt(0).toUpperCase() + role.slice(1), bx + 4, by - 6);
+    }
+  }
+}
+
+// Click handler on label canvas (only exists for admin)
+const _labelCanvas = document.getElementById('labelCanvas');
+if (_labelCanvas) _labelCanvas.addEventListener('click', function(e) {
+  const rect = this.getBoundingClientRect();
+  const cx = e.clientX - rect.left;
+  const cy = e.clientY - rect.top;
+  for (const box of labelBoxes) {
+    if (cx >= box.x && cx <= box.x + box.w && cy >= box.y && cy <= box.y + box.h) {
+      const tid = box.track_id;
+      const current = labelAssign[tid];
+      // Cycle: unlabeled → lead → follow → unlabeled
+      // But also clear any other person with the same role
+      if (!current) {
+        // If someone else is "lead", keep them; assign this as lead
+        labelAssign[tid] = 'lead';
+      } else if (current === 'lead') {
+        labelAssign[tid] = 'follow';
+      } else {
+        delete labelAssign[tid];
+      }
+      // Ensure no duplicate roles
+      for (const [otherTid, otherRole] of Object.entries(labelAssign)) {
+        if (otherTid !== tid && otherRole === labelAssign[tid]) {
+          delete labelAssign[otherTid];
+        }
+      }
+      _drawLabelCanvas();
+      break;
+    }
+  }
+});
+
+async function saveLabelRoles() {
+  const labels = Object.keys(labelAssign).length > 0 ? labelAssign : null;
+  await fetch('/api/videos/' + currentVideoId + '/role-labels', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ labels }),
+  });
+  roleLabels = labels;
+  const btn = document.getElementById('labelRolesBtn');
+  if (btn) btn.textContent = labels ? 'Re-label' : 'Label';
+  closeLabelPanel();
+}
+
+function closeLabelPanel() {
+  const p = document.getElementById('labelPanel');
+  if (p) p.classList.add('hidden');
 }
 
 // Drag video modal
@@ -854,19 +1056,23 @@ function drawCurrentPose() {
   const w = drawW;
   const h = drawH;
 
-  // Colors: left person = green, right person = blue, others = purple
+  // Colors: lead = green, follow = blue, others = purple/yellow
   const COLORS = [
-    { line: '#00ff88', dot: '#00ffaa', shadow: '#00ff88' },  // green (left)
-    { line: '#4da6ff', dot: '#66b3ff', shadow: '#4da6ff' },  // blue (right)
+    { line: '#00ff88', dot: '#00ffaa', shadow: '#00ff88' },  // green (lead / left)
+    { line: '#4da6ff', dot: '#66b3ff', shadow: '#4da6ff' },  // blue (follow / right)
     { line: '#cc66ff', dot: '#dd88ff', shadow: '#cc66ff' },  // purple
     { line: '#ffcc00', dot: '#ffdd44', shadow: '#ffcc00' },  // yellow
   ];
+  const ROLE_COLOR = { lead: COLORS[0], follow: COLORS[1] };
 
   for (let pIdx = 0; pIdx < persons.length; pIdx++) {
     const rawLm = persons[pIdx].keypoints;
     if (!rawLm) continue;
     const lm = typeof rawLm === 'string' ? JSON.parse(rawLm) : rawLm;
-    const color = COLORS[pIdx] || COLORS[COLORS.length - 1];
+    // Use role labels for color if available, else fall back to positional index
+    const tid = String(persons[pIdx].track_id);
+    const role = roleLabels && roleLabels[tid];
+    const color = role ? ROLE_COLOR[role] : (COLORS[pIdx] || COLORS[COLORS.length - 1]);
 
     // Draw connections
     ctx.strokeStyle = color.line;

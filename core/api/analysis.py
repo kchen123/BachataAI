@@ -24,7 +24,9 @@ from flask import Blueprint, request, jsonify, Response
 from core.adapters.repository import get_repo
 from core.adapters.analyses import AnalysesAdapter
 from core.adapters.videos import VideosAdapter
+from core.adapters.users import UsersAdapter
 from core.adapters.storage import BUCKET_NAME, _get_client as _gcs
+from core.api._helpers import uid
 
 analysis_bp = Blueprint("analysis", __name__)
 
@@ -274,6 +276,53 @@ def api_get_pose_data(video_id):
 
     return Response(stream(), content_type="application/json")
 
+
+
+# ── Role Labels (dev-only) ─────────────────────────────────────────────────
+
+
+def _is_admin():
+    repo = get_repo()
+    user = UsersAdapter(repo).get(uid())
+    return user and user.get("role") == "admin"
+
+
+@analysis_bp.route("/api/videos/<int:video_id>/role-labels", methods=["GET"])
+def api_get_role_labels(video_id):
+    repo = get_repo()
+    video = VideosAdapter(repo).get(video_id)
+    if not video:
+        return jsonify({"error": "video not found"}), 404
+    return jsonify({"labels": video.get("role_labels")})
+
+
+@analysis_bp.route("/api/videos/<int:video_id>/role-labels", methods=["PUT"])
+def api_set_role_labels(video_id):
+    if not _is_admin():
+        return jsonify({"error": "forbidden"}), 403
+    repo = get_repo()
+    video = VideosAdapter(repo).get(video_id)
+    if not video:
+        return jsonify({"error": "video not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    labels = body.get("labels")
+
+    # Validate: null clears, otherwise must be {track_id: "lead"|"follow"}
+    if labels is not None:
+        if not isinstance(labels, dict):
+            return jsonify({"error": "labels must be an object"}), 400
+        valid_roles = {"lead", "follow"}
+        roles_seen = set()
+        for tid, role in labels.items():
+            if role not in valid_roles:
+                return jsonify({"error": f"invalid role: {role}"}), 400
+            if role in roles_seen:
+                return jsonify({"error": f"duplicate role: {role}"}), 400
+            roles_seen.add(role)
+
+    repo.update("bachata.videos", video_id, {"role_labels": json.dumps(labels) if labels else None})
+    return jsonify({"status": "saved", "labels": labels})
 
 
 # ── Admin ────────────────────────────────────────────────────────────────────
