@@ -611,15 +611,18 @@ function _captureFrame() {
   const canvas = document.getElementById('labelCanvas');
   if (!canvas) return;
   const player = document.getElementById('videoPlayer');
-  // Use the player's rendered size (before it's hidden)
-  const cw = player.clientWidth || player.videoWidth || 640;
-  const ch = player.clientHeight || player.videoHeight || 360;
+  const cw = player.videoWidth;
+  const ch = player.videoHeight;
+  if (!cw || !ch) {
+    // Video metadata not ready — retry
+    setTimeout(() => _captureFrame(), 200);
+    return;
+  }
   canvas.width = cw;
   canvas.height = ch;
   const ctx = canvas.getContext('2d');
   ctx.drawImage(player, 0, 0, cw, ch);
   labelFrameSnapshot = ctx.getImageData(0, 0, cw, ch);
-  // Now safe to hide video
   player.classList.add('hidden');
   _drawLabelOverlay();
 }
