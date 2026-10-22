@@ -32,7 +32,8 @@ def home():
         return redirect("/studio")
     from core.adapters.tiers import TiersAdapter
     repo = get_repo()
-    tiers = TiersAdapter(repo).select(order_by="id ASC")
+    all_tiers = TiersAdapter(repo).select(order_by="id ASC")
+    tiers = [t for t in all_tiers if t["name"] != "Admin"]
     return render_template("home.html", logged_in=False, tiers=tiers)
 
 
