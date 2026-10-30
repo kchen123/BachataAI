@@ -264,7 +264,6 @@
 }
 .file-card:hover .file-card-name { color: var(--text-primary); }
 
-.file-card-id,
 .file-card-meta,
 .file-card-date { display: none; }
 
@@ -1364,7 +1363,6 @@
 
   /* Hide date column on mobile */
   .file-card-date { display: none !important; }
-  .file-card-id { width: 20px !important; font-size: 9px !important; }
 
   /* Video modal */
   .video-modal { width: 100vw; max-width: 100vw; border-radius: 0; }

@@ -24,13 +24,6 @@ def index():
 
 # ── API routes ────────────────────────────────────────────────────────────────
 
-@scores_bp.route("/api/scorecards", methods=["GET"])
-def list_scorecards():
-    repo = get_repo()
-    sa = ScorecardsAdapter(repo)
-    return jsonify([serialize(sc) for sc in sa.get_by_user(uid())])
-
-
 @scores_bp.route("/api/scorecards", methods=["POST"])
 def create_scorecard():
     repo = get_repo()
@@ -79,18 +72,3 @@ def create_metric(scorecard_id):
     return jsonify(serialize(m)), 201
 
 
-@scores_bp.route("/api/metrics/<int:metric_id>", methods=["PUT"])
-def update_metric(metric_id):
-    repo = get_repo()
-    data = request.json
-    ma = ScorecardMetricsAdapter(repo)
-    m = ma.update(metric_id, **{k: v for k, v in data.items() if k in ("name", "type", "range", "metadata")})
-    return jsonify(serialize(m))
-
-
-@scores_bp.route("/api/metrics/<int:metric_id>", methods=["DELETE"])
-def delete_metric(metric_id):
-    repo = get_repo()
-    ma = ScorecardMetricsAdapter(repo)
-    ma.delete(metric_id)
-    return "", 204

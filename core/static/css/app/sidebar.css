@@ -72,10 +72,6 @@ body {
   filter: drop-shadow(0 1px 2px rgba(255, 136, 0, 0.3));
 }
 
-.sidebar-title-mark {
-  display: none;
-}
-
 .sidebar-title {
   font-family: var(--sans);
   font-weight: 700;

@@ -24,7 +24,6 @@ from flask import Blueprint, request, jsonify, Response
 from core.adapters.repository import get_repo
 from core.adapters.analyses import AnalysesAdapter
 from core.adapters.videos import VideosAdapter
-from core.adapters.users import UsersAdapter
 from core.adapters.storage import BUCKET_NAME, _get_client as _gcs
 from core.api._helpers import uid
 
@@ -263,29 +262,6 @@ def api_get_progress(video_id):
     return jsonify({"status": "idle", "percent": 0})
 
 
-@analysis_bp.route("/api/videos/<int:video_id>/analysis", methods=["GET"])
-def api_get_analysis(video_id):
-    # Sync first in case GPU just finished
-    _sync_db_if_done(video_id)
-
-    repo = get_repo()
-    analysis = AnalysesAdapter(repo).get_by_video(video_id)
-    if analysis is None:
-        return jsonify({"error": "no analysis found"}), 404
-
-    for k in ("created_at", "updated_at"):
-        if analysis.get(k):
-            analysis[k] = str(analysis[k])
-    if analysis.get("summary") and isinstance(analysis["summary"], str):
-        analysis["summary"] = json.loads(analysis["summary"])
-
-    video = VideosAdapter(repo).get(video_id)
-    if video:
-        analysis["fps"] = video.get("fps", 30)
-
-    return jsonify(analysis)
-
-
 @analysis_bp.route("/api/videos/<int:video_id>/pose-data", methods=["GET"])
 def api_get_pose_data(video_id):
     """Stream pose data from GCS."""
@@ -320,13 +296,7 @@ def api_get_pose_data(video_id):
 
 
 
-# ── Role Labels (dev-only) ─────────────────────────────────────────────────
-
-
-def _is_admin():
-    repo = get_repo()
-    user = UsersAdapter(repo).get(uid())
-    return user and user.get("role") == "admin"
+# ── Role Labels ───────────────────────────────────────────────────────────
 
 
 @analysis_bp.route("/api/videos/<int:video_id>/role-labels", methods=["GET"])
@@ -342,35 +312,6 @@ def api_get_role_labels(video_id):
         except Exception:
             rl = None
     return jsonify({"labels": rl})
-
-
-@analysis_bp.route("/api/videos/<int:video_id>/role-labels", methods=["PUT"])
-def api_set_role_labels(video_id):
-    if not _is_admin():
-        return jsonify({"error": "forbidden"}), 403
-    repo = get_repo()
-    video = VideosAdapter(repo).get(video_id)
-    if not video:
-        return jsonify({"error": "video not found"}), 404
-
-    body = request.get_json(silent=True) or {}
-    labels = body.get("labels")
-
-    # Validate: null clears, otherwise must be {track_id: "lead"|"follow"}
-    if labels is not None:
-        if not isinstance(labels, dict):
-            return jsonify({"error": "labels must be an object"}), 400
-        valid_roles = {"lead", "follow"}
-        roles_seen = set()
-        for tid, role in labels.items():
-            if role not in valid_roles:
-                return jsonify({"error": f"invalid role: {role}"}), 400
-            if role in roles_seen:
-                return jsonify({"error": f"duplicate role: {role}"}), 400
-            roles_seen.add(role)
-
-    repo.update("bachata.videos", video_id, {"role_labels": json.dumps(labels) if labels else None})
-    return jsonify({"status": "saved", "labels": labels})
 
 
 # ── Admin ────────────────────────────────────────────────────────────────────
@@ -441,25 +382,3 @@ def api_cleanup_jobs():
     return jsonify({"cleaned": cleaned})
 
 
-@analysis_bp.route("/api/admin/classify-body-focus", methods=["POST"])
-def api_classify_body_focus():
-    """Backfill body_focus for videos with pose data."""
-    from core.classification import classify_body_focus
-    repo = get_repo()
-    videos = repo.execute(
-        "SELECT id FROM bachata.videos WHERE has_pose = TRUE AND body_focus IS NULL",
-        fetch="all_dicts",
-    )
-    classified = 0
-    for v in videos:
-        try:
-            blob = _gcs().bucket(BUCKET_NAME).blob(f"poses/{v['id']}.json")
-            if not blob.exists():
-                continue
-            pose_data = json.loads(blob.download_as_bytes())
-            focus = classify_body_focus(pose_data.get("frames", []))
-            repo.update("bachata.videos", v["id"], {"body_focus": focus})
-            classified += 1
-        except Exception:
-            pass
-    return jsonify({"classified": classified, "total": len(videos)})
