@@ -1124,20 +1124,59 @@ function drawCurrentPose() {
   canvas.style.height = rect.height + 'px';
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Find closest frame
+  // Find the two bracketing frames and interpolate for smooth movement
   const currentTime = player.currentTime;
-  let closest = poseFrames[0];
-  let minDiff = Infinity;
-  for (const f of poseFrames) {
-    const diff = Math.abs(f.timestamp_sec - currentTime);
-    if (diff < minDiff) { minDiff = diff; closest = f; }
-    if (f.timestamp_sec > currentTime + 1) break;
+  let before = null, after = null;
+  for (let i = 0; i < poseFrames.length; i++) {
+    if (poseFrames[i].timestamp_sec <= currentTime) {
+      before = i;
+    } else {
+      after = i;
+      break;
+    }
+  }
+  if (before === null && after === null) return;
+  if (before === null) before = after;
+  if (after === null || after === before) after = before;
+
+  const fA = poseFrames[before];
+  const fB = poseFrames[after];
+
+  // Calculate interpolation factor (0..1 between the two frames)
+  const gap = fB.timestamp_sec - fA.timestamp_sec;
+  const t = (gap > 0.001) ? Math.min(1, Math.max(0, (currentTime - fA.timestamp_sec) / gap)) : 0;
+
+  // Helper: interpolate keypoints between two persons
+  function lerpPersons(pA, pB, t) {
+    if (!pA && !pB) return null;
+    if (!pA) return pB;
+    if (!pB) return pA;
+    const kpA = typeof pA.keypoints === 'string' ? JSON.parse(pA.keypoints) : pA.keypoints;
+    const kpB = typeof pB.keypoints === 'string' ? JSON.parse(pB.keypoints) : pB.keypoints;
+    if (!kpA || !kpB) return pA;
+    const merged = {};
+    for (const k of Object.keys(kpA)) {
+      const a = kpA[k], b = kpB[k];
+      if (!a || !b) { merged[k] = a || b; continue; }
+      merged[k] = {
+        x: a.x + (b.x - a.x) * t,
+        y: a.y + (b.y - a.y) * t,
+        visibility: a.visibility + (b.visibility - a.visibility) * t,
+      };
+    }
+    return { ...pA, keypoints: merged };
   }
 
-  if (!closest) return;
+  // Get persons from both frames
+  let personsA = fA.persons || [{ keypoints: fA.keypoints || fA.landmarks }];
+  let personsB = fB.persons || [{ keypoints: fB.keypoints || fB.landmarks }];
+  if (!personsA.length) return;
 
-  // Get all persons (multi-person) or fall back to single keypoints
-  let persons = closest.persons || [{ keypoints: closest.keypoints || closest.landmarks }];
+  // Interpolate each person
+  let persons = personsA.map((pA, idx) => {
+    const pB = personsB[idx] || null;
+    return lerpPersons(pA, pB, t);
+  }).filter(Boolean);
   if (!persons.length) return;
 
 
