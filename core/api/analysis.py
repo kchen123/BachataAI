@@ -171,6 +171,7 @@ def api_run_analysis(video_id):
     sample_every_n = body.get("sample_every_n", 2)
     resolution = body.get("resolution", 640)
     selected_boxes = body.get("selected_boxes")  # optional user-labeled boxes
+    max_persons = body.get("max_persons")        # cap persons per frame
 
     analysis = aa.create(video_id=video_id, model="yolo26x-pose")
     aa.set_status(analysis["id"], "running")
@@ -195,6 +196,8 @@ def api_run_analysis(video_id):
     }
     if selected_boxes:
         gpu_payload["selected_boxes"] = selected_boxes
+    if max_persons:
+        gpu_payload["max_persons"] = max_persons
 
     def _send():
         try:

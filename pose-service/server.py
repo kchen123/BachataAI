@@ -41,6 +41,7 @@ class AnalyzeRequest(BaseModel):
     sample_every_n: int = 2
     resolution: int = 640
     selected_boxes: list | None = None  # [{x1,y1,x2,y2,label}] normalized 0-1
+    max_persons: int | None = None      # cap persons per frame (e.g. 2 for lead+follow)
 
 
 @app.get("/health")
@@ -190,7 +191,7 @@ def _run_analysis(req: AnalyzeRequest):
         # After first frame with selected_boxes, compute reference area for filtering
         ref_area = None  # will be set from first matched frame
         # Cap persons per frame to the number of user-selected boxes
-        max_persons = len(req.selected_boxes) if req.selected_boxes else None
+        max_persons = req.max_persons or (len(req.selected_boxes) if req.selected_boxes else None)
 
         while cap.isOpened():
             ret, frame = cap.read()

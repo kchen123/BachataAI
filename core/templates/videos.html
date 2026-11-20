@@ -616,13 +616,18 @@ async function openDetectLabel(videoId) {
     labelBoxes = [];
   }
 
-  // Step 5: If detection failed or found < 2 persons, skip labeling and analyze directly
+  // Step 5: If < 2 persons found, ask user how many dancers to track
   if (labelBoxes.length < 2) {
-    closeLabelPanel();
-    triggerAnalysis(videoId, 2, 640);
+    const msg = labelBoxes.length === 0 ? 'No dancers detected.' : '1 dancer detected.';
+    document.getElementById('labelMsg').textContent = msg + ' How many dancers to track?';
+    document.getElementById('labelPersonBtns').innerHTML =
+      '<button class="btn btn-sm" onclick="closeLabelPanel(); triggerAnalysis(' + videoId + ', 2, 640, null, 1)">1</button>' +
+      '<button class="btn btn-sm btn-accent" onclick="closeLabelPanel(); triggerAnalysis(' + videoId + ', 2, 640, null, 2)">2</button>';
+    document.getElementById('labelSaveBtn').classList.add('hidden');
     return;
   }
 
+  document.getElementById('labelSaveBtn').classList.remove('hidden');
   document.getElementById('labelMsg').textContent = labelBoxes.length + ' persons found. Select lead and follow.';
 
   _renderLabelUI();
@@ -997,7 +1002,7 @@ function closeCancelModal() {
   _cancelVideoId = null;
 }
 
-async function triggerAnalysis(videoId, sampleRate, resolution, selectedBoxes) {
+async function triggerAnalysis(videoId, sampleRate, resolution, selectedBoxes, maxPersons) {
   closeVideo();
   showProcessingCard(videoId);
 
@@ -1005,6 +1010,7 @@ async function triggerAnalysis(videoId, sampleRate, resolution, selectedBoxes) {
   if (sampleRate) body.sample_every_n = sampleRate;
   if (resolution) body.resolution = resolution;
   if (selectedBoxes) body.selected_boxes = selectedBoxes;
+  if (maxPersons) body.max_persons = maxPersons;
 
   const res = await fetch('/api/videos/' + videoId + '/analyze', {
     method: 'POST',
