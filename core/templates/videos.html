@@ -902,6 +902,7 @@ function showProcessingCard(videoId) {
 
 function pollProgress(videoId) {
   const startTime = Date.now();
+  let maxPct = 0;
   const poll = setInterval(async () => {
     try {
       const pRes = await fetch('/api/videos/' + videoId + '/progress');
@@ -914,14 +915,16 @@ function pollProgress(videoId) {
         clearProcessingCard(videoId, p.status);
       } else if (statusEl) {
         const pct = p.percent || 0;
-        if (pct > 0 && pct < 100) {
+        // Never go backwards — keep the highest percentage seen
+        if (pct > maxPct) maxPct = pct;
+        if (maxPct > 0) {
           const elapsed = (Date.now() - startTime) / 1000;
-          const remaining = Math.round(elapsed / pct * (100 - pct));
+          const remaining = Math.round(elapsed / maxPct * (100 - maxPct));
           const min = Math.floor(remaining / 60);
           const sec = remaining % 60;
           const eta = min > 0 ? min + 'm ' + sec + 's' : sec + 's';
-          statusEl.textContent = 'Running ' + pct + '% — ' + eta + ' left';
-        } else if (pct === 0) {
+          statusEl.textContent = 'Running ' + maxPct + '% — ' + eta + ' left';
+        } else {
           statusEl.textContent = 'Starting GPU...';
         }
       }
