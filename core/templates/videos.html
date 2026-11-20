@@ -98,7 +98,7 @@
 </div>
 
 <!-- Delete Confirm Modal -->
-<div class="modal-overlay" id="deleteModal" onclick="if(event.target===this)closeDeleteModal()">
+<div class="modal-overlay" id="deleteModal">
   <div class="files-modal">
     <h3>Delete</h3>
     <p style="font-size:12px;color:var(--text-secondary);margin-bottom:16px">Are you sure you want to delete "<span id="deleteItemName"></span>"?</p>
@@ -110,7 +110,7 @@
 </div>
 
 <!-- Upload Modal -->
-<div class="modal-overlay" id="uploadModal" onclick="if(event.target===this)this.classList.remove('open')">
+<div class="modal-overlay" id="uploadModal">
   <div class="upload-modal">
     <div class="upload-modal-header">
       <span>UPLOAD VIDEO</span>
@@ -133,7 +133,7 @@
 </div>
 
 <!-- Video Player Modal -->
-<div class="modal-overlay" id="videoModal" onclick="if(event.target===this)maybeCloseVideo()">
+<div class="modal-overlay" id="videoModal">
   <div class="video-modal">
     <div class="video-title-bar">
       <span class="video-bar-id" id="videoId"></span>
@@ -190,7 +190,7 @@
 
 <!-- Cancel Confirm Modal -->
 <!-- Re-run Confirm Modal -->
-<div class="modal-overlay" id="rerunModal" onclick="if(event.target===this)closeRerunModal()">
+<div class="modal-overlay" id="rerunModal">
   <div class="files-modal">
     <h3 style="margin-bottom:12px">Re-run Analysis</h3>
     <p class="analyze-desc" style="margin-bottom:24px">This will delete existing pose data and run a new analysis. Previous results will be replaced.</p>
@@ -201,7 +201,7 @@
   </div>
 </div>
 
-<div class="modal-overlay" id="cancelModal" onclick="if(event.target===this)closeCancelModal()">
+<div class="modal-overlay" id="cancelModal">
   <div class="files-modal">
     <h3 style="margin-bottom:12px">Cancel Analysis</h3>
     <p class="analyze-desc" style="margin-bottom:24px">This will stop the GPU job and delete any partial results.</p>
@@ -213,7 +213,7 @@
 </div>
 
 <!-- Account Modal -->
-<div class="modal-overlay" id="accountModal" onclick="if(event.target===this)this.classList.remove('open')">
+<div class="modal-overlay" id="accountModal">
   <div class="account-modal">
     <div class="account-modal-header">
       <button class="account-modal-close" onclick="document.getElementById('accountModal').classList.remove('open')">&times;</button>
@@ -451,9 +451,7 @@ document.getElementById('deleteConfirmBtn').addEventListener('click', () => {
 });
 
 // Close modal on overlay click
-document.getElementById('filesModal').addEventListener('click', function(e) {
-  if (e.target === this) closeModal();
-});
+// Modals only close via their explicit close/cancel buttons
 
 // ── Video Player with Pose Skeleton ──
 let poseFrames = null;
