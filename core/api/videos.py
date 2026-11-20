@@ -215,9 +215,9 @@ def api_delete_video(video_id):
     video = VideosAdapter(repo).get(video_id)
     if not video:
         return ("", 404)
-    # Delete GCS files
+    # Delete GCS files (video, thumbnail, pose data, progress, cancel flag)
     from core.adapters.storage import _get_client, BUCKET_NAME
-    import os
+    from core.adapters.analyses import AnalysesAdapter
     bucket = _get_client().bucket(BUCKET_NAME)
     prefix = f"https://storage.googleapis.com/{BUCKET_NAME}/"
     for url_field in ("gcs_url", "thumbnail_url"):
@@ -227,6 +227,15 @@ def api_delete_video(video_id):
                 bucket.blob(url[len(prefix):]).delete()
             except Exception:
                 pass
+    for blob_path in (f"poses/{video_id}.json", f"progress/{video_id}.json", f"cancel/{video_id}"):
+        try:
+            bucket.blob(blob_path).delete()
+        except Exception:
+            pass
+    # Delete analysis DB records
+    aa = AnalysesAdapter(repo)
+    for old in aa.select(video_id=video_id):
+        aa.delete(old["id"])
     VideosAdapter(repo).delete(video_id)
     return ("", 204)
 

@@ -148,10 +148,11 @@ def api_run_analysis(video_id):
     if not video.get("filename"):
         return jsonify({"error": "video has no file"}), 400
 
-    # Check if GPU is already processing this video
-    prog = _read_progress(video_id)
-    if prog and prog.get("status") == "running":
-        return jsonify({"error": "analysis already running"}), 409
+    # Cancel any existing run before starting fresh
+    try:
+        _gcs().bucket(BUCKET_NAME).blob(f"cancel/{video_id}").upload_from_string("1")
+    except Exception:
+        pass
 
     # Clean slate: delete old progress, pose file, cancel flag, and DB records
     _delete_progress(video_id)
