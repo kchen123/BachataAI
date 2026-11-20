@@ -1496,7 +1496,7 @@ async function uploadSingleFile(file, idx, onDone) {
       xhr.send(file);
     });
 
-    pctEl.innerHTML = '100% <span style="color:var(--green);font-size:13px">&#10003;</span>';
+    pctEl.innerHTML = '<span style="color:var(--green)">Done &#10003;</span>';
     fillEl.style.background = 'var(--green)';
     // Generate thumbnail in background
     if (urlData.video && urlData.video.id) {
@@ -1504,7 +1504,7 @@ async function uploadSingleFile(file, idx, onDone) {
     }
   } catch (e) {
     console.error('Upload error:', e);
-    pctEl.textContent = '0%';
+    pctEl.innerHTML = '<span style="color:var(--red)">Failed</span>';
     fillEl.style.background = 'var(--red)';
   }
   onDone();
