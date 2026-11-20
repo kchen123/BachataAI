@@ -279,8 +279,8 @@ def _run_analysis(req: AnalyzeRequest):
                     if ref_area is None and len(persons) > 0:
                         ref_area = sum(p["bbox_area"] for p in persons) / len(persons)
 
-                # Sort by distance to frame center (closest first)
-                persons.sort(key=lambda p: abs(p["center_x"] - 0.5))
+                # Sort by bounding box area (largest/closest to camera first)
+                persons.sort(key=lambda p: p["bbox_area"], reverse=True)
 
                 # Enforce max_persons cap (e.g. 2 ticked = at most 2 per frame)
                 if max_persons and len(persons) > max_persons:
