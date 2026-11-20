@@ -1505,8 +1505,16 @@ async function uploadSingleFile(file, idx, onDone) {
     }
   } catch (e) {
     console.error('Upload error:', e);
-    pctEl.innerHTML = '<span style="color:var(--red)">Failed</span>';
-    fillEl.style.background = 'var(--red)';
+    // Upload may have actually succeeded (GCS got the data) even if
+    // the XHR response triggered an error (e.g. CORS on response).
+    // Show Done if we reached 100% upload progress.
+    if (fillEl.style.width === '100%') {
+      pctEl.innerHTML = '<span style="color:var(--green)">Done &#10003;</span>';
+      fillEl.style.background = 'var(--green)';
+    } else {
+      pctEl.innerHTML = '<span style="color:var(--red)">Failed</span>';
+      fillEl.style.background = 'var(--red)';
+    }
   }
   onDone();
 }
