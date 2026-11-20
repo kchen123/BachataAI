@@ -1487,7 +1487,8 @@ async function uploadSingleFile(file, idx, onDone) {
         }
       });
       xhr.addEventListener('load', () => {
-        if (xhr.status >= 200 && xhr.status < 300) resolve();
+        // GCS resumable uploads may return 200, 201, or other success codes
+        if (xhr.status < 400) resolve();
         else reject(new Error('Upload failed: ' + xhr.status));
       });
       xhr.addEventListener('error', () => reject(new Error('Network error')));
