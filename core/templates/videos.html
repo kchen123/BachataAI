@@ -908,7 +908,11 @@ function pollProgress(videoId) {
       const p = await pRes.json();
       const statusEl = document.getElementById('pStatus' + videoId);
 
-      if (statusEl) {
+      // Stop polling on terminal states
+      if (p.status === 'done' || p.status === 'error' || p.status === 'cancelled' || p.status === 'idle') {
+        clearInterval(poll);
+        clearProcessingCard(videoId, p.status);
+      } else if (statusEl) {
         const pct = p.percent || 0;
         if (pct > 0 && pct < 100) {
           const elapsed = (Date.now() - startTime) / 1000;
@@ -920,11 +924,6 @@ function pollProgress(videoId) {
         } else if (pct === 0) {
           statusEl.textContent = 'Starting GPU...';
         }
-      }
-
-      if (p.status === 'done' || p.status === 'error' || p.status === 'cancelled' || p.status === 'idle') {
-        clearInterval(poll);
-        clearProcessingCard(videoId, p.status);
       }
     } catch (e) {}
   }, 5000);
@@ -963,13 +962,14 @@ function clearProcessingCard(videoId, status) {
     }
   }
 
+  // Remove cancel button immediately, keep "Done" visible longer
+  const c = card.querySelector('.processing-cancel');
+  if (c) c.remove();
   setTimeout(() => {
     card.classList.remove('processing');
     const s = card.querySelector('.processing-status');
-    const c = card.querySelector('.processing-cancel');
     if (s) s.remove();
-    if (c) c.remove();
-  }, 2000);
+  }, status === 'done' ? 5000 : 2000);
 
   if (typeof refreshJobsPanel === 'function') refreshJobsPanel();
 }
