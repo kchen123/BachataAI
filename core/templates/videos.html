@@ -615,16 +615,17 @@ async function openDetectLabel(videoId) {
       keypoints: p.keypoints || null
     }));
   } catch (e) {
-    document.getElementById('labelMsg').textContent = 'Detection failed (' + e.message + '). Click Analyze to run without labels.';
-    document.getElementById('labelSaveBtn').textContent = 'Analyze';
-    // Don't return — let user click Analyze/Skip without labels
+    labelBoxes = [];
   }
 
-  // Step 5: Show results
-  const n = labelBoxes.length;
-  if (n === 0) document.getElementById('labelMsg').textContent = 'No persons detected. Click Analyze to run anyway.';
-  else if (n === 1) document.getElementById('labelMsg').textContent = 'Solo dancer. Label optional.';
-  else document.getElementById('labelMsg').textContent = n + ' persons found. Select lead and follow.';
+  // Step 5: If detection failed or found < 2 persons, skip labeling and analyze directly
+  if (labelBoxes.length < 2) {
+    closeLabelPanel();
+    triggerAnalysis(videoId, 2, 640);
+    return;
+  }
+
+  document.getElementById('labelMsg').textContent = labelBoxes.length + ' persons found. Select lead and follow.';
 
   _renderLabelUI();
 }
