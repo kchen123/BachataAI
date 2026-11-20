@@ -289,9 +289,15 @@ def _run_analysis(req: AnalyzeRequest):
                 for p in persons:
                     p.pop("_best_iou", None)
 
+                # Use the video container's actual timestamp (ms) so it
+                # matches the browser's player.currentTime exactly,
+                # even for variable-frame-rate videos.
+                ts_ms = cap.get(cv2.CAP_PROP_POS_MSEC)
+                ts_sec = round(ts_ms / 1000.0, 4) if ts_ms > 0 else round(frame_num / fps, 4)
+
                 frames.append({
                     "frame_num": frame_num,
-                    "timestamp_sec": round(frame_num / fps, 4),
+                    "timestamp_sec": ts_sec,
                     "persons": persons,
                     "keypoints": persons[0]["keypoints"] if persons else {},
                 })
