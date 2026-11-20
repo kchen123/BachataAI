@@ -1452,17 +1452,27 @@ async function uploadSingleFile(file, idx, onDone) {
   const pctEl = document.getElementById('uPct' + idx);
   const fillEl = document.getElementById('uFill' + idx);
 
+  function showDone() {
+    pctEl.innerHTML = '<span style="color:var(--green)">Done &#10003;</span>';
+    fillEl.style.width = '100%';
+    fillEl.style.background = 'var(--green)';
+  }
+  function showFail(msg) {
+    pctEl.innerHTML = '<span style="color:var(--red)">' + (msg || 'Failed') + '</span>';
+    fillEl.style.background = 'var(--red)';
+  }
+
   // Validate file format
   const isValid = await checkVideoFile(file);
   if (!isValid) {
-    pctEl.textContent = 'Invalid format';
-    fillEl.style.background = 'var(--red)';
+    showFail('Invalid format');
     onDone();
     return;
   }
 
+  // Step 1: Get resumable upload URL from Flask
+  let urlData;
   try {
-    // Step 1: Get resumable upload URL from Flask (small request)
     const body = { filename: file.name };
     if (FOLDER_ID) body.folder_id = FOLDER_ID;
     const urlRes = await fetch('/api/videos/upload-url', {
@@ -1470,53 +1480,45 @@ async function uploadSingleFile(file, idx, onDone) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    if (!urlRes.ok) throw new Error('Failed to get upload URL');
-    const urlData = await urlRes.json();
-    const { upload_url, content_type } = urlData;
-
-    pctEl.textContent = '0%';
-
-    // Step 2: Upload directly to GCS via resumable URL
-    await new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable) {
-          const pct = Math.round((e.loaded / e.total) * 100);
-          fillEl.style.width = pct + '%';
-          pctEl.textContent = pct + '%';
-        }
-      });
-      xhr.addEventListener('load', () => {
-        // GCS resumable uploads may return 200, 201, or other success codes
-        if (xhr.status < 400) resolve();
-        else reject(new Error('Upload failed: ' + xhr.status));
-      });
-      xhr.addEventListener('error', () => reject(new Error('Network error')));
-      xhr.open('PUT', upload_url);
-      xhr.setRequestHeader('Content-Type', content_type);
-      xhr.send(file);
-    });
-
-    pctEl.innerHTML = '<span style="color:var(--green)">Done &#10003;</span>';
-    fillEl.style.background = 'var(--green)';
-    // Generate thumbnail in background
-    if (urlData.video && urlData.video.id) {
-      fetch('/api/videos/' + urlData.video.id + '/thumbnail', { method: 'POST' }).catch(() => {});
-    }
+    if (!urlRes.ok) { showFail('Server error'); onDone(); return; }
+    urlData = await urlRes.json();
   } catch (e) {
-    console.error('Upload error:', e);
-    // Upload may have actually succeeded (GCS got the data) even if
-    // the XHR response triggered an error (e.g. CORS on response).
-    // Show Done if we reached 100% upload progress.
-    if (fillEl.style.width === '100%') {
-      pctEl.innerHTML = '<span style="color:var(--green)">Done &#10003;</span>';
-      fillEl.style.background = 'var(--green)';
-    } else {
-      pctEl.innerHTML = '<span style="color:var(--red)">Failed</span>';
-      fillEl.style.background = 'var(--red)';
-    }
+    showFail('Server error');
+    onDone();
+    return;
   }
-  onDone();
+
+  // Step 2: Upload directly to GCS via resumable URL
+  let bytesUploaded = 0;
+  const xhr = new XMLHttpRequest();
+  xhr.upload.addEventListener('progress', (e) => {
+    if (e.lengthComputable) {
+      bytesUploaded = e.loaded;
+      const pct = Math.round((e.loaded / e.total) * 100);
+      fillEl.style.width = pct + '%';
+      pctEl.textContent = pct + '%';
+    }
+  });
+
+  function finish() {
+    // If all bytes were sent, the file is in GCS regardless of response
+    if (bytesUploaded >= file.size) {
+      showDone();
+      if (urlData.video && urlData.video.id) {
+        fetch('/api/videos/' + urlData.video.id + '/thumbnail', { method: 'POST' }).catch(() => {});
+      }
+    } else {
+      showFail();
+    }
+    onDone();
+  }
+
+  xhr.addEventListener('load', finish);
+  xhr.addEventListener('error', finish);
+  xhr.addEventListener('abort', () => { showFail('Cancelled'); onDone(); });
+  xhr.open('PUT', urlData.upload_url);
+  xhr.setRequestHeader('Content-Type', urlData.content_type);
+  xhr.send(file);
 }
 
 // ── Metrics Engine ──────────────────────────────────────────────────────────
