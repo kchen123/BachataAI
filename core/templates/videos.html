@@ -492,7 +492,6 @@ function maybeCloseVideo() {
 }
 
 function closeVideo() {
-  closeLabelPanel();
   stopPoseLoop();
   const player = document.getElementById('videoPlayer');
   player.removeEventListener('play', startPoseLoop);
