@@ -103,6 +103,13 @@ def _sync_db_if_done(video_id):
             pose_data = json.loads(blob.download_as_bytes())
             update_data["body_focus"] = classify_body_focus(pose_data.get("frames", []))
             # role_labels already saved from person_roles at request time
+            # Auto-compute features for move matching
+            try:
+                from core.pose_features import compute_and_store_features
+                if compute_and_store_features(video_id, pose_data):
+                    update_data["has_features"] = True
+            except Exception:
+                pass
         except Exception:
             pass
         repo.update("bachata.videos", video_id, update_data)
@@ -377,3 +384,123 @@ def api_cleanup_jobs():
     return jsonify({"cleaned": cleaned})
 
 
+# ── Feature Extraction & Move Matching ─────────────────────────────────────
+
+
+@analysis_bp.route("/api/videos/<int:video_id>/compute-features", methods=["POST"])
+def api_compute_features(video_id):
+    """Compute pose feature vectors for move matching."""
+    repo = get_repo()
+    video = VideosAdapter(repo).get(video_id)
+    if not video:
+        return jsonify({"error": "video not found"}), 404
+    if not video.get("has_pose"):
+        return jsonify({"error": "no pose data — run analysis first"}), 400
+
+    analysis = AnalysesAdapter(repo).get_by_video(video_id)
+    if not analysis or analysis["status"] != "done":
+        return jsonify({"error": "analysis not complete"}), 400
+
+    summary = analysis.get("summary")
+    if isinstance(summary, str):
+        summary = json.loads(summary)
+    path = summary.get("pose_gcs_path") if summary else f"poses/{video_id}.json"
+
+    try:
+        blob = _gcs().bucket(BUCKET_NAME).blob(path)
+        pose_data = json.loads(blob.download_as_bytes())
+    except Exception as e:
+        return jsonify({"error": f"failed to load pose data: {e}"}), 500
+
+    from core.pose_features import compute_and_store_features
+    if compute_and_store_features(video_id, pose_data):
+        repo.update("bachata.videos", video_id, {"has_features": True})
+        return jsonify({"status": "done"}), 200
+    else:
+        return jsonify({"error": "no pose frames to extract features from"}), 400
+
+
+@analysis_bp.route("/api/videos/<int:video_id>/find-similar", methods=["POST"])
+def api_find_similar(video_id):
+    """Find similar move segments across other videos."""
+    repo = get_repo()
+    video = VideosAdapter(repo).get(video_id)
+    if not video:
+        return jsonify({"error": "video not found"}), 404
+
+    body = request.get_json(silent=True) or {}
+    start_sec = body.get("start_sec")
+    end_sec = body.get("end_sec")
+    if start_sec is None or end_sec is None:
+        return jsonify({"error": "start_sec and end_sec required"}), 400
+    if end_sec - start_sec < 0.5:
+        return jsonify({"error": "selection too short (min 0.5s)"}), 400
+
+    person_id = body.get("person_id", 0)
+    top_k = min(body.get("top_k", 5), 10)
+
+    # Load query video features
+    from core.pose_features import load_features_from_gcs
+    query_data = load_features_from_gcs(video_id)
+    if query_data is None:
+        return jsonify({"error": "no features — compute features first"}), 400
+
+    # Find candidate videos (all with features, excluding query video)
+    all_videos = VideosAdapter(repo).select(has_features=True)
+    candidate_ids = [v["id"] for v in all_videos if v["id"] != video_id]
+
+    if not candidate_ids:
+        return jsonify({"matches": [], "message": "no other videos with features"}), 200
+
+    from core.pose_matching import find_matches
+    matches = find_matches(
+        query_features=query_data["features"],
+        query_timestamps=query_data["timestamps"],
+        start_sec=start_sec,
+        end_sec=end_sec,
+        candidate_video_ids=candidate_ids,
+        person_id=person_id,
+        top_k=top_k,
+    )
+
+    # Enrich results with video metadata
+    for m in matches:
+        v = VideosAdapter(repo).get(m["video_id"])
+        if v:
+            m["title"] = v.get("title", "")
+            m["thumbnail_url"] = v.get("thumbnail_url", "")
+
+    return jsonify({"matches": matches}), 200
+
+
+@analysis_bp.route("/api/admin/compute-all-features", methods=["POST"])
+def api_compute_all_features():
+    """Backfill: compute features for all analyzed videos missing them."""
+    repo = get_repo()
+    videos = VideosAdapter(repo).select(has_pose=True)
+    computed = 0
+    errors = 0
+    for v in videos:
+        if v.get("has_features"):
+            continue
+        vid = v["id"]
+        analysis = AnalysesAdapter(repo).get_by_video(vid)
+        if not analysis or analysis["status"] != "done":
+            continue
+        summary = analysis.get("summary")
+        if isinstance(summary, str):
+            summary = json.loads(summary)
+        path = summary.get("pose_gcs_path") if summary else f"poses/{vid}.json"
+        try:
+            blob = _gcs().bucket(BUCKET_NAME).blob(path)
+            pose_data = json.loads(blob.download_as_bytes())
+            from core.pose_features import compute_and_store_features
+            if compute_and_store_features(vid, pose_data):
+                repo.update("bachata.videos", vid, {"has_features": True})
+                computed += 1
+            else:
+                errors += 1
+        except Exception:
+            errors += 1
+
+    return jsonify({"computed": computed, "errors": errors})
