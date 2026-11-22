@@ -165,20 +165,12 @@
       <div class="metrics-tabs">
         <button class="metrics-tab active" onclick="switchMetricsTab('speed', this)">Speed</button>
         <button class="metrics-tab" onclick="switchMetricsTab('angles', this)">Angles</button>
-        <button class="metrics-tab" onclick="switchMetricsTab('matches', this)">Matches</button>
       </div>
       <div class="metrics-content" id="metricsSpeed">
         <canvas id="metricsCanvas"></canvas>
       </div>
       <div class="metrics-content hidden" id="metricsAngles">
         <div class="metrics-angles-grid" id="anglesGrid"></div>
-      </div>
-      <div class="metrics-content hidden" id="metricsMatches">
-        <div class="match-controls">
-          <span class="match-hint" id="matchHint">Drag on the speed graph to select a move, then click Find Similar</span>
-          <button class="btn btn-sm btn-accent" id="findSimilarBtn" onclick="findSimilar()" disabled>Find Similar</button>
-        </div>
-        <div id="matchResults"></div>
       </div>
     </div>
   </div>
@@ -504,7 +496,6 @@ function closeVideo() {
   poseFrames = null;
   metricsData = null;
   metricsVisible = false;
-  _selStart = null; _selEnd = null;
   document.getElementById('metricsPanel').classList.add('hidden');
   bodyFocusFilter = '';
   document.getElementById('bodyFocusSelect').value = '';
@@ -1269,8 +1260,6 @@ function updateMetrics() {
 // ── Speed Graph ─────────────────────────────────────────────────────────────
 
 let speedGraphCache = null;
-let _selStart = null, _selEnd = null;
-let _dragStart = 0, _dragEnd = null, _dragging = false;
 
 function drawSpeedGraph() {
   if (!metricsData) return;
@@ -1347,39 +1336,14 @@ function drawSpeedGraph() {
   // Draw initial playhead
   drawSpeedPlayhead();
 
-  // Click to seek + drag to select
-  canvas.onmousedown = function(e) {
+  // Click to seek
+  canvas.onclick = function(e) {
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const t = ((x - pad.l) / (w - pad.l - pad.r)) * maxTime;
-    if (t < 0 || t > maxTime) return;
-    _dragStart = t;
-    _dragging = true;
-    _dragEnd = null;
-  };
-  canvas.onmousemove = function(e) {
-    if (!_dragging) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const t = Math.max(0, Math.min(maxTime, ((x - pad.l) / (w - pad.l - pad.r)) * maxTime));
-    _dragEnd = t;
-    drawSpeedPlayhead();
-  };
-  canvas.onmouseup = function(e) {
-    if (!_dragging) return;
-    _dragging = false;
-    if (_dragEnd === null || Math.abs(_dragEnd - _dragStart) < 0.3) {
-      // Simple click — seek
-      _selStart = null; _selEnd = null;
-      document.getElementById('videoPlayer').currentTime = _dragStart;
-      updateSelectionUI();
-      drawSpeedPlayhead();
-      return;
+    if (t >= 0 && t <= maxTime) {
+      document.getElementById('videoPlayer').currentTime = t;
     }
-    _selStart = Math.min(_dragStart, _dragEnd);
-    _selEnd = Math.max(_dragStart, _dragEnd);
-    updateSelectionUI();
-    drawSpeedPlayhead();
   };
 }
 
@@ -1492,125 +1456,6 @@ async function loadMore() {
     btn.disabled = false;
     btn.textContent = 'Load more';
   }
-}
-// ── Move Selection & Matching ───────────────────────────────────────────────
-
-function updateSelectionUI() {
-  const btn = document.getElementById('findSimilarBtn');
-  const hint = document.getElementById('matchHint');
-  if (_selStart !== null && _selEnd !== null && (_selEnd - _selStart) >= 0.5) {
-    btn.disabled = false;
-    const fmt = t => t.toFixed(1) + 's';
-    hint.textContent = 'Selected: ' + fmt(_selStart) + ' — ' + fmt(_selEnd);
-  } else {
-    btn.disabled = true;
-    hint.textContent = 'Drag on the speed graph to select a move, then click Find Similar';
-  }
-}
-
-function drawSelectionOverlay() {
-  // Draw selection highlight on speed graph
-  if (!speedGraphCache) return;
-  const canvas = document.getElementById('metricsCanvas');
-  const ctx = canvas.getContext('2d');
-  const w = canvas.width, h = canvas.height;
-  const pad = {l: 40, r: 10, t: 10, b: 20};
-  const player = document.getElementById('videoPlayer');
-  const maxTime = player.duration || 60;
-
-  let s0 = _selStart, s1 = _selEnd;
-  if (_dragging && _dragEnd !== null) {
-    s0 = Math.min(_dragStart, _dragEnd);
-    s1 = Math.max(_dragStart, _dragEnd);
-  }
-  if (s0 === null || s1 === null) return;
-
-  const x0 = pad.l + (s0 / maxTime) * (w - pad.l - pad.r);
-  const x1 = pad.l + (s1 / maxTime) * (w - pad.l - pad.r);
-
-  ctx.fillStyle = 'rgba(255, 136, 0, 0.2)';
-  ctx.fillRect(x0, pad.t, x1 - x0, h - pad.t - pad.b);
-  ctx.strokeStyle = 'rgba(255, 136, 0, 0.6)';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(x0, pad.t, x1 - x0, h - pad.t - pad.b);
-}
-
-// Patch drawSpeedPlayhead to also draw selection
-const _origDrawSpeedPlayhead = drawSpeedPlayhead;
-drawSpeedPlayhead = function() {
-  _origDrawSpeedPlayhead();
-  drawSelectionOverlay();
-};
-
-async function findSimilar() {
-  if (_selStart === null || _selEnd === null) return;
-  const vid = document.getElementById('videoId').textContent;
-  const btn = document.getElementById('findSimilarBtn');
-  const results = document.getElementById('matchResults');
-
-  btn.disabled = true;
-  btn.textContent = 'Searching...';
-  results.innerHTML = '<p style="color:var(--text-muted);font-size:13px">Searching for similar moves...</p>';
-
-  try {
-    // Ensure features are computed for this video
-    await fetch('/api/videos/' + vid + '/compute-features', {method: 'POST'});
-
-    const res = await fetch('/api/videos/' + vid + '/find-similar', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({start_sec: _selStart, end_sec: _selEnd, person_id: 0, top_k: 5}),
-    });
-    const data = await res.json();
-
-    if (!res.ok) {
-      results.innerHTML = '<p style="color:var(--red);font-size:13px">' + (data.error || 'Search failed') + '</p>';
-      return;
-    }
-
-    if (!data.matches || data.matches.length === 0) {
-      results.innerHTML = '<p style="color:var(--text-muted);font-size:13px">No similar moves found. Analyze more videos to build your library.</p>';
-      return;
-    }
-
-    let html = '';
-    data.matches.forEach(m => {
-      const startFmt = m.start_sec.toFixed(1) + 's';
-      const endFmt = m.end_sec.toFixed(1) + 's';
-      html += '<div class="match-card" onclick="openMatchVideo(' + m.video_id + ',' + m.start_sec + ')">';
-      if (m.thumbnail_url) {
-        html += '<img class="match-thumb" src="' + m.thumbnail_url + '" alt="">';
-      } else {
-        html += '<div class="match-thumb-placeholder"></div>';
-      }
-      html += '<div class="match-info">';
-      html += '<div class="match-title">' + (m.title || 'Video #' + m.video_id) + '</div>';
-      html += '<div class="match-meta">' + startFmt + ' — ' + endFmt + ' &middot; ' + m.score + '% match</div>';
-      html += '</div></div>';
-    });
-    results.innerHTML = html;
-  } catch (e) {
-    results.innerHTML = '<p style="color:var(--red);font-size:13px">Error: ' + e.message + '</p>';
-  } finally {
-    btn.textContent = 'Find Similar';
-    updateSelectionUI();
-  }
-}
-
-function openMatchVideo(videoId, seekTime) {
-  // Close current video, open matched video at timestamp
-  closeVideo();
-  setTimeout(() => {
-    // Find the video card and click it
-    const card = document.querySelector('.file-card[data-type="video"][data-id="' + videoId + '"]');
-    if (card) {
-      card.click();
-      setTimeout(() => {
-        const player = document.getElementById('videoPlayer');
-        if (player) player.currentTime = seekTime;
-      }, 500);
-    }
-  }, 300);
 }
 
 </script>

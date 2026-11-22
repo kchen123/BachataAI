@@ -8,6 +8,7 @@
     <button class="control-tab" onclick="switchControlTab('analysis', this)">Analysis</button>
     <button class="control-tab" onclick="switchControlTab('pose', this)">Pose</button>
     <button class="control-tab" onclick="switchControlTab('aigc', this)">AIGC</button>
+    <button class="control-tab" onclick="switchControlTab('pitch', this)">Pitch</button>
   </div>
 
   <div class="control-panel active" id="controlPanel-admin">
@@ -25,6 +26,10 @@
   <div class="control-panel" id="controlPanel-aigc">
     {% include "_control_aigc.html" %}
   </div>
+
+  <div class="control-panel" id="controlPanel-pitch">
+    {% include "_control_pitch.html" %}
+  </div>
 </div>
 {% endblock %}
 
@@ -35,7 +40,18 @@ function switchControlTab(tab, btn) {
   document.querySelectorAll('.control-panel').forEach(p => p.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById('controlPanel-' + tab).classList.add('active');
+  location.hash = tab;
 }
+
+// Restore tab from URL hash on load
+(function() {
+  const hash = location.hash.replace('#', '');
+  if (hash) {
+    const panel = document.getElementById('controlPanel-' + hash);
+    const btn = Array.from(document.querySelectorAll('.control-tab')).find(b => b.textContent.trim().toLowerCase() === hash);
+    if (panel && btn) switchControlTab(hash, btn);
+  }
+})();
 </script>
 
 {# Admin scripts #}
@@ -258,6 +274,167 @@ document.getElementById('poseConfigEditor').addEventListener('input', () => {
 });
 
 loadPoseConfig();
+</script>
+
+{# Pitch deck navigation #}
+<script>
+let currentSlide = 0;
+const totalSlides = 10;
+
+function goSlide(n, btn) {
+  currentSlide = n;
+  document.querySelectorAll('.pitch-slide').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.pitch-nav-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('.pitch-slide[data-slide="' + n + '"]').classList.add('active');
+  if (btn) btn.classList.add('active');
+  else document.querySelectorAll('.pitch-nav-btn')[n].classList.add('active');
+  document.getElementById('pitchPage').textContent = (n + 1) + ' / ' + totalSlides;
+}
+
+function nextSlide() { if (currentSlide < totalSlides - 1) goSlide(currentSlide + 1); }
+function prevSlide() { if (currentSlide > 0) goSlide(currentSlide - 1); }
+
+document.addEventListener('keydown', (e) => {
+  const pitchPanel = document.getElementById('controlPanel-pitch');
+  if (!pitchPanel || !pitchPanel.classList.contains('active')) return;
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); nextSlide(); }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); prevSlide(); }
+});
+</script>
+
+{# Analysis scripts #}
+<script>
+const ANALYZED_VIDEOS = {{ analyzed_videos_json | tojson }};
+
+(function() {
+  const sel = document.getElementById('analysisVideo');
+  if (!sel) return;
+  ANALYZED_VIDEOS.forEach(v => {
+    const opt = document.createElement('option');
+    opt.value = v.id;
+    opt.textContent = v.title || 'Video #' + v.id;
+    if (v.has_features) opt.textContent += ' ✓';
+    sel.appendChild(opt);
+  });
+})();
+
+function onAnalysisVideoChange() {
+  const vid = document.getElementById('analysisVideo').value;
+  const preview = document.getElementById('analysisPreview');
+  const player = document.getElementById('analysisPlayer');
+  if (!vid) {
+    preview.style.display = 'none';
+    player.src = '';
+    return;
+  }
+  const v = ANALYZED_VIDEOS.find(v => v.id == vid);
+  if (v && v.gcs_url) {
+    player.src = v.gcs_url;
+    preview.style.display = 'block';
+  }
+  validateRange();
+}
+
+function validateRange() {
+  const vid = document.getElementById('analysisVideo').value;
+  const start = parseFloat(document.getElementById('analysisStart').value);
+  const end = parseFloat(document.getElementById('analysisEnd').value);
+  const btn = document.getElementById('analysisSearchBtn');
+  btn.disabled = !vid || isNaN(start) || isNaN(end) || end - start < 0.5;
+}
+
+async function runMoveSearch() {
+  const vid = document.getElementById('analysisVideo').value;
+  const start = parseFloat(document.getElementById('analysisStart').value);
+  const end = parseFloat(document.getElementById('analysisEnd').value);
+  const btn = document.getElementById('analysisSearchBtn');
+  const status = document.getElementById('analysisStatus');
+  const results = document.getElementById('analysisResults');
+
+  btn.disabled = true;
+  btn.textContent = 'Searching...';
+  status.textContent = 'Computing features...';
+  status.className = 'analysis-status';
+  results.innerHTML = '';
+
+  try {
+    // Ensure features exist
+    await fetch('/api/videos/' + vid + '/compute-features', {method: 'POST'});
+    status.textContent = 'Searching across videos...';
+
+    const res = await fetch('/api/videos/' + vid + '/find-similar', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({start_sec: start, end_sec: end, person_id: 0, top_k: 5}),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      status.textContent = data.error || 'Search failed';
+      status.className = 'analysis-status error';
+      return;
+    }
+
+    if (!data.matches || data.matches.length === 0) {
+      status.textContent = 'No similar moves found. Compute features for more videos.';
+      status.className = 'analysis-status';
+      results.innerHTML = '';
+      return;
+    }
+
+    status.textContent = data.matches.length + ' match(es) found';
+    status.className = 'analysis-status success';
+
+    let html = '<div class="analysis-matches">';
+    data.matches.forEach(m => {
+      const sf = m.start_sec.toFixed(1);
+      const ef = m.end_sec.toFixed(1);
+      html += '<div class="match-card">';
+      if (m.thumbnail_url) {
+        html += '<img class="match-thumb" src="' + m.thumbnail_url + '" alt="">';
+      } else {
+        html += '<div class="match-thumb-placeholder"></div>';
+      }
+      html += '<div class="match-info">';
+      html += '<div class="match-title">' + (m.title || 'Video #' + m.video_id) + '</div>';
+      html += '<div class="match-meta">' + sf + 's — ' + ef + 's &middot; <strong>' + m.score + '%</strong> match</div>';
+      html += '</div></div>';
+    });
+    html += '</div>';
+    results.innerHTML = html;
+  } catch (e) {
+    status.textContent = 'Error: ' + e.message;
+    status.className = 'analysis-status error';
+  } finally {
+    btn.textContent = 'Find Similar';
+    validateRange();
+  }
+}
+
+async function runBackfill() {
+  const btn = document.getElementById('backfillBtn');
+  const status = document.getElementById('backfillStatus');
+  btn.disabled = true;
+  btn.textContent = 'Computing...';
+  status.textContent = '';
+  try {
+    const res = await fetch('/api/admin/compute-all-features', {method: 'POST'});
+    const data = await res.json();
+    if (res.ok) {
+      status.textContent = data.computed + ' computed, ' + data.errors + ' errors';
+      status.className = 'analysis-status success';
+    } else {
+      status.textContent = data.error || 'Failed';
+      status.className = 'analysis-status error';
+    }
+  } catch (e) {
+    status.textContent = 'Error: ' + e.message;
+    status.className = 'analysis-status error';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Compute All Features';
+  }
+}
 </script>
 
 {# AIGC scripts #}

@@ -84,8 +84,12 @@ def control():
     users_json = [serialize(u) for u in users]
     tiers_json = [serialize(t) for t in tiers]
 
+    # Videos with pose data for analysis tab
+    analyzed_videos = [serialize(v) for v in videos if v.get("has_pose")]
+
     return render_template("control.html", users=users, users_json=users_json,
-                           stats=stats, tiers=tiers, tiers_json=tiers_json)
+                           stats=stats, tiers=tiers, tiers_json=tiers_json,
+                           analyzed_videos_json=analyzed_videos)
 
 
 @admin_bp.route("/admin")
