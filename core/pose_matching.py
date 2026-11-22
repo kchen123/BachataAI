@@ -9,6 +9,9 @@ import numpy as np
 from core.pose_features import load_features_from_gcs, FEATURE_DIM
 from core.adapters.storage import BUCKET_NAME, _get_client as _gcs
 
+# In-memory cache to avoid re-downloading features from GCS on every search
+_features_cache: dict[int, dict] = {}
+
 
 def dtw_distance(seq_a: np.ndarray, seq_b: np.ndarray) -> float:
     """Compute DTW distance between two feature sequences.
@@ -83,7 +86,11 @@ def find_matches(
     candidates = []  # (video_id, start_idx, end_idx, mean_dist, timestamps)
 
     for vid in candidate_video_ids:
-        feat_data = load_features_from_gcs(vid)
+        feat_data = _features_cache.get(vid)
+        if feat_data is None:
+            feat_data = load_features_from_gcs(vid)
+            if feat_data is not None:
+                _features_cache[vid] = feat_data
         if feat_data is None:
             continue
         feats = feat_data["features"]
@@ -102,16 +109,16 @@ def find_matches(
     if not candidates:
         return []
 
-    # Keep top candidates for full DTW (limit to 50 for speed)
+    # Keep top candidates for full DTW (limit to 200 for better recall)
     candidates.sort(key=lambda x: x[3])
-    top_candidates = candidates[:50]
+    top_candidates = candidates[:200]
 
     # Pass 2: Full DTW on top candidates
     results = []
     seen_videos = {}  # video_id -> best score (keep only best per video)
 
     for vid, start_i, end_i, _, ts in top_candidates:
-        feat_data = load_features_from_gcs(vid)
+        feat_data = _features_cache.get(vid)
         if feat_data is None:
             continue
         window = feat_data["features"][start_i:end_i]

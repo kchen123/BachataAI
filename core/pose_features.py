@@ -105,16 +105,22 @@ def extract_video_features(pose_json: dict, person_id: int = 0) -> dict:
 
     for frame in frames:
         persons = frame.get("persons", [])
-        # Find person by person_id
+        # Find person by person_id, or pick the one with most visible keypoints
         kpts = None
         for p in persons:
             if p.get("person_id") == person_id:
                 kpts = p.get("keypoints")
                 break
         if kpts is None and persons:
-            # Fallback: use first person if only one
-            if len(persons) == 1:
-                kpts = persons[0].get("keypoints")
+            # Fallback: pick person with most visible keypoints (best detected)
+            best_vis, best_kpts = -1, None
+            for p in persons:
+                pk = p.get("keypoints", {})
+                vis_count = sum(1 for k in pk.values() if isinstance(k, dict) and k.get("visibility", 0) > VIS_THRESHOLD)
+                if vis_count > best_vis:
+                    best_vis = vis_count
+                    best_kpts = pk
+            kpts = best_kpts
 
         if kpts:
             feat_list.append(extract_frame_features(kpts))
