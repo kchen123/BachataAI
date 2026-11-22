@@ -808,17 +808,14 @@ async function runBackfill() {
       g.bones.forEach(b => b.visible = false);
     }
 
-    // Render each person
+    // Render each person (use array index as ID since person_id can be null)
     const labels = [];
-    persons.forEach(p => {
-      const pid = p.person_id != null ? p.person_id : 0;
+    persons.forEach((p, idx) => {
+      if (idx >= _3dMaxPersons) return;  // skip beyond pre-allocated
       const kpts = p.keypoints;
       if (!kpts) return;
 
-      // Ensure we have geometry for this person
-      if (!_3dPersonGroups[pid]) return; // skip if more persons than pre-allocated
-
-      const g = _3dPersonGroups[pid];
+      const g = _3dPersonGroups[idx];
       const pts3d = liftTo3d(kpts);
 
       // Position joints
@@ -848,7 +845,7 @@ async function runBackfill() {
         }
       });
 
-      const label = p.label || ('Person ' + pid);
+      const label = p.label || ('Person ' + idx);
       labels.push(label);
     });
 
