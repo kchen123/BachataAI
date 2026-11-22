@@ -152,17 +152,29 @@ genBtn.addEventListener('click', async () => {
     if (!urlRes.ok) throw new Error('Failed to get upload URL');
     const { upload_url, blob_name, job_id } = await urlRes.json();
 
-    // Step 2: Upload video to GCS
+    // Step 2: Upload video to GCS via XHR (supports progress)
     showStatus('Uploading video to cloud...');
-    fill.style.width = '5%';
-    progText.textContent = '5%';
+    fill.style.width = '2%';
+    progText.textContent = '2%';
 
-    const uploadRes = await fetch(upload_url, {
-      method: 'PUT',
-      headers: {'Content-Type': 'video/mp4'},
-      body: selectedFile
+    await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 10);
+          fill.style.width = pct + '%';
+          progText.textContent = pct + '%';
+        }
+      });
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 400) resolve();
+        else reject(new Error('Upload failed: ' + xhr.status));
+      });
+      xhr.addEventListener('error', () => reject(new Error('Upload network error')));
+      xhr.open('PUT', upload_url);
+      xhr.setRequestHeader('Content-Type', 'video/mp4');
+      xhr.send(selectedFile);
     });
-    if (!uploadRes.ok) throw new Error('Upload failed');
 
     fill.style.width = '10%';
     progText.textContent = '10%';
