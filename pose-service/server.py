@@ -22,6 +22,7 @@ app = FastAPI(title="BachataAI Pose Service")
 MODEL_PATH = "yolo26x-pose.pt"
 MODEL_BUCKET = os.environ.get("MODEL_BUCKET", "bachataai-videos")
 MODEL_BLOB = os.environ.get("MODEL_BLOB", "models/yolo26x-pose.pt")
+CONFIG_BLOB = os.environ.get("CONFIG_BLOB", "config/pose_config.json")
 GCS_CLIENT = None
 
 
@@ -30,6 +31,22 @@ def _gcs():
     if GCS_CLIENT is None:
         GCS_CLIENT = storage.Client()
     return GCS_CLIENT
+
+
+def _load_config():
+    """Load pose config from GCS, fall back to local default."""
+    try:
+        blob = _gcs().bucket(MODEL_BUCKET).blob(CONFIG_BLOB)
+        cfg = json.loads(blob.download_as_bytes())
+        print(f"Config loaded from gs://{MODEL_BUCKET}/{CONFIG_BLOB}")
+        return cfg
+    except Exception as e:
+        print(f"Config load failed ({e}), using local default")
+        local = os.path.join(os.path.dirname(__file__), "default_config.json")
+        if os.path.exists(local):
+            with open(local) as f:
+                return json.load(f)
+        return {}
 
 
 def _load_model():
@@ -42,6 +59,7 @@ def _load_model():
     return YOLO(MODEL_PATH)
 
 
+CFG = _load_config()
 MODEL = _load_model()
 
 
@@ -121,7 +139,7 @@ def detect_first_frame(req: DetectRequest):
                     box = boxes.xyxy[i]
                     x1, y1, x2, y2 = float(box[0]) / w, float(box[1]) / h, float(box[2]) / w, float(box[3]) / h
                 area = (x2 - x1) * (y2 - y1)
-                if area < 0.02:
+                if area < CFG.get("tracking", {}).get("min_bbox_area", 0.02):
                     continue
 
                 # Keypoints
@@ -193,7 +211,7 @@ def _match_persons_to_prev(prev_persons, curr_persons):
                 iou = _iou(pp["bbox"], cp["bbox"])
                 dist = _center_distance(pp["bbox"], cp["bbox"])
                 # Combined score: IoU (0-1) + proximity bonus (0-1)
-                scores[i, j] = iou + max(0, 1.0 - dist * 3)
+                scores[i, j] = iou + max(0, 1.0 - dist * CFG.get("tracking", {}).get("proximity_weight", 3.0))
             else:
                 scores[i, j] = 0
 
@@ -212,7 +230,7 @@ def _match_persons_to_prev(prev_persons, curr_persons):
                 if scores[i, j] > best_score:
                     best_score = scores[i, j]
                     best_i, best_j = i, j
-        if best_score < 0.15:
+        if best_score < CFG.get("tracking", {}).get("match_score_threshold", 0.15):
             break
         assignments[best_i] = best_j
         used_curr.add(best_j)
@@ -247,7 +265,7 @@ def _postprocess_tracks(raw_frames, person_roles, max_persons):
         # inference in _run_analysis keeps ALL detections, so we need to
         # replicate that filter+sort to align the indices.
         fp_sorted = sorted(
-            [p for p in first_persons if p["bbox_area"] > 0.02],
+            [p for p in first_persons if p["bbox_area"] > CFG.get("tracking", {}).get("min_bbox_area", 0.02)],
             key=lambda p: abs(p["center_x"] - 0.5),
         )
         targets = []
@@ -286,7 +304,7 @@ def _postprocess_tracks(raw_frames, person_roles, max_persons):
         candidates = frame["persons"]
 
         # Pre-filter: remove tiny detections (< 30% of reference area)
-        candidates = [p for p in candidates if p["bbox_area"] > ref_area * 0.3]
+        candidates = [p for p in candidates if p["bbox_area"] > ref_area * CFG.get("tracking", {}).get("relative_size_filter", 0.3)]
 
         # Match candidates to previously tracked persons
         assignments = _match_persons_to_prev(prev_tracked, candidates)
@@ -304,7 +322,7 @@ def _postprocess_tracks(raw_frames, person_roles, max_persons):
             else:
                 # Person not found — carry forward previous data for a few frames
                 lost_count[pid] += 1
-                if lost_count[pid] <= 5:
+                if lost_count[pid] <= CFG.get("tracking", {}).get("ghost_frames", 5):
                     ghost = copy.deepcopy(prev_tracked[pid])
                     ghost["_ghost"] = True
                     new_tracked.append(ghost)
@@ -331,9 +349,10 @@ def _postprocess_tracks(raw_frames, person_roles, max_persons):
         frame["persons"] = new_tracked
 
     # --- Step 3: Smooth keypoints with EMA ---
-    ema_alpha = 0.4  # higher = more responsive, lower = smoother
+    ema_alpha = CFG.get("smoothing", {}).get("ema_alpha", 0.4)
     # Per-person EMA state: person_id → {kpt_index: (x, y)}
     ema_state = {}
+    vis_cutoff = CFG.get("smoothing", {}).get("visibility_cutoff", 0.3)
 
     for frame in raw_frames:
         for person in frame["persons"]:
@@ -345,18 +364,16 @@ def _postprocess_tracks(raw_frames, person_roles, max_persons):
             for k, kpt in kpts.items():
                 x, y, vis = kpt["x"], kpt["y"], kpt.get("visibility", 0)
 
-                if k in ema_state[pid] and vis > 0.3:
+                if k in ema_state[pid] and vis > vis_cutoff:
                     prev_x, prev_y = ema_state[pid][k]
-                    # Adaptive alpha: low-visibility keypoints get more smoothing
                     alpha = ema_alpha * min(vis, 1.0)
                     sx = alpha * x + (1 - alpha) * prev_x
                     sy = alpha * y + (1 - alpha) * prev_y
                     kpt["x"] = round(sx, 5)
                     kpt["y"] = round(sy, 5)
                     ema_state[pid][k] = (sx, sy)
-                elif vis > 0.3:
+                elif vis > vis_cutoff:
                     ema_state[pid][k] = (x, y)
-                # If vis <= 0.3, don't update EMA — keep last good position
 
     # --- Step 4: Clean up internal fields ---
     for frame in raw_frames:

@@ -1,6 +1,8 @@
 """Admin dashboard routes – admin only."""
 
+import json
 from flask import Blueprint, render_template, session, redirect, url_for, jsonify, request
+from core.adapters.storage import BUCKET_NAME, _get_client as _gcs
 from core.adapters.repository import get_repo
 from core.adapters.users import UsersAdapter
 from core.adapters.videos import VideosAdapter
@@ -222,3 +224,36 @@ def delete_tier(tier_id):
     repo = get_repo()
     TiersAdapter(repo).delete(tier_id)
     return "", 204
+
+
+# ── Pose Config API ─────────────────────────────────────────────────────────
+
+POSE_CONFIG_BLOB = "config/pose_config.json"
+
+
+@admin_bp.route("/api/admin/pose-config", methods=["GET"])
+def get_pose_config():
+    denied = _require_admin()
+    if denied:
+        return jsonify({"error": "forbidden"}), 403
+    try:
+        blob = _gcs().bucket(BUCKET_NAME).blob(POSE_CONFIG_BLOB)
+        return jsonify(json.loads(blob.download_as_bytes()))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@admin_bp.route("/api/admin/pose-config", methods=["PUT"])
+def save_pose_config():
+    denied = _require_admin()
+    if denied:
+        return jsonify({"error": "forbidden"}), 403
+    data = request.json
+    if not data:
+        return jsonify({"error": "empty body"}), 400
+    try:
+        blob = _gcs().bucket(BUCKET_NAME).blob(POSE_CONFIG_BLOB)
+        blob.upload_from_string(json.dumps(data, indent=2), content_type="application/json")
+        return jsonify({"status": "saved"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

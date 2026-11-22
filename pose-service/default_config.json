@@ -1,0 +1,25 @@
+{
+  "model": {
+    "name": "yolo26x-pose",
+    "imgsz": 640,
+    "conf": 0.25,
+    "iou": 0.7
+  },
+  "sampling": {
+    "sample_every_n": 2
+  },
+  "tracking": {
+    "match_score_threshold": 0.15,
+    "min_bbox_area": 0.02,
+    "relative_size_filter": 0.3,
+    "ghost_frames": 5,
+    "proximity_weight": 3.0
+  },
+  "smoothing": {
+    "ema_alpha": 0.4,
+    "visibility_cutoff": 0.3
+  },
+  "rendering": {
+    "visibility_draw_threshold": 0.5
+  }
+}

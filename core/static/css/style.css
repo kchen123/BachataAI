@@ -1205,6 +1205,63 @@
 .control-panel .poc-container { border: none; border-radius: 0; background: none; backdrop-filter: none; box-shadow: none; }
 
 
+/* ── Pose Config ──────────────────────────────────────────────────── */
+
+.pose-config-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: 16px;
+  gap: 10px;
+}
+
+.pose-config-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pose-config-header h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.pose-config-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.pose-config-status {
+  font-size: 11px;
+  min-height: 16px;
+}
+.pose-config-status.error { color: var(--red); }
+.pose-config-status.success { color: var(--green); }
+
+.pose-config-editor {
+  flex: 1;
+  min-height: 200px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  resize: none;
+  tab-size: 2;
+}
+
+.pose-config-editor:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+
 /* ── PoC Page ──────────────────────────────────────────────────────── */
 
 .poc-container {
