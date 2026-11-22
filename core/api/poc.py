@@ -55,40 +55,25 @@ def index():
 
 # ── API routes ───────────────────────────────────────────────────────────────
 
-@poc_bp.route("/api/poc/upload-url", methods=["POST"])
-def get_upload_url():
-    """Get a GCS resumable upload URL for the PoC video."""
-    import google.auth
-    import google.auth.transport.requests as gauth_requests
-
+@poc_bp.route("/api/poc/upload", methods=["POST"])
+def upload_video():
+    """Upload video directly to GCS through the server."""
     denied = _require_admin()
     if denied:
         return jsonify({"error": "forbidden"}), 403
 
-    data = request.json
-    filename = data.get("filename", "video.mp4")
+    file = request.files.get("file")
+    if not file:
+        return jsonify({"error": "no file"}), 400
+
     job_id = str(uuid.uuid4())[:8]
-    blob_name = f"poc/{job_id}_{filename}"
-    ct = "video/mp4"
+    blob_name = f"poc/{job_id}_{file.filename}"
 
-    # Create resumable upload session via GCS JSON API (same pattern as video upload)
-    credentials, _ = google.auth.default()
-    auth_req = gauth_requests.Request()
-    credentials.refresh(auth_req)
+    bucket = _gcs().bucket(BUCKET_NAME)
+    blob = bucket.blob(blob_name)
+    blob.upload_from_file(file.stream, content_type="video/mp4")
 
-    init_resp = requests.post(
-        f"https://storage.googleapis.com/upload/storage/v1/b/{BUCKET_NAME}/o?uploadType=resumable&name={blob_name}",
-        headers={
-            "Authorization": f"Bearer {credentials.token}",
-            "Content-Type": "application/json",
-            "X-Upload-Content-Type": ct,
-        },
-        json={"contentType": ct},
-    )
-    init_resp.raise_for_status()
-    upload_url = init_resp.headers["Location"]
-
-    return jsonify({"upload_url": upload_url, "blob_name": blob_name, "job_id": job_id})
+    return jsonify({"blob_name": blob_name, "job_id": job_id})
 
 
 @poc_bp.route("/api/poc/convert", methods=["POST"])

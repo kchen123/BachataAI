@@ -142,22 +142,14 @@ genBtn.addEventListener('click', async () => {
   resultEl.innerHTML = '<p>Generated anime video will appear here.</p>';
 
   try {
-    // Step 1: Get upload URL
-    showStatus('Getting upload URL...');
-    const urlRes = await fetch('/api/poc/upload-url', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({ filename: selectedFile.name })
-    });
-    if (!urlRes.ok) throw new Error('Failed to get upload URL');
-    const { upload_url, blob_name, job_id } = await urlRes.json();
-
-    // Step 2: Upload video to GCS via XHR (supports progress)
-    showStatus('Uploading video to cloud...');
+    // Step 1: Upload video through server to GCS
+    showStatus('Uploading video...');
     fill.style.width = '2%';
     progText.textContent = '2%';
 
-    await new Promise((resolve, reject) => {
+    const uploadData = await new Promise((resolve, reject) => {
+      const formData = new FormData();
+      formData.append('file', selectedFile);
       const xhr = new XMLHttpRequest();
       xhr.upload.addEventListener('progress', (e) => {
         if (e.lengthComputable) {
@@ -167,15 +159,18 @@ genBtn.addEventListener('click', async () => {
         }
       });
       xhr.addEventListener('load', () => {
-        if (xhr.status >= 200 && xhr.status < 400) resolve();
-        else reject(new Error('Upload failed: ' + xhr.status));
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(JSON.parse(xhr.responseText));
+        } else {
+          reject(new Error('Upload failed: ' + xhr.status));
+        }
       });
       xhr.addEventListener('error', () => reject(new Error('Upload network error')));
-      xhr.open('PUT', upload_url);
-      xhr.setRequestHeader('Content-Type', 'video/mp4');
-      xhr.send(selectedFile);
+      xhr.open('POST', '/api/poc/upload');
+      xhr.send(formData);
     });
 
+    const { blob_name, job_id } = uploadData;
     fill.style.width = '10%';
     progText.textContent = '10%';
     showStatus('Upload complete. Starting conversion...');
