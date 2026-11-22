@@ -788,12 +788,13 @@ function drawCurrentPose() {
   const canvas = document.getElementById('poseCanvas');
   const ctx = canvas.getContext('2d');
 
-  // Match canvas to video display size
-  const rect = player.getBoundingClientRect();
-  canvas.width = rect.width;
-  canvas.height = rect.height;
-  canvas.style.width = rect.width + 'px';
-  canvas.style.height = rect.height + 'px';
+  // Match canvas to video wrapper (not player, which includes controls bar)
+  const wrapper = player.parentElement;
+  const wrapRect = wrapper.getBoundingClientRect();
+  canvas.width = wrapRect.width;
+  canvas.height = wrapRect.height;
+  canvas.style.width = wrapRect.width + 'px';
+  canvas.style.height = wrapRect.height + 'px';
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   // Find the two bracketing frames and interpolate for smooth movement
