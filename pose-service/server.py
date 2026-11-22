@@ -650,10 +650,11 @@ def _run_animify(req: AnimifyRequest):
             "step": f"Processing {frames_to_process} frames..."
         }, force=True)
 
-        # Output video writer
+        # Output video writer (raw mp4v, will re-encode to H.264 after)
+        raw_path = tmp_path + "_raw.mp4"
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         out_fps = fps / req.sample_every_n
-        writer = cv2.VideoWriter(out_path, fourcc, out_fps, (w, h))
+        writer = cv2.VideoWriter(raw_path, fourcc, out_fps, (w, h))
 
         frame_num = 0
         processed = 0
@@ -680,9 +681,24 @@ def _run_animify(req: AnimifyRequest):
         cap.release()
         writer.release()
 
+        # Re-encode to H.264 for browser playback
+        _write_progress(bucket, f"anime-{req.job_id}", {
+            "status": "running", "percent": 91,
+            "step": "Encoding H.264..."
+        }, force=True)
+
+        import subprocess
+        subprocess.run([
+            "ffmpeg", "-y", "-i", raw_path,
+            "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+            "-pix_fmt", "yuv420p", "-movflags", "+faststart",
+            out_path,
+        ], capture_output=True, timeout=300)
+        os.unlink(raw_path)
+
         # Upload result
         _write_progress(bucket, f"anime-{req.job_id}", {
-            "status": "running", "percent": 92,
+            "status": "running", "percent": 95,
             "step": "Uploading anime video..."
         }, force=True)
 
@@ -703,8 +719,9 @@ def _run_animify(req: AnimifyRequest):
         }, force=True)
     finally:
         os.unlink(tmp_path)
-        if os.path.exists(out_path):
-            os.unlink(out_path)
+        for p in [raw_path, out_path]:
+            if os.path.exists(p):
+                os.unlink(p)
 
 
 @app.post("/animify")

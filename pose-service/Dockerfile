@@ -1,8 +1,10 @@
 FROM us-central1-docker.pkg.dev/leumeah/cloud-run-source-deploy/bachataai-pose-base:latest
 
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-# Only server.py changes between deploys — everything else is in the base image
 COPY server.py /app/server.py
 
 EXPOSE 8080
