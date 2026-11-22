@@ -220,43 +220,104 @@ def delete_tier(tier_id):
     return "", 204
 
 
-# ── Pose Config API ─────────────────────────────────────────────────────────
+# ── Global Configs API (DB-backed) ─────────────────────────────────────────
 
-POSE_CONFIG_BLOB = "config/pose_config.json"
+CONFIGS_TABLE = "bachata.global_configs"
 
 
-@admin_bp.route("/api/admin/pose-config", methods=["GET"])
-def get_pose_config():
+@admin_bp.route("/api/admin/configs", methods=["GET"])
+def list_configs():
     denied = require_admin()
     if denied:
         return jsonify({"error": "forbidden"}), 403
-    try:
-        blob = _gcs().bucket(BUCKET_NAME).blob(POSE_CONFIG_BLOB)
-        return jsonify(json.loads(blob.download_as_bytes()))
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    repo = get_repo()
+    rows = repo.select(CONFIGS_TABLE, order_by="key")
+    result = []
+    for r in rows:
+        val = r["value"]
+        if isinstance(val, str):
+            val = json.loads(val)
+        result.append({
+            "key": r["key"],
+            "value": val,
+            "updated_at": str(r["updated_at"]) if r.get("updated_at") else None,
+        })
+    return jsonify(result)
 
 
-@admin_bp.route("/api/admin/pose-config", methods=["PUT"])
-def save_pose_config():
+@admin_bp.route("/api/admin/configs/<key>", methods=["GET"])
+def get_config(key):
+    denied = require_admin()
+    if denied:
+        return jsonify({"error": "forbidden"}), 403
+    repo = get_repo()
+    rows = repo.select(CONFIGS_TABLE, key=key)
+    if not rows:
+        return jsonify({"error": "not found"}), 404
+    val = rows[0]["value"]
+    if isinstance(val, str):
+        val = json.loads(val)
+    return jsonify(val)
+
+
+@admin_bp.route("/api/admin/configs/<key>", methods=["PUT"])
+def save_config(key):
     denied = require_admin()
     if denied:
         return jsonify({"error": "forbidden"}), 403
     data = request.json
-    if not data:
+    if data is None:
         return jsonify({"error": "empty body"}), 400
-    try:
-        blob = _gcs().bucket(BUCKET_NAME).blob(POSE_CONFIG_BLOB)
-        blob.upload_from_string(json.dumps(data, indent=2), content_type="application/json")
-        # Hot-reload config on running GPU container
+    repo = get_repo()
+    cur = repo.conn.cursor()
+    cur.execute("""
+        INSERT INTO bachata.global_configs (key, value, updated_at)
+        VALUES (%s, %s, NOW())
+        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+    """, (key, json.dumps(data)))
+    repo.conn.commit()
+
+    # If pose_config changed, also sync to GCS and hot-reload GPU
+    if key == "pose_config":
         try:
+            blob = _gcs().bucket(BUCKET_NAME).blob("config/pose_config.json")
+            blob.upload_from_string(json.dumps(data, indent=2), content_type="application/json")
             http_requests.post(
                 f"{POSE_SERVICE_URL}/reload-config",
                 headers=pose_auth_headers(),
                 timeout=10,
             )
         except Exception:
-            pass  # GPU may be scaled to zero — config will load on next cold start
-        return jsonify({"status": "saved"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+            pass
+
+    return jsonify({"status": "saved"})
+
+
+@admin_bp.route("/api/admin/configs/<key>", methods=["DELETE"])
+def delete_config(key):
+    denied = require_admin()
+    if denied:
+        return jsonify({"error": "forbidden"}), 403
+    repo = get_repo()
+    cur = repo.conn.cursor()
+    cur.execute("DELETE FROM bachata.global_configs WHERE key = %s", (key,))
+    repo.conn.commit()
+    return "", 204
+
+
+# Legacy endpoints — redirect to new config API
+@admin_bp.route("/api/admin/pose-config", methods=["GET"])
+def get_pose_config():
+    return get_config("pose_config")
+
+@admin_bp.route("/api/admin/pose-config", methods=["PUT"])
+def save_pose_config():
+    return save_config("pose_config")
+
+@admin_bp.route("/api/admin/app-config", methods=["GET"])
+def get_app_config():
+    return get_config("app_config")
+
+@admin_bp.route("/api/admin/app-config", methods=["PUT"])
+def save_app_config():
+    return save_config("app_config")

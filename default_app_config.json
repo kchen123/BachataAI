@@ -1,0 +1,57 @@
+{
+  "rendering": {
+    "skeleton_line_width": 2,
+    "skeleton_shadow_blur": 4,
+    "keypoint_dot_radius": 4,
+    "visibility_threshold": 0.5,
+    "colors": {
+      "lead": "#00ff88",
+      "follow": "#4da6ff",
+      "person3": "#cc66ff",
+      "person4": "#ffcc00"
+    }
+  },
+  "weight_arrow": {
+    "visibility_threshold": 0.4,
+    "min_magnitude": 0.08,
+    "length_scale": 0.8,
+    "head_length": 10,
+    "head_width": 5,
+    "line_width": 3,
+    "shadow_blur": 6,
+    "balanced_threshold": 0.3,
+    "moderate_threshold": 0.6
+  },
+  "speed_graph": {
+    "height": 120,
+    "padding": { "left": 40, "right": 10, "top": 10, "bottom": 20 },
+    "smoothing_window": 5,
+    "line_width": 1.5,
+    "font_size": 9
+  },
+  "analysis": {
+    "default_sample_every_n": 2,
+    "default_resolution": 640,
+    "job_timeout_minutes": 30,
+    "gpu_request_timeout_sec": 3600,
+    "detect_timeout_sec": 120,
+    "progress_poll_interval_ms": 5000
+  },
+  "matching": {
+    "dtw_candidate_limit": 200,
+    "default_top_k": 5,
+    "max_top_k": 10,
+    "min_window_ratio": 0.5,
+    "max_window_ratio": 2.0,
+    "score_divisor": 2.0
+  },
+  "classification": {
+    "threshold_ratio": 1.5,
+    "visibility_threshold": 0.5
+  },
+  "ui": {
+    "page_size": 20,
+    "thumbnail_width": 320,
+    "thumbnail_quality": 75
+  }
+}

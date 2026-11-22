@@ -267,6 +267,18 @@ def api_generate_thumbnail(video_id):
 
 # ── Account API ────────────────────────────────────────────────────────────────
 
+@videos_bp.route("/api/app-config", methods=["GET"])
+def api_get_app_config():
+    """Public read-only app config for frontend rendering params."""
+    import json
+    try:
+        blob = _gcs_client().bucket(BUCKET_NAME).blob("config/app_config.json")
+        return jsonify(json.loads(blob.download_as_bytes()))
+    except Exception:
+        # Return defaults if config not found
+        return jsonify({})
+
+
 @videos_bp.route("/api/account", methods=["PATCH"])
 def api_update_account():
     body = request.get_json()

@@ -205,40 +205,70 @@ async function doDeleteTier() {
 }
 </script>
 
-{# App config scripts #}
+{# Config table scripts #}
 <script>
-let _appConfigSaved = '';
+let _editingConfigKey = null;
 
-async function loadAppConfig() {
-  const editor = document.getElementById('appConfigEditor');
-  const status = document.getElementById('appConfigStatus');
-  const saveBtn = document.getElementById('appConfigSaveBtn');
-  status.textContent = 'Loading...';
-  status.className = 'pose-config-status';
+async function loadConfigs() {
   try {
-    const res = await fetch('/api/admin/app-config');
+    const res = await fetch('/api/admin/configs');
     const data = await res.json();
-    if (res.ok) {
-      const text = JSON.stringify(data, null, 2);
-      editor.value = text;
-      _appConfigSaved = text;
-      saveBtn.disabled = true;
-      status.textContent = '';
-    } else {
-      status.textContent = data.error || 'Failed to load';
-      status.classList.add('error');
-    }
-  } catch (e) {
-    status.textContent = 'Error: ' + e.message;
-    status.classList.add('error');
-  }
+    const tbody = document.querySelector('#configsTable tbody');
+    tbody.innerHTML = '';
+    data.forEach(c => {
+      const tr = document.createElement('tr');
+      tr.style.cursor = 'pointer';
+      tr.onclick = () => openConfigModal(c.key);
+      const updated = c.updated_at ? new Date(c.updated_at).toLocaleString() : '';
+      tr.innerHTML = '<td><strong>' + c.key + '</strong></td><td style="font-size:11px;color:var(--text-muted)">' + updated + '</td><td><button class="btn btn-sm" onclick="event.stopPropagation(); openConfigModal(\'' + c.key + '\')">Edit</button></td>';
+      tbody.appendChild(tr);
+    });
+  } catch (e) {}
 }
 
-async function saveAppConfig() {
-  const editor = document.getElementById('appConfigEditor');
-  const status = document.getElementById('appConfigStatus');
-  const saveBtn = document.getElementById('appConfigSaveBtn');
-  if (editor.value === _appConfigSaved) return;
+async function openConfigModal(key) {
+  const modal = document.getElementById('configModal');
+  const title = document.getElementById('configModalTitle');
+  const keyInput = document.getElementById('editConfigKey');
+  const editor = document.getElementById('editConfigValue');
+  const status = document.getElementById('configModalStatus');
+  const delBtn = document.getElementById('btnDeleteConfig');
+  status.textContent = '';
+  status.className = 'pose-config-status';
+
+  if (key) {
+    _editingConfigKey = key;
+    title.textContent = 'Edit: ' + key;
+    keyInput.value = key;
+    keyInput.disabled = true;
+    delBtn.style.display = '';
+    try {
+      const res = await fetch('/api/admin/configs/' + key);
+      const data = await res.json();
+      editor.value = JSON.stringify(data, null, 2);
+    } catch (e) {
+      editor.value = '{}';
+    }
+  } else {
+    _editingConfigKey = null;
+    title.textContent = 'New Config';
+    keyInput.value = '';
+    keyInput.disabled = false;
+    delBtn.style.display = 'none';
+    editor.value = '{\n  \n}';
+  }
+  modal.classList.add('open');
+  setTimeout(() => (key ? editor : keyInput).focus(), 50);
+}
+
+function closeConfigModal() { document.getElementById('configModal').classList.remove('open'); }
+
+async function saveConfig() {
+  const keyInput = document.getElementById('editConfigKey');
+  const editor = document.getElementById('editConfigValue');
+  const status = document.getElementById('configModalStatus');
+  const key = (_editingConfigKey || keyInput.value).trim();
+  if (!key) { status.textContent = 'Key is required'; status.className = 'pose-config-status error'; return; }
   let data;
   try {
     data = JSON.parse(editor.value);
@@ -250,110 +280,40 @@ async function saveAppConfig() {
   status.textContent = 'Saving...';
   status.className = 'pose-config-status';
   try {
-    const res = await fetch('/api/admin/app-config', {
+    const res = await fetch('/api/admin/configs/' + key, {
       method: 'PUT',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(data),
     });
     if (res.ok) {
-      _appConfigSaved = editor.value;
-      saveBtn.disabled = true;
       status.textContent = 'Saved';
-      status.classList.add('success');
-      setTimeout(() => { status.textContent = ''; }, 3000);
+      status.className = 'pose-config-status success';
+      setTimeout(() => { closeConfigModal(); loadConfigs(); }, 500);
     } else {
       const err = await res.json();
       status.textContent = err.error || 'Failed';
-      status.classList.add('error');
+      status.className = 'pose-config-status error';
     }
   } catch (e) {
     status.textContent = 'Error: ' + e.message;
-    status.classList.add('error');
-  }
-}
-
-document.getElementById('appConfigEditor').addEventListener('input', () => {
-  document.getElementById('appConfigSaveBtn').disabled =
-    document.getElementById('appConfigEditor').value === _appConfigSaved;
-});
-
-loadAppConfig();
-</script>
-
-{# Pose config scripts #}
-<script>
-let _poseConfigSaved = '';  // last saved state
-
-async function loadPoseConfig() {
-  const editor = document.getElementById('poseConfigEditor');
-  const status = document.getElementById('poseConfigStatus');
-  const saveBtn = document.getElementById('poseConfigSaveBtn');
-  status.textContent = 'Loading...';
-  status.className = 'pose-config-status';
-  try {
-    const res = await fetch('/api/admin/pose-config');
-    const data = await res.json();
-    if (res.ok) {
-      const text = JSON.stringify(data, null, 2);
-      editor.value = text;
-      _poseConfigSaved = text;
-      saveBtn.disabled = true;
-      status.textContent = '';
-    } else {
-      status.textContent = data.error || 'Failed to load';
-      status.classList.add('error');
-    }
-  } catch (e) {
-    status.textContent = 'Error: ' + e.message;
-    status.classList.add('error');
-  }
-}
-
-async function savePoseConfig() {
-  const editor = document.getElementById('poseConfigEditor');
-  const status = document.getElementById('poseConfigStatus');
-  const saveBtn = document.getElementById('poseConfigSaveBtn');
-  if (editor.value === _poseConfigSaved) return;
-  let data;
-  try {
-    data = JSON.parse(editor.value);
-  } catch (e) {
-    status.textContent = 'Invalid JSON: ' + e.message;
     status.className = 'pose-config-status error';
-    return;
-  }
-  status.textContent = 'Saving...';
-  status.className = 'pose-config-status';
-  try {
-    const res = await fetch('/api/admin/pose-config', {
-      method: 'PUT',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(data),
-    });
-    if (res.ok) {
-      _poseConfigSaved = editor.value;
-      saveBtn.disabled = true;
-      status.textContent = 'Saved — GPU config reloaded';
-      status.classList.add('success');
-      setTimeout(() => { status.textContent = ''; }, 3000);
-    } else {
-      const err = await res.json();
-      status.textContent = err.error || 'Failed';
-      status.classList.add('error');
-    }
-  } catch (e) {
-    status.textContent = 'Error: ' + e.message;
-    status.classList.add('error');
   }
 }
 
-// Track changes to enable/disable Save
-document.getElementById('poseConfigEditor').addEventListener('input', () => {
-  document.getElementById('poseConfigSaveBtn').disabled =
-    document.getElementById('poseConfigEditor').value === _poseConfigSaved;
-});
+function confirmDeleteConfig() { document.getElementById('deleteConfigModal').classList.add('open'); }
+function closeDeleteConfigModal() { document.getElementById('deleteConfigModal').classList.remove('open'); }
 
-loadPoseConfig();
+async function doDeleteConfig() {
+  closeDeleteConfigModal();
+  if (!_editingConfigKey) return;
+  try {
+    await fetch('/api/admin/configs/' + _editingConfigKey, { method: 'DELETE' });
+    closeConfigModal();
+    loadConfigs();
+  } catch (e) {}
+}
+
+loadConfigs();
 </script>
 
 {# Pitch deck navigation #}
