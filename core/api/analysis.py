@@ -102,10 +102,7 @@ def _sync_db_if_done(video_id):
             blob = _gcs().bucket(BUCKET_NAME).blob(summary["pose_gcs_path"])
             pose_data = json.loads(blob.download_as_bytes())
             update_data["body_focus"] = classify_body_focus(pose_data.get("frames", []))
-            # Save track_id → role mapping from pose service (built via YOLO tracking)
-            rl = pose_data.get("role_labels")
-            if rl:
-                update_data["role_labels"] = json.dumps(rl)
+            # role_labels already saved from person_roles at request time
         except Exception:
             pass
         repo.update("bachata.videos", video_id, update_data)
@@ -170,21 +167,15 @@ def api_run_analysis(video_id):
     body = request.get_json(silent=True) or {}
     sample_every_n = body.get("sample_every_n", 2)
     resolution = body.get("resolution", 640)
-    selected_boxes = body.get("selected_boxes")  # optional user-labeled boxes
-    max_persons = body.get("max_persons")        # cap persons per frame
+    person_roles = body.get("person_roles")  # {person_index: "lead"|"follow"}
+    max_persons = body.get("max_persons")    # cap persons per frame
 
     analysis = aa.create(video_id=video_id, model="yolo26x-pose")
     aa.set_status(analysis["id"], "running")
 
     # Save role labels to video if provided
-    if selected_boxes:
-        labels = {}
-        for sb in selected_boxes:
-            if sb.get("label"):
-                # Use box index as temp key — will be mapped to track_id after analysis
-                labels[str(len(labels))] = sb["label"]
-        if labels:
-            repo.update("bachata.videos", video_id, {"role_labels": json.dumps(labels)})
+    if person_roles:
+        repo.update("bachata.videos", video_id, {"role_labels": json.dumps(person_roles)})
 
     # Send to GPU — fire and forget via thread
     gpu_payload = {
@@ -194,8 +185,8 @@ def api_run_analysis(video_id):
         "sample_every_n": sample_every_n,
         "resolution": resolution,
     }
-    if selected_boxes:
-        gpu_payload["selected_boxes"] = selected_boxes
+    if person_roles:
+        gpu_payload["person_roles"] = person_roles
     if max_persons:
         gpu_payload["max_persons"] = max_persons
 

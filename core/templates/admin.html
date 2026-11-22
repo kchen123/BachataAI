@@ -1,0 +1,437 @@
+{% extends "base.html" %}
+{% block title %}Admin{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+
+  <!-- Stats Row -->
+  <div class="admin-stats">
+    <div class="admin-stat-card">
+      <div class="admin-stat-value">{{ stats.users }}</div>
+      <div class="admin-stat-label">Users</div>
+    </div>
+    <div class="admin-stat-card">
+      <div class="admin-stat-value">{{ stats.videos }}</div>
+      <div class="admin-stat-label">Videos</div>
+    </div>
+    <div class="admin-stat-card">
+      <div class="admin-stat-value">{{ stats.analyses_done }}</div>
+      <div class="admin-stat-label">Analyses Done</div>
+    </div>
+    <div class="admin-stat-card">
+      <div class="admin-stat-value">{{ stats.analyses_running }}</div>
+      <div class="admin-stat-label">Running</div>
+    </div>
+    <div class="admin-stat-card">
+      <div class="admin-stat-value">{{ stats.analyses_error }}</div>
+      <div class="admin-stat-label">Errors</div>
+    </div>
+    <div class="admin-stat-card">
+      <div class="admin-stat-value">{{ stats.scorecards }}</div>
+      <div class="admin-stat-label">Scorecards</div>
+    </div>
+  </div>
+
+  <!-- Users Table -->
+  <div class="admin-section">
+    <div class="admin-section-header">
+      <h3>Users</h3>
+    </div>
+    <div class="admin-section-toolbar">
+      <input type="text" class="search-input" id="adminUserSearch" placeholder="..." oninput="filterUsers()">
+      <button class="btn btn-sm btn-accent" onclick="openUserModal()" title="New User">+</button>
+    </div>
+    <div class="table-wrap">
+      <table class="app-table" id="adminUsersTable">
+        <thead>
+          <tr>
+            <th class="id-col">ID</th>
+            <th>Username</th>
+            <th>Display Name</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Tier</th>
+            <th>Videos</th>
+            <th>Analyses</th>
+            <th>Created</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in users %}
+          <tr data-uid="{{ u.id }}" onclick="openUserModal({{ u.id }})" style="cursor:pointer">
+            <td class="id-col">{{ u.id }}</td>
+            <td>{{ u.username }}</td>
+            <td>{{ u.display_name or '—' }}</td>
+            <td>{{ u.email or '—' }}</td>
+            <td>{{ u.role }}</td>
+            <td><span class="admin-tier-badge">{{ u.tier_name or 'none' }}</span></td>
+            <td>{{ u.video_count }}</td>
+            <td>{{ u.analysis_count }}</td>
+            <td>{{ u.created_at.strftime('%b %d, %Y') if u.created_at else '' }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="9" class="empty-row">No users</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Tiers Table -->
+  <div class="admin-section">
+    <div class="admin-section-header">
+      <h3>Tiers</h3>
+    </div>
+    <div class="admin-section-toolbar">
+      <input type="text" class="search-input" id="adminTierSearch" placeholder="..." oninput="filterTiers()">
+      <button class="btn btn-sm btn-accent" onclick="openTierModal()" title="New Tier">+</button>
+    </div>
+    <div class="table-wrap">
+      <table class="app-table" id="adminTiersTable">
+        <thead>
+          <tr>
+            <th class="id-col">ID</th>
+            <th>Name</th>
+            <th>Monthly Rev</th>
+            <th>Annual Rev</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in tiers %}
+          <tr data-tid="{{ t.id }}" onclick="openTierModal({{ t.id }})" style="cursor:pointer">
+            <td class="id-col">{{ t.id }}</td>
+            <td>{{ t.name }}</td>
+            <td>{{ t.month_rev or '—' }}</td>
+            <td>{{ t.year_rev or '—' }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="empty-row">No tiers</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- User Edit / Create Modal -->
+<div class="modal-overlay" id="userModal">
+  <div class="admin-modal">
+    <div class="admin-modal-header">
+      <span id="userModalTitle">New User</span>
+      <button class="admin-modal-close" onclick="closeUserModal()">&times;</button>
+    </div>
+    <div class="admin-modal-body">
+      <input type="hidden" id="editUserId">
+
+      <label class="admin-field">
+        <span>Username</span>
+        <input type="text" id="editUsername" autocomplete="off">
+      </label>
+      <label class="admin-field">
+        <span>Display Name</span>
+        <input type="text" id="editDisplayName" autocomplete="off">
+      </label>
+      <label class="admin-field">
+        <span>Email</span>
+        <input type="email" id="editEmail" autocomplete="off">
+      </label>
+      <label class="admin-field">
+        <span>Role</span>
+        <select id="editRole">
+          <option value="user">user</option>
+          <option value="admin">admin</option>
+        </select>
+      </label>
+      <label class="admin-field">
+        <span>Tier</span>
+        <select id="editTier">
+          <option value="">none</option>
+          {% for t in tiers %}
+          <option value="{{ t.id }}">{{ t.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <div class="admin-field">
+        <span>Password</span>
+        <div id="editPw" class="admin-editable" contenteditable="true" style="background:#fff;color:#1a1a2e;-webkit-text-fill-color:#1a1a2e;min-height:20px;padding:7px 10px;border:1px solid #ccc;border-radius:6px;font-size:12px"></div>
+      </div>
+
+      <div class="admin-modal-actions">
+        <button class="btn btn-sm btn-danger" id="btnDeleteUser" onclick="confirmDeleteUser()" style="display:none">Delete</button>
+        <span style="flex:1"></span>
+        <button class="btn btn-sm" onclick="closeUserModal()">Cancel</button>
+        <button class="btn btn-sm btn-accent" onclick="saveUser()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Delete User Confirm -->
+<div class="modal-overlay" id="deleteUserModal">
+  <div class="files-modal">
+    <h3 style="margin-bottom:12px">Delete User</h3>
+    <p class="analyze-desc" style="margin-bottom:24px">This will permanently delete this user and cannot be undone.</p>
+    <div class="files-modal-actions" style="gap:12px">
+      <button class="btn btn-sm" style="padding:6px 16px" onclick="closeDeleteUserModal()">Cancel</button>
+      <button class="btn btn-sm" style="padding:6px 16px;color:var(--red);border-color:var(--red)" onclick="doDeleteUser()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tier Edit / Create Modal -->
+<div class="modal-overlay" id="tierModal">
+  <div class="admin-modal">
+    <div class="admin-modal-header">
+      <span id="tierModalTitle">New Tier</span>
+      <button class="admin-modal-close" onclick="closeTierModal()">&times;</button>
+    </div>
+    <div class="admin-modal-body">
+      <input type="hidden" id="editTierId">
+
+      <label class="admin-field">
+        <span>Name</span>
+        <input type="text" id="editTierName" autocomplete="off">
+      </label>
+      <label class="admin-field">
+        <span>Monthly Revenue</span>
+        <input type="number" id="editTierMonthRev" step="0.01" min="0">
+      </label>
+      <label class="admin-field">
+        <span>Annual Revenue</span>
+        <input type="number" id="editTierYearRev" step="0.01" min="0">
+      </label>
+
+      <div class="admin-modal-actions">
+        <button class="btn btn-sm btn-danger" id="btnDeleteTier" onclick="confirmDeleteTier()" style="display:none">Delete</button>
+        <span style="flex:1"></span>
+        <button class="btn btn-sm" onclick="closeTierModal()">Cancel</button>
+        <button class="btn btn-sm btn-accent" onclick="saveTier()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Tier Confirm -->
+<div class="modal-overlay" id="deleteTierModal">
+  <div class="files-modal">
+    <h3 style="margin-bottom:12px">Delete Tier</h3>
+    <p class="analyze-desc" style="margin-bottom:24px">This will permanently delete this tier. Users assigned to it will lose their tier.</p>
+    <div class="files-modal-actions" style="gap:12px">
+      <button class="btn btn-sm" style="padding:6px 16px" onclick="closeDeleteTierModal()">Cancel</button>
+      <button class="btn btn-sm" style="padding:6px 16px;color:var(--red);border-color:var(--red)" onclick="doDeleteTier()">Delete</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Store user data from server for populating modal
+const USERS = {{ users_json | tojson }};
+const TIERS = {{ tiers_json | tojson }};
+
+function filterUsers() {
+  const q = document.getElementById('adminUserSearch').value.toLowerCase();
+  document.querySelectorAll('#adminUsersTable tbody tr').forEach(tr => {
+    const text = tr.textContent.toLowerCase();
+    tr.style.display = text.includes(q) ? '' : 'none';
+  });
+}
+
+function openUserModal(uid) {
+  const modal = document.getElementById('userModal');
+  const title = document.getElementById('userModalTitle');
+  const delBtn = document.getElementById('btnDeleteUser');
+  // Reset
+  document.getElementById('editUserId').value = '';
+  document.getElementById('editUsername').value = '';
+  document.getElementById('editDisplayName').value = '';
+  document.getElementById('editEmail').value = '';
+  document.getElementById('editRole').value = 'user';
+  document.getElementById('editTier').value = '';
+  document.getElementById('editPw').textContent = '';
+
+  if (uid) {
+    // Edit mode
+    const u = USERS.find(u => u.id === uid);
+    if (!u) return;
+    title.textContent = 'Edit User #' + uid;
+    document.getElementById('editUserId').value = uid;
+    document.getElementById('editUsername').value = u.username || '';
+    document.getElementById('editDisplayName').value = u.display_name || '';
+    document.getElementById('editEmail').value = u.email || '';
+    document.getElementById('editRole').value = u.role || 'user';
+    document.getElementById('editTier').value = u.tier_id || '';
+    document.getElementById('editPw').textContent = u.password_plain || '';
+    delBtn.style.display = '';
+  } else {
+    title.textContent = 'New User';
+    delBtn.style.display = 'none';
+  }
+
+  modal.classList.add('open');
+  setTimeout(() => document.getElementById('editUsername').focus(), 50);
+}
+
+function closeUserModal() {
+  document.getElementById('userModal').classList.remove('open');
+}
+
+async function saveUser() {
+  const uid = document.getElementById('editUserId').value;
+  const data = {
+    username: document.getElementById('editUsername').value.trim(),
+    display_name: document.getElementById('editDisplayName').value.trim(),
+    email: document.getElementById('editEmail').value.trim(),
+    role: document.getElementById('editRole').value,
+    tier_id: document.getElementById('editTier').value ? parseInt(document.getElementById('editTier').value) : null,
+  };
+  const pw = document.getElementById('editPw').textContent.trim();
+  if (pw) data.password = pw;
+
+  if (!data.username) { alert('Username is required'); return; }
+
+  let res;
+  if (uid) {
+    // Update
+    res = await fetch('/api/admin/users/' + uid, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(data)
+    });
+  } else {
+    // Create
+    if (!pw) { alert('Password is required for new users'); return; }
+    res = await fetch('/api/admin/users', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(data)
+    });
+  }
+
+  if (res.ok) {
+    window.location.reload();
+  } else {
+    const err = await res.json().catch(() => ({}));
+    alert(err.error || 'Failed to save user');
+  }
+}
+
+function confirmDeleteUser() {
+  document.getElementById('deleteUserModal').classList.add('open');
+}
+
+function closeDeleteUserModal() {
+  document.getElementById('deleteUserModal').classList.remove('open');
+}
+
+async function doDeleteUser() {
+  const uid = document.getElementById('editUserId').value;
+  closeDeleteUserModal();
+  const res = await fetch('/api/admin/users/' + uid, { method: 'DELETE' });
+  if (res.ok) {
+    closeUserModal();
+    window.location.reload();
+  } else {
+    const err = await res.json().catch(() => ({}));
+    alert(err.error || 'Failed to delete user');
+  }
+}
+
+// ── Tiers ───────────────────────────────────────────────────────────
+
+function filterTiers() {
+  const q = document.getElementById('adminTierSearch').value.toLowerCase();
+  document.querySelectorAll('#adminTiersTable tbody tr').forEach(tr => {
+    const text = tr.textContent.toLowerCase();
+    tr.style.display = text.includes(q) ? '' : 'none';
+  });
+}
+
+function openTierModal(tid) {
+  const modal = document.getElementById('tierModal');
+  const title = document.getElementById('tierModalTitle');
+  const delBtn = document.getElementById('btnDeleteTier');
+
+  document.getElementById('editTierId').value = '';
+  document.getElementById('editTierName').value = '';
+  document.getElementById('editTierMonthRev').value = '';
+  document.getElementById('editTierYearRev').value = '';
+
+  if (tid) {
+    const t = TIERS.find(t => t.id === tid);
+    if (!t) return;
+    title.textContent = 'Edit Tier #' + tid;
+    document.getElementById('editTierId').value = tid;
+    document.getElementById('editTierName').value = t.name || '';
+    document.getElementById('editTierMonthRev').value = t.month_rev || '';
+    document.getElementById('editTierYearRev').value = t.year_rev || '';
+    delBtn.style.display = '';
+  } else {
+    title.textContent = 'New Tier';
+    delBtn.style.display = 'none';
+  }
+
+  modal.classList.add('open');
+  setTimeout(() => document.getElementById('editTierName').focus(), 50);
+}
+
+function closeTierModal() {
+  document.getElementById('tierModal').classList.remove('open');
+}
+
+async function saveTier() {
+  const tid = document.getElementById('editTierId').value;
+  const data = {
+    name: document.getElementById('editTierName').value.trim(),
+    month_rev: parseFloat(document.getElementById('editTierMonthRev').value) || 0,
+    year_rev: parseFloat(document.getElementById('editTierYearRev').value) || 0,
+  };
+  if (!data.name) { alert('Name is required'); return; }
+
+  let res;
+  if (tid) {
+    res = await fetch('/api/admin/tiers/' + tid, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(data)
+    });
+  } else {
+    res = await fetch('/api/admin/tiers', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(data)
+    });
+  }
+
+  if (res.ok) {
+    window.location.reload();
+  } else {
+    const err = await res.json().catch(() => ({}));
+    alert(err.error || 'Failed to save tier');
+  }
+}
+
+function confirmDeleteTier() {
+  document.getElementById('deleteTierModal').classList.add('open');
+}
+
+function closeDeleteTierModal() {
+  document.getElementById('deleteTierModal').classList.remove('open');
+}
+
+async function doDeleteTier() {
+  const tid = document.getElementById('editTierId').value;
+  closeDeleteTierModal();
+  const res = await fetch('/api/admin/tiers/' + tid, { method: 'DELETE' });
+  if (res.ok) {
+    closeTierModal();
+    window.location.reload();
+  } else {
+    const err = await res.json().catch(() => ({}));
+    alert(err.error || 'Failed to delete tier');
+  }
+}
+</script>
+{% endblock %}

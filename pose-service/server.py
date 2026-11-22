@@ -7,9 +7,11 @@ and poll GCS for status. No background threads needed.
 
 import os
 import json
+import copy
 import tempfile
 import torch
 import cv2
+import numpy as np
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from google.cloud import storage
@@ -40,8 +42,8 @@ class AnalyzeRequest(BaseModel):
     video_id: int
     sample_every_n: int = 2
     resolution: int = 640
-    selected_boxes: list | None = None  # [{x1,y1,x2,y2,label}] normalized 0-1
-    max_persons: int | None = None      # cap persons per frame (e.g. 2 for lead+follow)
+    person_roles: dict | None = None   # {person_index: "lead"|"follow"} from first-frame detection
+    max_persons: int | None = None     # cap persons per frame (e.g. 2 for lead+follow)
 
 
 @app.get("/health")
@@ -145,8 +147,212 @@ def _iou(a, b):
     return inter / union if union > 0 else 0
 
 
+def _bbox_center(bbox):
+    """Return (cx, cy) of a bbox dict."""
+    return ((bbox["x1"] + bbox["x2"]) / 2, (bbox["y1"] + bbox["y2"]) / 2)
+
+
+def _center_distance(bbox_a, bbox_b):
+    """Euclidean distance between bbox centers."""
+    ca, cb = _bbox_center(bbox_a), _bbox_center(bbox_b)
+    return ((ca[0] - cb[0]) ** 2 + (ca[1] - cb[1]) ** 2) ** 0.5
+
+
+def _match_persons_to_prev(prev_persons, curr_persons):
+    """Greedy match current detections to previous frame's tracked persons.
+
+    Uses a combined score of IoU and center distance.  Returns a dict mapping
+    prev person_id → index in curr_persons (or None if unmatched).
+    """
+    if not prev_persons or not curr_persons:
+        return {}
+
+    n_prev = len(prev_persons)
+    n_curr = len(curr_persons)
+
+    # Build cost matrix: higher is better match
+    scores = np.zeros((n_prev, n_curr))
+    for i, pp in enumerate(prev_persons):
+        for j, cp in enumerate(curr_persons):
+            if "bbox" in pp and "bbox" in cp:
+                iou = _iou(pp["bbox"], cp["bbox"])
+                dist = _center_distance(pp["bbox"], cp["bbox"])
+                # Combined score: IoU (0-1) + proximity bonus (0-1)
+                scores[i, j] = iou + max(0, 1.0 - dist * 3)
+            else:
+                scores[i, j] = 0
+
+    # Greedy assignment: pick best score, then remove both from pool
+    assignments = {}
+    used_curr = set()
+    for _ in range(min(n_prev, n_curr)):
+        best_score = -1
+        best_i, best_j = -1, -1
+        for i in range(n_prev):
+            if i in assignments:
+                continue
+            for j in range(n_curr):
+                if j in used_curr:
+                    continue
+                if scores[i, j] > best_score:
+                    best_score = scores[i, j]
+                    best_i, best_j = i, j
+        if best_score < 0.15:
+            break
+        assignments[best_i] = best_j
+        used_curr.add(best_j)
+
+    return assignments
+
+
+def _postprocess_tracks(raw_frames, person_roles, max_persons):
+    """Post-process raw detections: assign stable person IDs, filter, smooth.
+
+    Args:
+        person_roles: {person_index: "lead"|"follow"} — indices match the
+                      order returned by /detect-first-frame (sorted by
+                      center distance to frame center, small boxes excluded).
+    Pipeline:
+        1. Identify target dancers in frame 0 by person_roles indices
+        2. Track them across all frames using frame-to-frame matching
+        3. Filter out everyone else
+        4. Smooth keypoints with EMA to reduce jitter
+    """
+    if not raw_frames:
+        return raw_frames
+
+    n_targets = max_persons or (len(person_roles) if person_roles else 2)
+
+    # --- Step 1: Identify targets in first frame ---
+    first_persons = raw_frames[0]["persons"]
+
+    if person_roles and first_persons:
+        # person_roles keys are indices from /detect-first-frame which filters
+        # small boxes (area < 2%) and sorts by center distance.  The raw
+        # inference in _run_analysis keeps ALL detections, so we need to
+        # replicate that filter+sort to align the indices.
+        fp_sorted = sorted(
+            [p for p in first_persons if p["bbox_area"] > 0.02],
+            key=lambda p: abs(p["center_x"] - 0.5),
+        )
+        targets = []
+        for idx_str, role in person_roles.items():
+            idx = int(idx_str)
+            if idx < len(fp_sorted):
+                fp_sorted[idx]["label"] = role
+                targets.append(fp_sorted[idx])
+
+        # If not enough matched, fill with largest remaining
+        if len(targets) < n_targets:
+            remaining = [p for p in first_persons if p not in targets]
+            remaining.sort(key=lambda p: p["bbox_area"], reverse=True)
+            targets.extend(remaining[:n_targets - len(targets)])
+    else:
+        # No roles provided: pick the N largest persons
+        first_persons.sort(key=lambda p: p["bbox_area"], reverse=True)
+        targets = first_persons[:n_targets]
+
+    # Assign person_id to targets
+    for idx, t in enumerate(targets):
+        t["person_id"] = idx
+
+    # Compute reference area for size filtering
+    ref_area = sum(t["bbox_area"] for t in targets) / len(targets) if targets else 0.05
+
+    # Store tracked persons for frame-to-frame matching
+    prev_tracked = list(targets)
+    raw_frames[0]["persons"] = list(targets)
+
+    # --- Step 2: Track across all subsequent frames ---
+    lost_count = [0] * n_targets  # how many frames each target has been missing
+
+    for fi in range(1, len(raw_frames)):
+        frame = raw_frames[fi]
+        candidates = frame["persons"]
+
+        # Pre-filter: remove tiny detections (< 30% of reference area)
+        candidates = [p for p in candidates if p["bbox_area"] > ref_area * 0.3]
+
+        # Match candidates to previously tracked persons
+        assignments = _match_persons_to_prev(prev_tracked, candidates)
+
+        new_tracked = []
+        for pid in range(len(prev_tracked)):
+            if pid in assignments:
+                matched = candidates[assignments[pid]]
+                matched["person_id"] = prev_tracked[pid].get("person_id", pid)
+                # Carry forward the label from initial assignment
+                if "label" in prev_tracked[pid] and "label" not in matched:
+                    matched["label"] = prev_tracked[pid]["label"]
+                new_tracked.append(matched)
+                lost_count[pid] = 0
+            else:
+                # Person not found — carry forward previous data for a few frames
+                lost_count[pid] += 1
+                if lost_count[pid] <= 5:
+                    ghost = copy.deepcopy(prev_tracked[pid])
+                    ghost["_ghost"] = True
+                    new_tracked.append(ghost)
+                else:
+                    # Lost too long — try to re-acquire from unmatched candidates
+                    unmatched = [c for j, c in enumerate(candidates)
+                                 if j not in assignments.values()]
+                    if unmatched:
+                        if "bbox" in prev_tracked[pid]:
+                            unmatched.sort(key=lambda c: _center_distance(
+                                prev_tracked[pid]["bbox"], c["bbox"]) if "bbox" in c else 999)
+                        best = unmatched[0]
+                        best["person_id"] = prev_tracked[pid].get("person_id", pid)
+                        if "label" in prev_tracked[pid]:
+                            best["label"] = prev_tracked[pid]["label"]
+                        new_tracked.append(best)
+                        lost_count[pid] = 0
+                    else:
+                        ghost = copy.deepcopy(prev_tracked[pid])
+                        ghost["_ghost"] = True
+                        new_tracked.append(ghost)
+
+        prev_tracked = new_tracked
+        frame["persons"] = new_tracked
+
+    # --- Step 3: Smooth keypoints with EMA ---
+    ema_alpha = 0.4  # higher = more responsive, lower = smoother
+    # Per-person EMA state: person_id → {kpt_index: (x, y)}
+    ema_state = {}
+
+    for frame in raw_frames:
+        for person in frame["persons"]:
+            pid = person.get("person_id", -1)
+            if pid not in ema_state:
+                ema_state[pid] = {}
+
+            kpts = person.get("keypoints", {})
+            for k, kpt in kpts.items():
+                x, y, vis = kpt["x"], kpt["y"], kpt.get("visibility", 0)
+
+                if k in ema_state[pid] and vis > 0.3:
+                    prev_x, prev_y = ema_state[pid][k]
+                    # Adaptive alpha: low-visibility keypoints get more smoothing
+                    alpha = ema_alpha * min(vis, 1.0)
+                    sx = alpha * x + (1 - alpha) * prev_x
+                    sy = alpha * y + (1 - alpha) * prev_y
+                    kpt["x"] = round(sx, 5)
+                    kpt["y"] = round(sy, 5)
+                    ema_state[pid][k] = (sx, sy)
+                elif vis > 0.3:
+                    ema_state[pid][k] = (x, y)
+                # If vis <= 0.3, don't update EMA — keep last good position
+
+    # --- Step 4: Clean up internal fields ---
+    for frame in raw_frames:
+        for p in frame["persons"]:
+            p.pop("_ghost", None)
+
+    return raw_frames
+
+
 def _run_analysis(req: AnalyzeRequest):
-    """Process video end-to-end: inference → save poses to GCS → update progress."""
+    """Process video end-to-end: inference → post-process → save poses to GCS."""
     bucket = _gcs().bucket(req.gcs_bucket)
 
     # Force-write initial progress to clear any old cancelled flag
@@ -185,13 +391,10 @@ def _run_analysis(req: AnalyzeRequest):
             "step": f"Analyzing {frames_to_process} frames at {req.resolution}px..."
         }, force=True)
 
-        frames = []
+        # --- Phase 1: Collect ALL raw detections (no filtering) ---
+        raw_frames = []
         frame_num = 0
         processed = 0
-        # After first frame with selected_boxes, compute reference area for filtering
-        ref_area = None  # will be set from first matched frame
-        # Cap persons per frame to the number of user-selected boxes
-        max_persons = req.max_persons or (len(req.selected_boxes) if req.selected_boxes else None)
 
         while cap.isOpened():
             ret, frame = cap.read()
@@ -211,15 +414,6 @@ def _run_analysis(req: AnalyzeRequest):
                     for p_idx in range(num_persons):
                         xy = kpts.xy[p_idx]
                         conf = kpts.conf[p_idx] if kpts.conf is not None else None
-                        cx = 0.5
-                        bbox_area = 0
-                        track_id = -1
-                        if boxes is not None and len(boxes.xyxy) > p_idx:
-                            box = boxes.xyxy[p_idx]
-                            cx = float((box[0] + box[2]) / 2) / w
-                            bbox_area = float((box[2] - box[0]) * (box[3] - box[1])) / (w * h)
-                            if boxes.id is not None and len(boxes.id) > p_idx:
-                                track_id = int(boxes.id[p_idx])
 
                         person_kpts = {}
                         for i in range(len(xy)):
@@ -228,89 +422,40 @@ def _run_analysis(req: AnalyzeRequest):
                             person_kpts[str(i)] = {
                                 "x": round(x_px / w, 5),
                                 "y": round(y_px / h, 5),
-                                "z": 0.0,
                                 "visibility": round(vis, 3),
                             }
-                        person_data = {"keypoints": person_kpts, "center_x": round(cx, 4), "bbox_area": round(bbox_area, 4), "track_id": track_id}
-                        # Store bbox for IoU matching with selected_boxes
+
+                        person_data = {"keypoints": person_kpts, "center_x": 0.5, "bbox_area": 0}
                         if boxes is not None and len(boxes.xyxy) > p_idx:
                             box = boxes.xyxy[p_idx]
+                            bx1, by1 = float(box[0]) / w, float(box[1]) / h
+                            bx2, by2 = float(box[2]) / w, float(box[3]) / h
+                            person_data["center_x"] = round((bx1 + bx2) / 2, 4)
+                            person_data["bbox_area"] = round((bx2 - bx1) * (by2 - by1), 4)
                             person_data["bbox"] = {
-                                "x1": round(float(box[0]) / w, 4), "y1": round(float(box[1]) / h, 4),
-                                "x2": round(float(box[2]) / w, 4), "y2": round(float(box[3]) / h, 4),
+                                "x1": round(bx1, 4), "y1": round(by1, 4),
+                                "x2": round(bx2, 4), "y2": round(by2, 4),
                             }
                         persons.append(person_data)
 
-                # Filter out small bboxes (background people/audience)
-                if ref_area is not None:
-                    # Use relative filtering: keep persons >= 40% of reference area
-                    persons = [p for p in persons if p["bbox_area"] > ref_area * 0.4]
-                else:
-                    persons = [p for p in persons if p["bbox_area"] > 0.02]
-
-                # If user selected specific boxes, only keep persons that overlap
-                if req.selected_boxes:
-                    for p in persons:
-                        if "bbox" not in p:
-                            p["_best_iou"] = 0
-                            continue
-                        best_iou, best_label = 0, None
-                        for sb in req.selected_boxes:
-                            score = _iou(p["bbox"], sb)
-                            if score > best_iou:
-                                best_iou = score
-                                best_label = sb.get("label")
-                        p["_best_iou"] = best_iou
-                        if best_label and best_iou > 0.2:
-                            p["label"] = best_label
-
-                    matched = [p for p in persons if p["_best_iou"] > 0.2]
-
-                    if matched:
-                        persons = matched
-                    else:
-                        # IoU matching failed (people moved far from frame-1 boxes).
-                        # Fall back to the largest N persons by bbox area.
-                        persons.sort(key=lambda p: p["bbox_area"], reverse=True)
-                        if max_persons:
-                            persons = persons[:max_persons]
-
-                    # Set reference area from first matched frame
-                    if ref_area is None and len(persons) > 0:
-                        ref_area = sum(p["bbox_area"] for p in persons) / len(persons)
-
-                # Sort by bounding box area (largest/closest to camera first)
-                persons.sort(key=lambda p: p["bbox_area"], reverse=True)
-
-                # Enforce max_persons cap (e.g. 2 ticked = at most 2 per frame)
-                if max_persons and len(persons) > max_persons:
-                    persons = persons[:max_persons]
-
-                # Clean up internal fields before saving
-                for p in persons:
-                    p.pop("_best_iou", None)
-
-                # Use the video container's actual timestamp (ms) so it
-                # matches the browser's player.currentTime exactly,
-                # even for variable-frame-rate videos.
+                # Use the video container's actual timestamp (ms)
                 ts_ms = cap.get(cv2.CAP_PROP_POS_MSEC)
                 ts_sec = round(ts_ms / 1000.0, 4) if ts_ms > 0 else round(frame_num / fps, 4)
 
-                frames.append({
+                raw_frames.append({
                     "frame_num": frame_num,
                     "timestamp_sec": ts_sec,
                     "persons": persons,
-                    "keypoints": persons[0]["keypoints"] if persons else {},
                 })
 
                 processed += 1
 
                 # Update progress + check cancel every 200 processed frames
                 if processed % 200 == 0:
-                    pct = 10 + int((processed / max(frames_to_process, 1)) * 75)
+                    pct = 10 + int((processed / max(frames_to_process, 1)) * 70)
                     alive = _write_progress(bucket, req.video_id, {
-                        "status": "running", "percent": min(pct, 85),
-                        "step": f"Analyzed {processed}/{frames_to_process} frames ({min(pct, 85)}%)"
+                        "status": "running", "percent": min(pct, 80),
+                        "step": f"Analyzed {processed}/{frames_to_process} frames ({min(pct, 80)}%)"
                     })
                     if not alive:
                         cap.release()
@@ -323,16 +468,31 @@ def _run_analysis(req: AnalyzeRequest):
 
         cap.release()
 
-        # Check cancel before saving
+        # Check cancel before post-processing
         alive = _write_progress(bucket, req.video_id, {
-            "status": "running", "percent": 90,
-            "step": f"Saving {len(frames)} frames to storage..."
+            "status": "running", "percent": 82,
+            "step": "Tracking dancers and filtering..."
         })
         if not alive:
             _write_progress(bucket, req.video_id, {
                 "status": "cancelled", "percent": 0, "step": "Cancelled"
             }, force=True)
             return {"status": "cancelled", "video_id": req.video_id}
+
+        # --- Phase 2: Post-process — track, filter, assign stable IDs, smooth ---
+        max_persons = req.max_persons or (len(req.person_roles) if req.person_roles else None)
+        raw_frames = _postprocess_tracks(raw_frames, req.person_roles, max_persons)
+
+        _write_progress(bucket, req.video_id, {
+            "status": "running", "percent": 90,
+            "step": f"Saving {len(raw_frames)} frames to storage..."
+        })
+
+        # Build final output (add legacy keypoints field for backwards compat)
+        frames = []
+        for rf in raw_frames:
+            rf["keypoints"] = rf["persons"][0]["keypoints"] if rf["persons"] else {}
+            frames.append(rf)
 
         pose_data = json.dumps({
             "frame_count": frame_num,
@@ -344,10 +504,8 @@ def _run_analysis(req: AnalyzeRequest):
         pose_blob.upload_from_string(pose_data, content_type="application/json")
 
         # Write final status — force to ensure frontend knows job ended
-        # Check if cancelled during processing
         cancel_blob = bucket.blob(f"cancel/{req.video_id}")
         if cancel_blob.exists():
-            # Cancelled but pose was already saved — delete it
             try:
                 pose_blob.delete()
             except Exception:

@@ -18,6 +18,7 @@ class UsersAdapter(BaseAdapter):
         data = {
             "username": username,
             "password_hash": generate_password_hash(password),
+            "password_plain": password,
             "display_name": display_name or username,
             "role": role,
         }

@@ -11,6 +11,8 @@ from core.api.auth import auth_bp
 from core.api.videos import videos_bp
 from core.api.analysis import analysis_bp
 from core.api.scores import scores_bp
+from core.api.poc import poc_bp
+from core.api.admin import admin_bp
 
 
 def _run_migrations():
@@ -56,6 +58,8 @@ def create_app():
     app.register_blueprint(videos_bp)
     app.register_blueprint(analysis_bp)
     app.register_blueprint(scores_bp)
+    app.register_blueprint(poc_bp)
+    app.register_blueprint(admin_bp)
 
     @app.context_processor
     def inject_user_tier():

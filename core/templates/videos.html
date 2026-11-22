@@ -162,8 +162,8 @@
       <canvas id="poseCanvas"></canvas>
       <div class="label-panel hidden" id="labelPanel">
         <div class="label-panel-top">
-          <span id="labelMsg">Select persons to track</span>
-          <div class="label-persons" id="labelPersonBtns"></div>
+          <span id="labelMsg">Click each dancer to label them</span>
+          <div class="label-legend" id="labelLegend"></div>
           <div class="label-actions">
             <button class="btn btn-sm btn-accent" id="labelSaveBtn" onclick="saveLabelRoles()">Analyze</button>
             <button class="btn btn-sm" onclick="skipLabel()">Skip</button>
@@ -460,7 +460,7 @@ let poseVisible = false;
 let currentVideoId = null;
 let poseLoading = true;  // true while fetching analysis data
 let poseHasAnalysis = false;
-let roleLabels = null;  // {track_id: "lead"|"follow"} or null
+let roleLabels = null;  // {person_id: "lead"|"follow"} or null
 
 const SKELETON_CONNECTIONS = [
   [0,1],[0,2],[1,3],[2,4],           // face
@@ -550,11 +550,7 @@ function closeVideo() {
 }
 
 // ── Label Lead/Follow ──────────────────────────────────────────────────────
-const LABEL_COLORS = [
-  '#00ff88', '#4da6ff', '#ff6b6b', '#ffcc00',
-  '#cc66ff', '#ff8844', '#44ffcc', '#ff44aa',
-  '#88ff44', '#44aaff',
-];
+const LABEL_COLORS = ['#00ff88', '#4da6ff', '#ff6b6b', '#ffcc00', '#cc66ff', '#ff8844'];
 const ROLE_COLORS = { lead: '#00ff88', follow: '#4da6ff' };
 
 let labelBoxes = [];     // normalized boxes [{x1,y1,x2,y2,idx}]
@@ -586,11 +582,6 @@ async function openDetectLabel(videoId) {
   _labelFrameCache.width = vw;
   _labelFrameCache.height = vh;
   _labelFrameCache.getContext('2d').drawImage(player, 0, 0, vw, vh);
-  // Also draw to visible canvas immediately
-  const canvas = document.getElementById('labelCanvas');
-  canvas.width = vw;
-  canvas.height = vh;
-  canvas.getContext('2d').drawImage(_labelFrameCache, 0, 0);
 
   // Step 3: Hide video, show label panel
   player.style.display = 'none';
@@ -598,7 +589,7 @@ async function openDetectLabel(videoId) {
   document.getElementById('poseCanvas').style.display = 'none';
   document.getElementById('labelMsg').textContent = 'Warming up GPU & detecting persons... (first time may take 30-60s)';
   document.getElementById('labelSaveBtn').textContent = 'Analyze';
-  document.getElementById('labelPersonBtns').innerHTML = '';
+  document.getElementById('labelLegend').innerHTML = '';
   panel.classList.remove('hidden');
 
   // Step 4: Call detect API to get bounding boxes
@@ -620,7 +611,7 @@ async function openDetectLabel(videoId) {
   if (labelBoxes.length < 2) {
     const msg = labelBoxes.length === 0 ? 'No dancers detected.' : '1 dancer detected.';
     document.getElementById('labelMsg').textContent = msg + ' How many dancers to track?';
-    document.getElementById('labelPersonBtns').innerHTML =
+    document.getElementById('labelLegend').innerHTML =
       '<button class="btn btn-sm" onclick="closeLabelPanel(); triggerAnalysis(' + videoId + ', 2, 640, null, 1)">1</button>' +
       '<button class="btn btn-sm btn-accent" onclick="closeLabelPanel(); triggerAnalysis(' + videoId + ', 2, 640, null, 2)">2</button>';
     document.getElementById('labelSaveBtn').classList.add('hidden');
@@ -628,9 +619,9 @@ async function openDetectLabel(videoId) {
   }
 
   document.getElementById('labelSaveBtn').classList.remove('hidden');
-  document.getElementById('labelMsg').textContent = labelBoxes.length + ' persons found. Select lead and follow.';
+  document.getElementById('labelMsg').textContent = 'Click on a dancer to label: Lead → Follow → None';
 
-  _renderLabelUI();
+  _updateLabelUI();
 }
 
 // Draw the cached frame + skeletons onto the label canvas
@@ -717,68 +708,20 @@ function _drawLabelFrame() {
   }
 }
 
-// Render checkboxes + redraw canvas
-function _renderLabelUI() {
-  const container = document.getElementById('labelPersonBtns');
-  if (!container) return;
-  container.innerHTML = '';
-
-  for (const box of labelBoxes) {
-    const key = String(box.idx);
-    const role = labelAssign[key];
-
-    const dotColor = role ? ROLE_COLORS[role] : LABEL_COLORS[box.idx % LABEL_COLORS.length];
-
-    const item = document.createElement('label');
-    item.className = 'label-person-item';
-    item.style.borderColor = dotColor;
-
-    const cb = document.createElement('input');
-    cb.type = 'checkbox';
-    cb.checked = !!role;
-
-    const dot = document.createElement('span');
-    dot.style.cssText = 'width:10px;height:10px;border-radius:50%;background:' + dotColor + ';flex-shrink:0;';
-
-    const span = document.createElement('span');
-    span.textContent = 'P' + (box.idx + 1);
-
-    const sel = document.createElement('select');
-    sel.className = 'label-role-select';
-    sel.innerHTML = '<option value="lead">Lead</option><option value="follow">Follow</option>';
-    sel.value = role || 'lead';
-
-    // Auto-default: if lead exists, new selection defaults to follow and vice versa
-    const hasLead = Object.values(labelAssign).includes('lead');
-    const hasFollow = Object.values(labelAssign).includes('follow');
-    if (!role) {
-      sel.value = hasLead && !hasFollow ? 'follow' : 'lead';
+// Update the small legend strip + redraw canvas
+function _updateLabelUI() {
+  const legend = document.getElementById('labelLegend');
+  if (legend) {
+    const parts = [];
+    for (const box of labelBoxes) {
+      const role = labelAssign[String(box.idx)];
+      if (role) {
+        const color = ROLE_COLORS[role];
+        parts.push('<span style="color:' + color + '">' + role.charAt(0).toUpperCase() + role.slice(1) + ' = P' + (box.idx + 1) + '</span>');
+      }
     }
-
-    cb.onchange = () => {
-      if (cb.checked) {
-        labelAssign[key] = sel.value;
-      } else {
-        delete labelAssign[key];
-      }
-      _dedupRoles(key);
-      _renderLabelUI();
-    };
-    sel.onchange = () => {
-      if (cb.checked) {
-        labelAssign[key] = sel.value;
-        _dedupRoles(key);
-        _renderLabelUI();
-      }
-    };
-
-    item.appendChild(cb);
-    item.appendChild(dot);
-    item.appendChild(span);
-    item.appendChild(sel);
-    container.appendChild(item);
+    legend.innerHTML = parts.length ? parts.join(' &nbsp; ') : '';
   }
-
   _drawLabelFrame();
 }
 
@@ -819,20 +762,18 @@ if (_lc) _lc.addEventListener('click', function(e) {
     else if (cur === 'lead') labelAssign[key] = 'follow';
     else delete labelAssign[key];
     _dedupRoles(key);
-    _renderLabelUI();
+    _updateLabelUI();
   }
 });
 
 function saveLabelRoles() {
-  const selectedBoxes = [];
-  for (const box of labelBoxes) {
-    const role = labelAssign[String(box.idx)];
-    if (role) {
-      selectedBoxes.push({ x1: box.x1, y1: box.y1, x2: box.x2, y2: box.y2, label: role });
-    }
+  // Send just {person_index: role} — GPU already has the bboxes from detect
+  const roles = {};
+  for (const [key, role] of Object.entries(labelAssign)) {
+    roles[key] = role;
   }
   closeLabelPanel();
-  triggerAnalysis(labelVideoId, 2, 640, selectedBoxes.length > 0 ? selectedBoxes : null);
+  triggerAnalysis(labelVideoId, 2, 640, Object.keys(roles).length > 0 ? roles : null);
 }
 
 function skipLabel() {
@@ -1002,14 +943,14 @@ function closeCancelModal() {
   _cancelVideoId = null;
 }
 
-async function triggerAnalysis(videoId, sampleRate, resolution, selectedBoxes, maxPersons) {
+async function triggerAnalysis(videoId, sampleRate, resolution, personRoles, maxPersons) {
   closeVideo();
   showProcessingCard(videoId);
 
   const body = {};
   if (sampleRate) body.sample_every_n = sampleRate;
   if (resolution) body.resolution = resolution;
-  if (selectedBoxes) body.selected_boxes = selectedBoxes;
+  if (personRoles) body.person_roles = personRoles;
   if (maxPersons) body.max_persons = maxPersons;
 
   const res = await fetch('/api/videos/' + videoId + '/analyze', {
@@ -1224,8 +1165,8 @@ function drawCurrentPose() {
     if (!rawLm) continue;
     const lm = typeof rawLm === 'string' ? JSON.parse(rawLm) : rawLm;
     // Use role for color: check person's own label first, then roleLabels map, else positional
-    const tid = String(persons[pIdx].track_id);
-    const role = persons[pIdx].label || (roleLabels && roleLabels[tid]) || null;
+    const pid = String(persons[pIdx].person_id ?? persons[pIdx].track_id ?? pIdx);
+    const role = persons[pIdx].label || (roleLabels && roleLabels[pid]) || null;
     const color = role ? (ROLE_COLOR[role] || COLORS[pIdx] || COLORS[COLORS.length - 1]) : (COLORS[pIdx] || COLORS[COLORS.length - 1]);
 
     // Draw connections
