@@ -186,16 +186,22 @@ async function doDeleteTier() {
 
 {# Pose config scripts #}
 <script>
+let _poseConfigSaved = '';  // last saved state
+
 async function loadPoseConfig() {
   const editor = document.getElementById('poseConfigEditor');
   const status = document.getElementById('poseConfigStatus');
+  const saveBtn = document.getElementById('poseConfigSaveBtn');
   status.textContent = 'Loading...';
   status.className = 'pose-config-status';
   try {
     const res = await fetch('/api/admin/pose-config');
     const data = await res.json();
     if (res.ok) {
-      editor.value = JSON.stringify(data, null, 2);
+      const text = JSON.stringify(data, null, 2);
+      editor.value = text;
+      _poseConfigSaved = text;
+      saveBtn.disabled = true;
       status.textContent = '';
     } else {
       status.textContent = data.error || 'Failed to load';
@@ -210,6 +216,8 @@ async function loadPoseConfig() {
 async function savePoseConfig() {
   const editor = document.getElementById('poseConfigEditor');
   const status = document.getElementById('poseConfigStatus');
+  const saveBtn = document.getElementById('poseConfigSaveBtn');
+  if (editor.value === _poseConfigSaved) return;
   let data;
   try {
     data = JSON.parse(editor.value);
@@ -227,9 +235,11 @@ async function savePoseConfig() {
       body: JSON.stringify(data),
     });
     if (res.ok) {
-      status.textContent = 'Saved';
+      _poseConfigSaved = editor.value;
+      saveBtn.disabled = true;
+      status.textContent = 'Saved — GPU config reloaded';
       status.classList.add('success');
-      setTimeout(() => { status.textContent = ''; }, 2000);
+      setTimeout(() => { status.textContent = ''; }, 3000);
     } else {
       const err = await res.json();
       status.textContent = err.error || 'Failed';
@@ -241,7 +251,12 @@ async function savePoseConfig() {
   }
 }
 
-// Auto-load when Pose tab is shown
+// Track changes to enable/disable Save
+document.getElementById('poseConfigEditor').addEventListener('input', () => {
+  document.getElementById('poseConfigSaveBtn').disabled =
+    document.getElementById('poseConfigEditor').value === _poseConfigSaved;
+});
+
 loadPoseConfig();
 </script>
 

@@ -88,6 +88,14 @@ def health():
     }
 
 
+@app.post("/reload-config")
+def reload_config():
+    """Hot-reload pose config from GCS without restarting the container."""
+    global CFG
+    CFG = _load_config()
+    return {"status": "reloaded", "config": CFG}
+
+
 def _write_progress(bucket, video_id, data, force=False):
     """Write progress JSON to GCS. Returns False if cancelled (caller should stop)."""
     try:

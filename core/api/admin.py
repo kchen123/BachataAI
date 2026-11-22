@@ -1,8 +1,30 @@
 """Admin dashboard routes – admin only."""
 
+import os
 import json
+import requests as http_requests
+import google.auth.transport.requests
+import google.oauth2.id_token
 from flask import Blueprint, render_template, session, redirect, url_for, jsonify, request
 from core.adapters.storage import BUCKET_NAME, _get_client as _gcs
+
+POSE_SERVICE_URL = os.environ.get("POSE_SERVICE_URL", "http://localhost:8080")
+
+
+def _pose_auth_headers():
+    if POSE_SERVICE_URL.startswith("http://localhost"):
+        return {}
+    try:
+        auth_req = google.auth.transport.requests.Request()
+        token = google.oauth2.id_token.fetch_id_token(auth_req, POSE_SERVICE_URL)
+        return {"Authorization": f"Bearer {token}"}
+    except Exception:
+        import subprocess, shutil
+        gcloud_path = shutil.which("gcloud") or "gcloud"
+        token = subprocess.check_output(
+            [gcloud_path, "auth", "print-identity-token"], text=True, shell=True
+        ).strip()
+        return {"Authorization": f"Bearer {token}"}
 from core.adapters.repository import get_repo
 from core.adapters.users import UsersAdapter
 from core.adapters.videos import VideosAdapter
@@ -254,6 +276,15 @@ def save_pose_config():
     try:
         blob = _gcs().bucket(BUCKET_NAME).blob(POSE_CONFIG_BLOB)
         blob.upload_from_string(json.dumps(data, indent=2), content_type="application/json")
+        # Hot-reload config on running GPU container
+        try:
+            http_requests.post(
+                f"{POSE_SERVICE_URL}/reload-config",
+                headers=_pose_auth_headers(),
+                timeout=10,
+            )
+        except Exception:
+            pass  # GPU may be scaled to zero — config will load on next cold start
         return jsonify({"status": "saved"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
