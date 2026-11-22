@@ -5,7 +5,7 @@
 <div class="control-wrapper">
   <div class="control-tabs">
     <button class="control-tab active" onclick="switchControlTab('admin', this)">Admin</button>
-    <button class="control-tab" onclick="switchControlTab('scores', this)">Scores</button>
+    <button class="control-tab" onclick="switchControlTab('analysis', this)">Analysis</button>
     <button class="control-tab" onclick="switchControlTab('aigc', this)">AIGC</button>
   </div>
 
@@ -13,8 +13,8 @@
     {% include "_control_admin.html" %}
   </div>
 
-  <div class="control-panel" id="controlPanel-scores">
-    {% include "_control_scores.html" %}
+  <div class="control-panel" id="controlPanel-analysis">
+    {% include "_control_analysis.html" %}
   </div>
 
   <div class="control-panel" id="controlPanel-aigc">
@@ -176,127 +176,6 @@ async function doDeleteTier() {
   const res = await fetch('/api/admin/tiers/' + tid, { method: 'DELETE' });
   if (res.ok) { closeTierModal(); window.location.reload(); }
   else { const err = await res.json().catch(() => ({})); alert(err.error || 'Failed to delete tier'); }
-}
-</script>
-
-{# Scores scripts #}
-<script>
-const scSearch = document.getElementById('scorecardSearch');
-const scTbody = document.querySelector('#scorecardsTable tbody');
-
-scSearch.addEventListener('input', () => {
-  const q = scSearch.value.toLowerCase();
-  scTbody.querySelectorAll('tr').forEach(tr => {
-    const name = tr.querySelector('.name-col');
-    if (!name) return;
-    tr.style.display = name.textContent.toLowerCase().includes(q) ? '' : 'none';
-  });
-});
-
-document.getElementById('btnAddScorecard').addEventListener('click', () => {
-  document.getElementById('addScorecardModal').classList.add('open');
-  setTimeout(() => document.getElementById('scorecardNameInput').focus(), 50);
-});
-
-function closeAddModal() {
-  document.getElementById('addScorecardModal').classList.remove('open');
-  document.getElementById('scorecardNameInput').value = '';
-}
-
-async function createScorecard() {
-  const name = document.getElementById('scorecardNameInput').value.trim();
-  if (!name) return;
-  const res = await fetch('/api/scorecards', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name}) });
-  if (res.ok) window.location.reload();
-}
-
-let currentScorecardId = null;
-
-async function openScorecard(id, name) {
-  currentScorecardId = id;
-  document.getElementById('scId').textContent = '#' + id;
-  document.getElementById('scName').textContent = name;
-  document.getElementById('scorecardModal').classList.add('open');
-  hideAddMetric();
-  await loadMetrics(id);
-}
-
-function closeScorecardModal() {
-  document.getElementById('scorecardModal').classList.remove('open');
-  document.querySelector('.scorecard-modal').style.transform = '';
-  currentScorecardId = null;
-}
-
-(function() {
-  const header = document.querySelector('.scorecard-modal .video-title-bar');
-  const modal = document.querySelector('.scorecard-modal');
-  if (!header || !modal) return;
-  let dragging = false, startX, startY, dx = 0, dy = 0;
-  header.addEventListener('mousedown', (e) => {
-    if (e.target.closest('button')) return;
-    dragging = true; startX = e.clientX - dx; startY = e.clientY - dy; header.style.cursor = 'grabbing';
-  });
-  document.addEventListener('mousemove', (e) => {
-    if (!dragging) return; dx = e.clientX - startX; dy = e.clientY - startY; modal.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
-  });
-  document.addEventListener('mouseup', () => { dragging = false; if (header) header.style.cursor = 'grab'; });
-})();
-
-async function loadMetrics(id) {
-  const res = await fetch('/api/scorecards/' + id + '/metrics');
-  const metrics = await res.json();
-  const tbody = document.getElementById('metricsBody');
-  if (!metrics.length) { tbody.innerHTML = '<tr><td colspan="4" class="empty-row">No metrics yet</td></tr>'; return; }
-  tbody.innerHTML = metrics.map(m => {
-    const rangeStr = m.type === 'score' ? '0–10' : m.type === 'boolean' ? 'Yes / No' : '';
-    return '<tr data-mid="' + m.id + '"><td class="id-col">' + m.id + '</td><td class="name-col">' + m.name + '</td><td class="type-col">' + m.type + '</td><td class="range-col">' + rangeStr + '</td></tr>';
-  }).join('');
-}
-
-function showAddMetric() { document.getElementById('addMetricRow').classList.remove('hidden'); document.getElementById('addMetricBtn').classList.add('hidden'); document.getElementById('newMetricName').focus(); }
-function hideAddMetric() { document.getElementById('addMetricRow').classList.add('hidden'); document.getElementById('addMetricBtn').classList.remove('hidden'); document.getElementById('newMetricName').value = ''; }
-
-async function addMetric() {
-  const name = document.getElementById('newMetricName').value.trim();
-  const type = document.getElementById('newMetricType').value;
-  if (!name) return;
-  const res = await fetch('/api/scorecards/' + currentScorecardId + '/metrics', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name, type}) });
-  if (res.ok) { hideAddMetric(); loadMetrics(currentScorecardId); }
-}
-
-function filterMetrics() {
-  const q = document.getElementById('metricSearch').value.toLowerCase();
-  document.querySelectorAll('#metricsBody tr').forEach(tr => {
-    const name = tr.querySelector('.name-col');
-    if (!name) return;
-    tr.style.display = name.textContent.toLowerCase().includes(q) ? '' : 'none';
-  });
-}
-
-function startRenameScorecard() {
-  const el = document.getElementById('scName');
-  const current = el.textContent;
-  const input = document.createElement('input');
-  input.type = 'text'; input.value = current; input.className = 'sc-rename-input';
-  input.onkeydown = async (e) => {
-    if (e.key === 'Enter') {
-      const name = input.value.trim(); if (!name) return;
-      const res = await fetch('/api/scorecards/' + currentScorecardId, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name}) });
-      if (res.ok) { el.textContent = name; const row = document.querySelector('tr[data-id="' + currentScorecardId + '"] .name-col'); if (row) row.textContent = name; }
-      else el.textContent = current;
-    } else if (e.key === 'Escape') el.textContent = current;
-  };
-  input.onblur = () => { el.textContent = input.value.trim() || current; };
-  el.textContent = ''; el.appendChild(input); input.focus(); input.select();
-}
-
-function openDeleteScorecardModal() { document.getElementById('deleteScorecardModal').classList.add('open'); }
-function closeDeleteScorecardModal() { document.getElementById('deleteScorecardModal').classList.remove('open'); }
-
-async function confirmDeleteScorecard() {
-  closeDeleteScorecardModal();
-  const res = await fetch('/api/scorecards/' + currentScorecardId, { method: 'DELETE' });
-  if (res.ok) { closeScorecardModal(); const row = document.querySelector('tr[data-id="' + currentScorecardId + '"]'); if (row) row.remove(); }
 }
 </script>
 

@@ -7,7 +7,6 @@ from core.adapters.videos import VideosAdapter
 from core.adapters.analyses import AnalysesAdapter
 from core.adapters.folders import FoldersAdapter
 from core.adapters.tiers import TiersAdapter, UserTiersAdapter
-from core.adapters.scorecards import ScorecardsAdapter, ScorecardMetricsAdapter
 from core.api._helpers import serialize, uid
 
 admin_bp = Blueprint("admin", __name__)
@@ -37,8 +36,6 @@ def control():
     analyses = AnalysesAdapter(repo).select()
     tiers = TiersAdapter(repo).select()
     ut_adapter = UserTiersAdapter(repo)
-    all_scorecards = ScorecardsAdapter(repo).select()
-
     tier_map = {t["id"]: t["name"] for t in tiers}
 
     for u in users:
@@ -55,7 +52,6 @@ def control():
         "analyses_done": sum(1 for a in analyses if a.get("status") == "done"),
         "analyses_running": sum(1 for a in analyses if a.get("status") == "running"),
         "analyses_error": sum(1 for a in analyses if a.get("status") == "error"),
-        "scorecards": len(all_scorecards),
     }
 
     for u in users:
@@ -64,16 +60,8 @@ def control():
     users_json = [serialize(u) for u in users]
     tiers_json = [serialize(t) for t in tiers]
 
-    # Scores tab: current user's scorecards with metrics
-    sa = ScorecardsAdapter(repo)
-    ma = ScorecardMetricsAdapter(repo)
-    scorecards = sa.get_by_user(uid())
-    for sc in scorecards:
-        sc["metrics"] = ma.get_by_scorecard(sc["id"])
-
     return render_template("control.html", users=users, users_json=users_json,
-                           stats=stats, tiers=tiers, tiers_json=tiers_json,
-                           scorecards=scorecards)
+                           stats=stats, tiers=tiers, tiers_json=tiers_json)
 
 
 @admin_bp.route("/admin")
