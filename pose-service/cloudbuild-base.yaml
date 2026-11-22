@@ -1,0 +1,12 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-f'
+      - 'Dockerfile.base'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/leumeah/cloud-run-source-deploy/bachataai-pose-base:latest'
+      - '.'
+images:
+  - 'us-central1-docker.pkg.dev/leumeah/cloud-run-source-deploy/bachataai-pose-base:latest'
+timeout: 1200s

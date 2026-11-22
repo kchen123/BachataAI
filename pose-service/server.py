@@ -19,7 +19,9 @@ from ultralytics import YOLO
 
 app = FastAPI(title="BachataAI Pose Service")
 
-MODEL = YOLO("yolo26x-pose.pt")
+MODEL_PATH = "yolo26x-pose.pt"
+MODEL_BUCKET = os.environ.get("MODEL_BUCKET", "bachataai-videos")
+MODEL_BLOB = os.environ.get("MODEL_BLOB", "models/yolo26x-pose.pt")
 GCS_CLIENT = None
 
 
@@ -28,6 +30,19 @@ def _gcs():
     if GCS_CLIENT is None:
         GCS_CLIENT = storage.Client()
     return GCS_CLIENT
+
+
+def _load_model():
+    """Load YOLO model, downloading from GCS if not baked into the image."""
+    if not os.path.exists(MODEL_PATH):
+        print(f"Downloading model from gs://{MODEL_BUCKET}/{MODEL_BLOB}...")
+        blob = _gcs().bucket(MODEL_BUCKET).blob(MODEL_BLOB)
+        blob.download_to_filename(MODEL_PATH)
+        print(f"Model downloaded ({os.path.getsize(MODEL_PATH) // 1024 // 1024}MB)")
+    return YOLO(MODEL_PATH)
+
+
+MODEL = _load_model()
 
 
 class DetectRequest(BaseModel):
@@ -527,6 +542,179 @@ def _run_analysis(req: AnalyzeRequest):
         }, force=True)
     finally:
         os.unlink(tmp_path)
+
+
+# ── Anime conversion ─────────────────────────────────────────────────────────
+
+class AnimifyRequest(BaseModel):
+    gcs_bucket: str = "bachataai-videos"
+    gcs_blob: str
+    job_id: str
+    sample_every_n: int = 2
+    strength: float = 0.75
+
+
+def _anime_stylize(frame, strength=0.75):
+    """Apply anime-like stylization using OpenCV edge-preserving filters.
+
+    Pipeline:
+    1. Bilateral filter to flatten colors while keeping edges
+    2. Adaptive threshold to get bold edge lines
+    3. Bitwise-AND to combine flat colors with edge mask
+    4. Color quantization for cel-shaded look
+    5. Blend with original based on strength
+    """
+    h, w = frame.shape[:2]
+
+    # Downscale for speed if large
+    scale = 1.0
+    if max(h, w) > 720:
+        scale = 720 / max(h, w)
+        frame_small = cv2.resize(frame, (int(w * scale), int(h * scale)))
+    else:
+        frame_small = frame.copy()
+
+    # Step 1: Flatten colors with bilateral filter (multiple passes for stronger effect)
+    color = frame_small
+    for _ in range(3):
+        color = cv2.bilateralFilter(color, 9, 75, 75)
+
+    # Step 2: Edge detection
+    gray = cv2.cvtColor(frame_small, cv2.COLOR_BGR2GRAY)
+    gray = cv2.medianBlur(gray, 7)
+    edges = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C,
+                                   cv2.THRESH_BINARY, 9, 2)
+    edges_color = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
+
+    # Step 3: Combine flat colors with edges
+    cartoon = cv2.bitwise_and(color, edges_color)
+
+    # Step 4: Color quantization for cel-shading
+    div = 32
+    cartoon = (cartoon // div) * div + div // 2
+
+    # Step 5: Slight saturation boost for anime look
+    hsv = cv2.cvtColor(cartoon, cv2.COLOR_BGR2HSV).astype(np.float32)
+    hsv[:, :, 1] = np.clip(hsv[:, :, 1] * 1.3, 0, 255)
+    cartoon = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR)
+
+    # Upscale back if needed
+    if scale != 1.0:
+        cartoon = cv2.resize(cartoon, (w, h))
+        frame_small = frame
+
+    # Step 6: Blend with original based on strength
+    result = cv2.addWeighted(cartoon, strength, frame, 1.0 - strength, 0)
+    return result
+
+
+def _run_animify(req: AnimifyRequest):
+    """Process video: apply anime style to each frame, encode result, upload to GCS."""
+    bucket = _gcs().bucket(req.gcs_bucket)
+
+    _write_progress(bucket, f"anime-{req.job_id}", {
+        "status": "running", "percent": 5, "step": "Downloading video..."
+    }, force=True)
+
+    # Download video
+    blob = bucket.blob(req.gcs_blob)
+    if not blob.exists():
+        _write_progress(bucket, f"anime-{req.job_id}", {
+            "status": "error", "percent": 0, "step": f"Video not found: {req.gcs_blob}"
+        }, force=True)
+        return
+
+    suffix = os.path.splitext(req.gcs_blob)[1] or ".mp4"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp_path = tmp.name
+        blob.download_to_filename(tmp_path)
+
+    out_path = tmp_path + "_anime.mp4"
+
+    try:
+        cap = cv2.VideoCapture(tmp_path)
+        if not cap.isOpened():
+            _write_progress(bucket, f"anime-{req.job_id}", {
+                "status": "error", "percent": 0, "step": "Could not open video"
+            }, force=True)
+            return
+
+        fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        frames_to_process = total_frames // req.sample_every_n
+
+        _write_progress(bucket, f"anime-{req.job_id}", {
+            "status": "running", "percent": 10,
+            "step": f"Processing {frames_to_process} frames..."
+        }, force=True)
+
+        # Output video writer
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        out_fps = fps / req.sample_every_n
+        writer = cv2.VideoWriter(out_path, fourcc, out_fps, (w, h))
+
+        frame_num = 0
+        processed = 0
+
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            if frame_num % req.sample_every_n == 0:
+                anime_frame = _anime_stylize(frame, req.strength)
+                writer.write(anime_frame)
+                processed += 1
+
+                if processed % 50 == 0:
+                    pct = 10 + int((processed / max(frames_to_process, 1)) * 80)
+                    _write_progress(bucket, f"anime-{req.job_id}", {
+                        "status": "running", "percent": min(pct, 90),
+                        "step": f"Stylized {processed}/{frames_to_process} frames"
+                    }, force=True)
+
+            frame_num += 1
+
+        cap.release()
+        writer.release()
+
+        # Upload result
+        _write_progress(bucket, f"anime-{req.job_id}", {
+            "status": "running", "percent": 92,
+            "step": "Uploading anime video..."
+        }, force=True)
+
+        result_blob_name = f"anime/{req.job_id}.mp4"
+        result_blob = bucket.blob(result_blob_name)
+        result_blob.upload_from_filename(out_path, content_type="video/mp4")
+
+        _write_progress(bucket, f"anime-{req.job_id}", {
+            "status": "done", "percent": 100,
+            "step": f"Complete — {processed} frames stylized",
+            "result_url": result_blob.public_url,
+            "result_gcs_path": result_blob_name,
+        }, force=True)
+
+    except Exception as e:
+        _write_progress(bucket, f"anime-{req.job_id}", {
+            "status": "error", "percent": 0, "step": str(e)
+        }, force=True)
+    finally:
+        os.unlink(tmp_path)
+        if os.path.exists(out_path):
+            os.unlink(out_path)
+
+
+@app.post("/animify")
+def animify_video(req: AnimifyRequest):
+    """Apply anime style transfer to a video. Blocks until done.
+    Progress written to GCS at progress/anime-{job_id}.json
+    Result saved to GCS at anime/{job_id}.mp4
+    """
+    _run_animify(req)
+    return {"status": "done", "job_id": req.job_id}
 
 
 @app.post("/analyze")

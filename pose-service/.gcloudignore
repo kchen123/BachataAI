@@ -1,0 +1,7 @@
+yolo26x-pose.pt
+test_server.py
+__pycache__/
+.pytest_cache/
+*.pyc
+Dockerfile.base
+cloudbuild-base.yaml

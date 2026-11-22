@@ -4,7 +4,7 @@
 {% block content %}
 <div class="poc-container">
   <h2 class="poc-heading">Video → Anime PoC</h2>
-  <p class="poc-desc">Upload a dance clip and convert it to anime style using pose-guided generation.</p>
+  <p class="poc-desc">Upload a dance clip and convert it to anime style using GPU-accelerated stylization.</p>
 
   <div class="poc-pipeline">
     <!-- Step 1: Upload / Select -->
@@ -29,16 +29,9 @@
       <div class="poc-step-body">
         <h3>Style Settings</h3>
         <label class="poc-label">
-          Anime Model
-          <select id="pocModel" class="poc-select">
-            <option value="animeganv3">AnimeGANv3</option>
-            <option value="controlnet-openpose">ControlNet + OpenPose</option>
-          </select>
-        </label>
-        <label class="poc-label">
           Frame Sample Rate
           <select id="pocFps" class="poc-select">
-            <option value="all">Every frame</option>
+            <option value="1">Every frame</option>
             <option value="2" selected>Every 2nd frame</option>
             <option value="4">Every 4th frame</option>
           </select>
@@ -61,6 +54,7 @@
           <div class="poc-progress-bar"><div class="poc-progress-fill" id="pocFill"></div></div>
           <span class="poc-progress-text" id="pocProgressText">0%</span>
         </div>
+        <div class="poc-status hidden" id="pocStatus"></div>
       </div>
     </div>
 
@@ -87,6 +81,13 @@ const video = document.getElementById('pocVideo');
 const genBtn = document.getElementById('pocGenerate');
 const strengthSlider = document.getElementById('pocStrength');
 const strengthVal = document.getElementById('pocStrengthVal');
+const prog = document.getElementById('pocProgress');
+const fill = document.getElementById('pocFill');
+const progText = document.getElementById('pocProgressText');
+const statusEl = document.getElementById('pocStatus');
+const resultEl = document.getElementById('pocResult');
+
+let selectedFile = null;
 
 strengthSlider.addEventListener('input', () => {
   strengthVal.textContent = strengthSlider.value + '%';
@@ -107,46 +108,116 @@ fileInput.addEventListener('change', () => {
 });
 
 function loadVideo(file) {
-  const url = URL.createObjectURL(file);
-  video.src = url;
+  selectedFile = file;
+  video.src = URL.createObjectURL(file);
   drop.classList.add('hidden');
   preview.classList.remove('hidden');
   genBtn.disabled = false;
 }
 
 function clearVideo() {
+  selectedFile = null;
   video.src = '';
   preview.classList.add('hidden');
   drop.classList.remove('hidden');
   genBtn.disabled = true;
   fileInput.value = '';
-  document.getElementById('pocProgress').classList.add('hidden');
+  prog.classList.add('hidden');
+  statusEl.classList.add('hidden');
+  resultEl.innerHTML = '<p>Generated anime video will appear here.</p>';
 }
 
-// Simulated generation (PoC placeholder)
-genBtn.addEventListener('click', () => {
-  genBtn.disabled = true;
-  const prog = document.getElementById('pocProgress');
-  const fill = document.getElementById('pocFill');
-  const text = document.getElementById('pocProgressText');
-  prog.classList.remove('hidden');
+function showStatus(msg) {
+  statusEl.textContent = msg;
+  statusEl.classList.remove('hidden');
+}
 
-  let pct = 0;
-  const iv = setInterval(() => {
-    pct += Math.random() * 8 + 2;
-    if (pct >= 100) {
-      pct = 100;
-      clearInterval(iv);
-      text.textContent = 'Done!';
-      fill.style.width = '100%';
-      document.getElementById('pocResult').innerHTML =
-        '<p class="poc-done-msg">Anime conversion complete (simulated). Backend integration coming soon.</p>';
-      genBtn.disabled = false;
-    } else {
-      fill.style.width = pct.toFixed(0) + '%';
-      text.textContent = pct.toFixed(0) + '%';
-    }
-  }, 200);
+// Real generation pipeline
+genBtn.addEventListener('click', async () => {
+  if (!selectedFile) return;
+  genBtn.disabled = true;
+  prog.classList.remove('hidden');
+  fill.style.width = '0%';
+  progText.textContent = 'Uploading...';
+  resultEl.innerHTML = '<p>Generated anime video will appear here.</p>';
+
+  try {
+    // Step 1: Get upload URL
+    showStatus('Getting upload URL...');
+    const urlRes = await fetch('/api/poc/upload-url', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ filename: selectedFile.name })
+    });
+    if (!urlRes.ok) throw new Error('Failed to get upload URL');
+    const { upload_url, blob_name, job_id } = await urlRes.json();
+
+    // Step 2: Upload video to GCS
+    showStatus('Uploading video to cloud...');
+    fill.style.width = '5%';
+    progText.textContent = '5%';
+
+    const uploadRes = await fetch(upload_url, {
+      method: 'PUT',
+      headers: {'Content-Type': 'video/mp4'},
+      body: selectedFile
+    });
+    if (!uploadRes.ok) throw new Error('Upload failed');
+
+    fill.style.width = '10%';
+    progText.textContent = '10%';
+    showStatus('Upload complete. Starting conversion...');
+
+    // Step 3: Trigger conversion
+    const sampleEveryN = parseInt(document.getElementById('pocFps').value) || 2;
+    const strength = parseInt(strengthSlider.value) / 100;
+
+    const convRes = await fetch('/api/poc/convert', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ blob_name, job_id, sample_every_n: sampleEveryN, strength })
+    });
+    if (!convRes.ok) throw new Error('Failed to start conversion');
+
+    // Step 4: Poll progress
+    showStatus('Converting...');
+    const pollInterval = setInterval(async () => {
+      try {
+        const pRes = await fetch('/api/poc/progress/' + job_id);
+        const data = await pRes.json();
+
+        fill.style.width = data.percent + '%';
+        progText.textContent = data.percent + '%';
+        showStatus(data.step || 'Processing...');
+
+        if (data.status === 'done') {
+          clearInterval(pollInterval);
+          fill.style.width = '100%';
+          progText.textContent = 'Done!';
+          showStatus('Conversion complete!');
+          genBtn.disabled = false;
+
+          if (data.result_url) {
+            resultEl.innerHTML =
+              '<video controls style="max-width:100%;max-height:400px;border-radius:8px"><source src="' +
+              data.result_url + '" type="video/mp4"></video>' +
+              '<div style="margin-top:8px"><a href="' + data.result_url +
+              '" target="_blank" class="btn btn-sm">Download</a></div>';
+          }
+        } else if (data.status === 'error') {
+          clearInterval(pollInterval);
+          showStatus('Error: ' + (data.step || 'Unknown error'));
+          genBtn.disabled = false;
+        }
+      } catch (e) {
+        // Polling error — keep trying
+      }
+    }, 2000);
+
+  } catch (err) {
+    showStatus('Error: ' + err.message);
+    genBtn.disabled = false;
+  }
 });
 </script>
 {% endblock %}

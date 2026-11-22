@@ -4,5 +4,7 @@ ultralytics
 opencv-python-headless
 numpy
 torch
+torchvision
 google-cloud-storage
 lapx
+Pillow

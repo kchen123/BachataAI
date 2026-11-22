@@ -163,8 +163,7 @@
       <div class="label-panel hidden" id="labelPanel">
         <div class="label-panel-top">
           <span id="labelMsg">Click each dancer to label them</span>
-          <div class="label-legend" id="labelLegend"></div>
-          <div class="label-actions">
+          <div class="label-actions" id="labelActions">
             <button class="btn btn-sm btn-accent" id="labelSaveBtn" onclick="saveLabelRoles()">Analyze</button>
             <button class="btn btn-sm" onclick="skipLabel()">Skip</button>
           </div>
@@ -589,7 +588,6 @@ async function openDetectLabel(videoId) {
   document.getElementById('poseCanvas').style.display = 'none';
   document.getElementById('labelMsg').textContent = 'Warming up GPU & detecting persons... (first time may take 30-60s)';
   document.getElementById('labelSaveBtn').textContent = 'Analyze';
-  document.getElementById('labelLegend').innerHTML = '';
   panel.classList.remove('hidden');
 
   // Step 4: Call detect API to get bounding boxes
@@ -611,10 +609,9 @@ async function openDetectLabel(videoId) {
   if (labelBoxes.length < 2) {
     const msg = labelBoxes.length === 0 ? 'No dancers detected.' : '1 dancer detected.';
     document.getElementById('labelMsg').textContent = msg + ' How many dancers to track?';
-    document.getElementById('labelLegend').innerHTML =
+    document.getElementById('labelActions').innerHTML =
       '<button class="btn btn-sm" onclick="closeLabelPanel(); triggerAnalysis(' + videoId + ', 2, 640, null, 1)">1</button>' +
       '<button class="btn btn-sm btn-accent" onclick="closeLabelPanel(); triggerAnalysis(' + videoId + ', 2, 640, null, 2)">2</button>';
-    document.getElementById('labelSaveBtn').classList.add('hidden');
     return;
   }
 
@@ -708,20 +705,7 @@ function _drawLabelFrame() {
   }
 }
 
-// Update the small legend strip + redraw canvas
 function _updateLabelUI() {
-  const legend = document.getElementById('labelLegend');
-  if (legend) {
-    const parts = [];
-    for (const box of labelBoxes) {
-      const role = labelAssign[String(box.idx)];
-      if (role) {
-        const color = ROLE_COLORS[role];
-        parts.push('<span style="color:' + color + '">' + role.charAt(0).toUpperCase() + role.slice(1) + ' = P' + (box.idx + 1) + '</span>');
-      }
-    }
-    legend.innerHTML = parts.length ? parts.join(' &nbsp; ') : '';
-  }
   _drawLabelFrame();
 }
 
