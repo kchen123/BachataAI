@@ -211,7 +211,6 @@
   </div>
 </div>
 
-<!-- Account Modal -->
 {% endblock %}
 
 {% block scripts %}
@@ -225,9 +224,6 @@ let bodyFocusFilter = '';
 
 function setBodyFocus(focus) {
   bodyFocusFilter = focus;
-  document.querySelectorAll('#focusFilter .focus-pill').forEach(p => {
-    p.classList.toggle('active', p.dataset.focus === focus);
-  });
   if (poseVisible) drawCurrentPose();
 }
 
@@ -486,8 +482,6 @@ async function playVideo(videoId, url, title, hasPose) {
 }
 
 function maybeCloseVideo() {
-  const lp = document.getElementById('labelPanel');
-  if (lp && !lp.classList.contains('hidden')) return;  // frozen during labeling
   closeVideo();
 }
 
@@ -564,8 +558,6 @@ function pickDancers(count) {
 function runAnalysis() {
   showDancerPicker();
 }
-
-
 
 function showProcessingCard(videoId) {
   const card = document.querySelector('.file-card[data-type="video"][data-id="' + videoId + '"]');

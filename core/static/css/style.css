@@ -691,13 +691,6 @@
   background: var(--accent-bg);
 }
 
-.analyze-ctrl {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.analyze-ctrl.hidden { display: none; }
-
 .video-controls-bar {
   display: flex;
   align-items: center;
@@ -882,20 +875,6 @@
 .file-card.processing {
   border-color: var(--amber);
   opacity: 0.85;
-}
-
-
-.analyze-btn {
-  background: var(--accent) !important;
-  color: #fff !important;
-  border: none !important;
-  font-weight: 600;
-  border-radius: 12px !important;
-  box-shadow: 0 2px 8px rgba(255, 136, 0, 0.25);
-}
-.analyze-btn:hover {
-  background: var(--accent-hover) !important;
-  box-shadow: 0 4px 12px rgba(255, 136, 0, 0.3);
 }
 
 .processing-status {
