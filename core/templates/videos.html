@@ -142,7 +142,7 @@
       <button class="video-bar-close" onclick="closeVideo()">&times;</button>
     </div>
     <div class="video-controls-bar">
-      <button class="btn btn-sm analyze-btn hidden" id="poseAnalyze" onclick="runAnalysis()">Analyze</button>
+      <button class="pose-ctrl-btn hidden" id="poseAnalyze" onclick="showDancerPicker()">Analyze</button>
       <div class="pose-controls hidden" id="poseControls">
         <label class="pose-ctrl-item">
           <input type="checkbox" id="poseToggle" onchange="togglePose()">
@@ -160,16 +160,6 @@
     <div class="video-wrapper">
       <video id="videoPlayer" controls autoplay></video>
       <canvas id="poseCanvas"></canvas>
-      <div class="label-panel hidden" id="labelPanel">
-        <div class="label-panel-top">
-          <span id="labelMsg">Click each dancer to label them</span>
-          <div class="label-actions" id="labelActions">
-            <button class="btn btn-sm btn-accent" id="labelSaveBtn" onclick="saveLabelRoles()">Analyze</button>
-            <button class="btn btn-sm" onclick="skipLabel()">Skip</button>
-          </div>
-        </div>
-        <canvas id="labelCanvas"></canvas>
-      </div>
     </div>
     <div class="metrics-panel hidden" id="metricsPanel">
       <div class="metrics-tabs">
@@ -187,7 +177,17 @@
 </div>
 
 
-<!-- Cancel Confirm Modal -->
+<!-- Dancer Count Picker -->
+<div class="modal-overlay" id="dancerPickerModal">
+  <div class="files-modal">
+    <h3 style="margin-bottom:12px">How many dancers?</h3>
+    <div class="files-modal-actions" style="gap:12px">
+      <button class="btn btn-sm" style="padding:8px 24px" onclick="pickDancers(1)">1</button>
+      <button class="btn btn-sm btn-accent" style="padding:8px 24px" onclick="pickDancers(2)">2</button>
+    </div>
+  </div>
+</div>
+
 <!-- Re-run Confirm Modal -->
 <div class="modal-overlay" id="rerunModal">
   <div class="files-modal">
@@ -212,39 +212,6 @@
 </div>
 
 <!-- Account Modal -->
-<div class="modal-overlay" id="accountModal">
-  <div class="account-modal">
-    <div class="account-modal-header">
-      <button class="account-modal-close" onclick="document.getElementById('accountModal').classList.remove('open')">&times;</button>
-    </div>
-    <div class="account-modal-body" id="accountBody">
-      <div class="account-field" data-field="username">
-        <span class="account-label">Username</span>
-        <span class="account-value accent">{{ user.username }}</span>
-      </div>
-      <div class="account-field" data-field="display_name">
-        <span class="account-label">Display Name</span>
-        <span class="account-value">{{ user.display_name or '—' }}</span>
-      </div>
-      <div class="account-field" data-field="email">
-        <span class="account-label">Email</span>
-        <span class="account-value">{{ user.email or '—' }}</span>
-      </div>
-      <div class="account-field" data-field="role">
-        <span class="account-label">Role</span>
-        <span class="account-value">{{ user.role }}</span>
-      </div>
-      <div class="account-field">
-        <span class="account-label">Joined</span>
-        <span class="account-value">{{ user.created_at.strftime('%b %d, %Y') if user.created_at else '—' }}</span>
-      </div>
-    </div>
-    <div class="account-modal-footer">
-      <button class="btn btn-sm" id="accountEditBtn" onclick="toggleAccountEdit()">Edit</button>
-      <a href="/logout" class="btn btn-sm btn-danger">Logout</a>
-    </div>
-  </div>
-</div>
 {% endblock %}
 
 {% block scripts %}
@@ -548,232 +515,6 @@ function closeVideo() {
   modal.style.transform = '';
 }
 
-// ── Label Lead/Follow ──────────────────────────────────────────────────────
-const LABEL_COLORS = ['#00ff88', '#4da6ff', '#ff6b6b', '#ffcc00', '#cc66ff', '#ff8844'];
-const ROLE_COLORS = { lead: '#00ff88', follow: '#4da6ff' };
-
-let labelBoxes = [];     // normalized boxes [{x1,y1,x2,y2,idx}]
-let labelAssign = {};    // idx → "lead"|"follow"
-let labelVideoId = null;
-let _labelFrameCache = null; // offscreen canvas holding captured frame
-
-async function openDetectLabel(videoId) {
-  labelVideoId = videoId;
-  labelAssign = {};
-  labelBoxes = [];
-
-  const panel = document.getElementById('labelPanel');
-  if (!panel) { triggerAnalysis(videoId, 2, 640); return; }
-
-  const player = document.getElementById('videoPlayer');
-
-  // Step 1: Make sure video has a frame we can draw
-  if (player.readyState < 2) {
-    await new Promise(resolve => {
-      player.addEventListener('loadeddata', resolve, { once: true });
-    });
-  }
-  player.pause();
-
-  // Step 2: Capture frame to offscreen cache while video is still visible
-  const vw = player.videoWidth || 640, vh = player.videoHeight || 360;
-  _labelFrameCache = document.createElement('canvas');
-  _labelFrameCache.width = vw;
-  _labelFrameCache.height = vh;
-  _labelFrameCache.getContext('2d').drawImage(player, 0, 0, vw, vh);
-
-  // Step 3: Hide video, show label panel
-  player.style.display = 'none';
-  document.querySelector('.video-controls-bar').classList.add('hidden');
-  document.getElementById('poseCanvas').style.display = 'none';
-  document.getElementById('labelMsg').textContent = 'Warming up GPU & detecting persons... (first time may take 30-60s)';
-  document.getElementById('labelSaveBtn').textContent = 'Analyze';
-  panel.classList.remove('hidden');
-
-  // Step 4: Call detect API to get bounding boxes
-  try {
-    const res = await fetch('/api/videos/' + videoId + '/detect', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-    });
-    if (!res.ok) throw new Error('detect failed');
-    const data = await res.json();
-    labelBoxes = (data.persons || []).map((p, i) => ({
-      x1: p.x1, y1: p.y1, x2: p.x2, y2: p.y2, idx: i,
-      keypoints: p.keypoints || null
-    }));
-  } catch (e) {
-    labelBoxes = [];
-  }
-
-  // Step 5: If < 2 persons found, ask user how many dancers to track
-  if (labelBoxes.length < 2) {
-    const msg = labelBoxes.length === 0 ? 'No dancers detected.' : '1 dancer detected.';
-    document.getElementById('labelMsg').textContent = msg + ' How many dancers to track?';
-    document.getElementById('labelActions').innerHTML =
-      '<button class="btn btn-sm" onclick="closeLabelPanel(); triggerAnalysis(' + videoId + ', 2, 640, null, 1)">1</button>' +
-      '<button class="btn btn-sm btn-accent" onclick="closeLabelPanel(); triggerAnalysis(' + videoId + ', 2, 640, null, 2)">2</button>';
-    return;
-  }
-
-  document.getElementById('labelSaveBtn').classList.remove('hidden');
-  document.getElementById('labelMsg').textContent = 'Click on a dancer to label: Lead → Follow → None';
-
-  _updateLabelUI();
-}
-
-// Draw the cached frame + skeletons onto the label canvas
-function _drawLabelFrame() {
-  const canvas = document.getElementById('labelCanvas');
-  if (!canvas || !_labelFrameCache) return;
-
-  canvas.width = _labelFrameCache.width;
-  canvas.height = _labelFrameCache.height;
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(_labelFrameCache, 0, 0);
-
-  const W = canvas.width, H = canvas.height;
-  const _pendingLabels = [];
-  for (const box of labelBoxes) {
-    const role = labelAssign[String(box.idx)];
-    const color = role ? ROLE_COLORS[role] : LABEL_COLORS[box.idx % LABEL_COLORS.length];
-    const kp = box.keypoints;
-
-    if (kp) {
-      // Draw skeleton connections
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 3;
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 8;
-      for (const [a, b] of SKELETON_CONNECTIONS) {
-        const pa = kp[a] || kp[String(a)];
-        const pb = kp[b] || kp[String(b)];
-        if (!pa || !pb || pa.visibility < 0.4 || pb.visibility < 0.4) continue;
-        ctx.beginPath();
-        ctx.moveTo(pa.x * W, pa.y * H);
-        ctx.lineTo(pb.x * W, pb.y * H);
-        ctx.stroke();
-      }
-      ctx.shadowBlur = 0;
-
-      // Draw keypoint dots
-      for (let i = 0; i < 17; i++) {
-        const p = kp[i] || kp[String(i)];
-        if (!p || p.visibility < 0.4) continue;
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.arc(p.x * W, p.y * H, 5, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      // Big label near the head — collect for overlap check
-      const nose = kp[0] || kp['0'];
-      let lx, ly;
-      if (nose && nose.visibility > 0.4) {
-        lx = nose.x * W - 10; ly = nose.y * H - 25;
-      } else {
-        lx = box.x1 * W + 6; ly = box.y1 * H + 30;
-      }
-      const label = role ? role.charAt(0).toUpperCase() + role.slice(1) : 'P' + (box.idx + 1);
-      ctx.font = 'bold 24px sans-serif';
-      const tw = ctx.measureText(label).width;
-      _pendingLabels.push({lx, ly, label, tw, color});
-    }
-  }
-
-  // Resolve overlapping labels — nudge vertically
-  for (let i = 0; i < _pendingLabels.length; i++) {
-    for (let j = i + 1; j < _pendingLabels.length; j++) {
-      const a = _pendingLabels[i], b = _pendingLabels[j];
-      const overlapX = Math.abs(a.lx - b.lx) < Math.max(a.tw, b.tw) + 12;
-      const overlapY = Math.abs(a.ly - b.ly) < 32;
-      if (overlapX && overlapY) {
-        if (a.ly <= b.ly) { a.ly -= 18; b.ly += 18; }
-        else { b.ly -= 18; a.ly += 18; }
-      }
-    }
-  }
-
-  // Draw all labels
-  for (const lb of _pendingLabels) {
-    ctx.font = 'bold 24px sans-serif';
-    ctx.fillStyle = 'rgba(0,0,0,0.7)';
-    ctx.beginPath();
-    ctx.roundRect(lb.lx - 4, lb.ly - 22, lb.tw + 8, 28, 4);
-    ctx.fill();
-    ctx.fillStyle = lb.color;
-    ctx.fillText(lb.label, lb.lx, lb.ly);
-  }
-}
-
-function _updateLabelUI() {
-  _drawLabelFrame();
-}
-
-function _dedupRoles(changedKey) {
-  const role = labelAssign[changedKey];
-  if (!role) return;
-  for (const [k, v] of Object.entries(labelAssign)) {
-    if (k !== changedKey && v === role) delete labelAssign[k];
-  }
-}
-
-// Canvas click — scale mouse coords to canvas pixel coords
-const _lc = document.getElementById('labelCanvas');
-if (_lc) _lc.addEventListener('click', function(e) {
-  if (!labelBoxes.length) return;
-  const rect = this.getBoundingClientRect();
-  const scaleX = this.width / rect.width;
-  const scaleY = this.height / rect.height;
-  const mx = (e.clientX - rect.left) * scaleX;
-  const my = (e.clientY - rect.top) * scaleY;
-  const W = this.width, H = this.height;
-
-  let bestIdx = -1, bestDist = Infinity;
-  for (const box of labelBoxes) {
-    const bcx = (box.x1 + box.x2) / 2 * W;
-    const bcy = (box.y1 + box.y2) / 2 * H;
-    const dist = Math.hypot(mx - bcx, my - bcy);
-    const maxDist = Math.max((box.x2 - box.x1) * W, (box.y2 - box.y1) * H);
-    if (dist < maxDist && dist < bestDist) {
-      bestDist = dist;
-      bestIdx = box.idx;
-    }
-  }
-  if (bestIdx >= 0) {
-    const key = String(bestIdx);
-    const cur = labelAssign[key];
-    if (!cur) labelAssign[key] = 'lead';
-    else if (cur === 'lead') labelAssign[key] = 'follow';
-    else delete labelAssign[key];
-    _dedupRoles(key);
-    _updateLabelUI();
-  }
-});
-
-function saveLabelRoles() {
-  // Send just {person_index: role} — GPU already has the bboxes from detect
-  const roles = {};
-  for (const [key, role] of Object.entries(labelAssign)) {
-    roles[key] = role;
-  }
-  closeLabelPanel();
-  triggerAnalysis(labelVideoId, 2, 640, Object.keys(roles).length > 0 ? roles : null);
-}
-
-function skipLabel() {
-  closeLabelPanel();
-  triggerAnalysis(labelVideoId, 2, 640);
-}
-
-function closeLabelPanel() {
-  const p = document.getElementById('labelPanel');
-  if (p) p.classList.add('hidden');
-  document.getElementById('videoPlayer').style.display = '';
-  document.querySelector('.video-controls-bar').classList.remove('hidden');
-  document.getElementById('poseCanvas').style.display = '';
-  _labelFrameCache = null;
-}
-
 // Drag video modal
 (function() {
   const header = document.querySelector('.video-title-bar');
@@ -812,9 +553,17 @@ function confirmRerunAction() {
   runAnalysis();
 }
 
-function runAnalysis(videoId) {
-  const vid = videoId || currentVideoId;
-  openDetectLabel(vid);
+function showDancerPicker() {
+  document.getElementById('dancerPickerModal').classList.add('open');
+}
+
+function pickDancers(count) {
+  document.getElementById('dancerPickerModal').classList.remove('open');
+  triggerAnalysis(currentVideoId, 2, 640, null, count);
+}
+
+function runAnalysis() {
+  showDancerPicker();
 }
 
 
@@ -1297,43 +1046,6 @@ async function onDrop(e, targetFolderId) {
   if (res.ok) {
     const card = document.querySelector('.file-card[data-type="' + dragType + '"][data-id="' + dragId + '"]');
     if (card) card.remove();
-  }
-}
-
-// ── Account Edit ──
-let accountEditing = false;
-
-function toggleAccountEdit() {
-  const btn = document.getElementById('accountEditBtn');
-  const body = document.getElementById('accountBody');
-
-  if (!accountEditing) {
-    // Switch to edit mode
-    accountEditing = true;
-    btn.textContent = 'Save';
-    btn.classList.add('btn-accent');
-
-    body.querySelectorAll('.account-field[data-field]').forEach(field => {
-      const key = field.dataset.field;
-      const valEl = field.querySelector('.account-value');
-      const current = valEl.textContent.trim();
-      const val = current === '—' ? '' : current;
-      valEl.innerHTML = '<input type="text" class="account-input" data-key="' + key + '" value="' + val.replace(/"/g, '&quot;') + '">';
-    });
-  } else {
-    // Save
-    const data = {};
-    body.querySelectorAll('.account-input').forEach(input => {
-      data[input.dataset.key] = input.value.trim();
-    });
-
-    fetch('/api/account', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    }).then(res => {
-      if (res.ok) window.location.reload();
-    });
   }
 }
 

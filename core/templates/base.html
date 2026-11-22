@@ -17,6 +17,71 @@
     {% block content %}{% endblock %}
   </main>
 
+  <!-- Account Modal (global) -->
+  <div class="modal-overlay" id="accountModal">
+    <div class="account-modal">
+      <div class="account-modal-header">
+        <button class="account-modal-close" onclick="document.getElementById('accountModal').classList.remove('open')">&times;</button>
+      </div>
+      <div class="account-modal-body" id="accountBody">
+        <div class="account-field" data-field="username">
+          <span class="account-label">Username</span>
+          <span class="account-value accent">{{ user.username if user else '' }}</span>
+        </div>
+        <div class="account-field" data-field="display_name">
+          <span class="account-label">Display Name</span>
+          <span class="account-value">{{ user.display_name if user and user.display_name else '—' }}</span>
+        </div>
+        <div class="account-field" data-field="email">
+          <span class="account-label">Email</span>
+          <span class="account-value">{{ user.email if user and user.email else '—' }}</span>
+        </div>
+        <div class="account-field" data-field="role">
+          <span class="account-label">Role</span>
+          <span class="account-value">{{ user.role if user else '' }}</span>
+        </div>
+        <div class="account-field">
+          <span class="account-label">Joined</span>
+          <span class="account-value">{{ user.created_at.strftime('%b %d, %Y') if user and user.created_at else '—' }}</span>
+        </div>
+      </div>
+      <div class="account-modal-footer">
+        <button class="btn btn-sm" id="accountEditBtn" onclick="toggleAccountEdit()">Edit</button>
+        <a href="/logout" class="btn btn-sm btn-danger">Logout</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  let accountEditing = false;
+  function toggleAccountEdit() {
+    const btn = document.getElementById('accountEditBtn');
+    const body = document.getElementById('accountBody');
+    if (!accountEditing) {
+      accountEditing = true;
+      btn.textContent = 'Save';
+      btn.classList.add('btn-accent');
+      body.querySelectorAll('.account-field[data-field]').forEach(field => {
+        const key = field.dataset.field;
+        const valEl = field.querySelector('.account-value');
+        const current = valEl.textContent.trim();
+        const val = current === '—' ? '' : current;
+        valEl.innerHTML = '<input type="text" class="account-input" data-key="' + key + '" value="' + val.replace(/"/g, '&quot;') + '">';
+      });
+    } else {
+      const data = {};
+      body.querySelectorAll('.account-input').forEach(input => {
+        data[input.dataset.key] = input.value.trim();
+      });
+      fetch('/api/account', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      }).then(res => { if (res.ok) window.location.reload(); });
+    }
+  }
+  </script>
+
   <script>
   (function() {
     function hms() {

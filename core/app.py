@@ -20,7 +20,10 @@ def _run_migrations():
     migrations_dir = Path(__file__).resolve().parent.parent / "migrations"
     with Repository() as repo:
         for sql_file in sorted(migrations_dir.glob("*.sql")):
-            repo.execute(sql_file.read_text())
+            try:
+                repo.execute(sql_file.read_text())
+            except Exception as e:
+                print(f"Migration {sql_file.name}: {e}")
     print("DB migrations complete.")
 
 
@@ -72,8 +75,8 @@ def create_app():
                 if ut:
                     tier = TiersAdapter(repo).get(ut["tier_id"])
                     tier_name = tier["name"] if tier else None
-                return {"is_admin": user.get("role") == "admin", "user_tier": tier_name}
-        return {"is_admin": False, "user_tier": None}
+                return {"is_admin": user.get("role") == "admin", "user_tier": tier_name, "user": user}
+        return {"is_admin": False, "user_tier": None, "user": None}
 
     @app.before_request
     def require_login():
