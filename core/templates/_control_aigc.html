@@ -1,0 +1,64 @@
+<div class="poc-container">
+  <h2 class="poc-heading">Video → Anime PoC</h2>
+  <p class="poc-desc">Upload a dance clip and convert it to anime style using GPU-accelerated stylization.</p>
+
+  <div class="poc-pipeline">
+    <div class="poc-step" id="pocStep1">
+      <div class="poc-step-num">1</div>
+      <div class="poc-step-body">
+        <h3>Select Video</h3>
+        <div class="poc-drop" id="pocDrop">
+          <input type="file" id="pocFile" accept="video/*" hidden>
+          <p>Drag & drop a video or <button class="poc-browse" onclick="document.getElementById('pocFile').click()">browse</button></p>
+        </div>
+        <div class="poc-preview hidden" id="pocPreview">
+          <video id="pocVideo" controls></video>
+          <button class="btn btn-sm" onclick="clearVideo()">Clear</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="poc-step" id="pocStep2">
+      <div class="poc-step-num">2</div>
+      <div class="poc-step-body">
+        <h3>Style Settings</h3>
+        <label class="poc-label">
+          Frame Sample Rate
+          <select id="pocFps" class="poc-select">
+            <option value="1">Every frame</option>
+            <option value="2" selected>Every 2nd frame</option>
+            <option value="4">Every 4th frame</option>
+          </select>
+        </label>
+        <label class="poc-label">
+          Style Strength
+          <input type="range" id="pocStrength" min="0" max="100" value="75" class="poc-range">
+          <span id="pocStrengthVal">75%</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="poc-step" id="pocStep3">
+      <div class="poc-step-num">3</div>
+      <div class="poc-step-body">
+        <h3>Generate</h3>
+        <button class="btn btn-accent poc-generate" id="pocGenerate" disabled>Generate Anime</button>
+        <div class="poc-progress hidden" id="pocProgress">
+          <div class="poc-progress-bar"><div class="poc-progress-fill" id="pocFill"></div></div>
+          <span class="poc-progress-text" id="pocProgressText">0%</span>
+        </div>
+        <div class="poc-status hidden" id="pocStatus"></div>
+      </div>
+    </div>
+
+    <div class="poc-step" id="pocStep4">
+      <div class="poc-step-num">4</div>
+      <div class="poc-step-body">
+        <h3>Result</h3>
+        <div class="poc-result-placeholder" id="pocResult">
+          <p>Generated anime video will appear here.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

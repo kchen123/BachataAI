@@ -1,0 +1,142 @@
+<div class="admin-container">
+
+  <div class="admin-stats">
+    <div class="admin-stat-card">
+      <div class="admin-stat-value">{{ stats.users }}</div>
+      <div class="admin-stat-label">Users</div>
+    </div>
+    <div class="admin-stat-card">
+      <div class="admin-stat-value">{{ stats.videos }}</div>
+      <div class="admin-stat-label">Videos</div>
+    </div>
+    <div class="admin-stat-card">
+      <div class="admin-stat-value">{{ stats.analyses_done }}</div>
+      <div class="admin-stat-label">Analyses Done</div>
+    </div>
+    <div class="admin-stat-card">
+      <div class="admin-stat-value">{{ stats.analyses_running }}</div>
+      <div class="admin-stat-label">Running</div>
+    </div>
+    <div class="admin-stat-card">
+      <div class="admin-stat-value">{{ stats.analyses_error }}</div>
+      <div class="admin-stat-label">Errors</div>
+    </div>
+    <div class="admin-stat-card">
+      <div class="admin-stat-value">{{ stats.scorecards }}</div>
+      <div class="admin-stat-label">Scorecards</div>
+    </div>
+  </div>
+
+  <div class="admin-section">
+    <div class="admin-section-header"><h3>Users</h3></div>
+    <div class="admin-section-toolbar">
+      <input type="text" class="search-input" id="adminUserSearch" placeholder="..." oninput="filterUsers()">
+      <button class="btn btn-sm btn-accent" onclick="openUserModal()" title="New User">+</button>
+    </div>
+    <div class="table-wrap">
+      <table class="app-table" id="adminUsersTable">
+        <thead><tr><th class="id-col">ID</th><th>Username</th><th>Display Name</th><th>Email</th><th>Role</th><th>Tier</th><th>Videos</th><th>Analyses</th><th>Created</th></tr></thead>
+        <tbody>
+          {% for u in users %}
+          <tr data-uid="{{ u.id }}" onclick="openUserModal({{ u.id }})" style="cursor:pointer">
+            <td class="id-col">{{ u.id }}</td><td>{{ u.username }}</td><td>{{ u.display_name or '—' }}</td><td>{{ u.email or '—' }}</td><td>{{ u.role }}</td><td><span class="admin-tier-badge">{{ u.tier_name or 'none' }}</span></td><td>{{ u.video_count }}</td><td>{{ u.analysis_count }}</td><td>{{ u.created_at.strftime('%b %d, %Y') if u.created_at else '' }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="9" class="empty-row">No users</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="admin-section">
+    <div class="admin-section-header"><h3>Tiers</h3></div>
+    <div class="admin-section-toolbar">
+      <input type="text" class="search-input" id="adminTierSearch" placeholder="..." oninput="filterTiers()">
+      <button class="btn btn-sm btn-accent" onclick="openTierModal()" title="New Tier">+</button>
+    </div>
+    <div class="table-wrap">
+      <table class="app-table" id="adminTiersTable">
+        <thead><tr><th class="id-col">ID</th><th>Name</th><th>Monthly Rev</th><th>Annual Rev</th></tr></thead>
+        <tbody>
+          {% for t in tiers %}
+          <tr data-tid="{{ t.id }}" onclick="openTierModal({{ t.id }})" style="cursor:pointer">
+            <td class="id-col">{{ t.id }}</td><td>{{ t.name }}</td><td>{{ t.month_rev or '—' }}</td><td>{{ t.year_rev or '—' }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="empty-row">No tiers</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- User Modal -->
+<div class="modal-overlay" id="userModal">
+  <div class="admin-modal">
+    <div class="admin-modal-header">
+      <span id="userModalTitle">New User</span>
+      <button class="admin-modal-close" onclick="closeUserModal()">&times;</button>
+    </div>
+    <div class="admin-modal-body">
+      <input type="hidden" id="editUserId">
+      <label class="admin-field"><span>Username</span><input type="text" id="editUsername" autocomplete="off"></label>
+      <label class="admin-field"><span>Display Name</span><input type="text" id="editDisplayName" autocomplete="off"></label>
+      <label class="admin-field"><span>Email</span><input type="email" id="editEmail" autocomplete="off"></label>
+      <label class="admin-field"><span>Role</span><select id="editRole"><option value="user">user</option><option value="admin">admin</option></select></label>
+      <label class="admin-field"><span>Tier</span><select id="editTier"><option value="">none</option>{% for t in tiers %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}</select></label>
+      <div class="admin-field"><span>Password</span><div id="editPw" class="admin-editable" contenteditable="true" style="background:#fff;color:#1a1a2e;-webkit-text-fill-color:#1a1a2e;min-height:20px;padding:7px 10px;border:1px solid #ccc;border-radius:6px;font-size:12px"></div></div>
+      <div class="admin-modal-actions">
+        <button class="btn btn-sm btn-danger" id="btnDeleteUser" onclick="confirmDeleteUser()" style="display:none">Delete</button>
+        <span style="flex:1"></span>
+        <button class="btn btn-sm" onclick="closeUserModal()">Cancel</button>
+        <button class="btn btn-sm btn-accent" onclick="saveUser()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="deleteUserModal">
+  <div class="files-modal">
+    <h3 style="margin-bottom:12px">Delete User</h3>
+    <p class="analyze-desc" style="margin-bottom:24px">This will permanently delete this user and cannot be undone.</p>
+    <div class="files-modal-actions" style="gap:12px">
+      <button class="btn btn-sm" style="padding:6px 16px" onclick="closeDeleteUserModal()">Cancel</button>
+      <button class="btn btn-sm" style="padding:6px 16px;color:var(--red);border-color:var(--red)" onclick="doDeleteUser()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="tierModal">
+  <div class="admin-modal">
+    <div class="admin-modal-header">
+      <span id="tierModalTitle">New Tier</span>
+      <button class="admin-modal-close" onclick="closeTierModal()">&times;</button>
+    </div>
+    <div class="admin-modal-body">
+      <input type="hidden" id="editTierId">
+      <label class="admin-field"><span>Name</span><input type="text" id="editTierName" autocomplete="off"></label>
+      <label class="admin-field"><span>Monthly Revenue</span><input type="number" id="editTierMonthRev" step="0.01" min="0"></label>
+      <label class="admin-field"><span>Annual Revenue</span><input type="number" id="editTierYearRev" step="0.01" min="0"></label>
+      <div class="admin-modal-actions">
+        <button class="btn btn-sm btn-danger" id="btnDeleteTier" onclick="confirmDeleteTier()" style="display:none">Delete</button>
+        <span style="flex:1"></span>
+        <button class="btn btn-sm" onclick="closeTierModal()">Cancel</button>
+        <button class="btn btn-sm btn-accent" onclick="saveTier()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="deleteTierModal">
+  <div class="files-modal">
+    <h3 style="margin-bottom:12px">Delete Tier</h3>
+    <p class="analyze-desc" style="margin-bottom:24px">This will permanently delete this tier. Users assigned to it will lose their tier.</p>
+    <div class="files-modal-actions" style="gap:12px">
+      <button class="btn btn-sm" style="padding:6px 16px" onclick="closeDeleteTierModal()">Cancel</button>
+      <button class="btn btn-sm" style="padding:6px 16px;color:var(--red);border-color:var(--red)" onclick="doDeleteTier()">Delete</button>
+    </div>
+  </div>
+</div>

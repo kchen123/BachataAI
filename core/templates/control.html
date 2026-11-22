@@ -1,0 +1,373 @@
+{% extends "base.html" %}
+{% block title %}Control{% endblock %}
+
+{% block content %}
+<div class="control-wrapper">
+  <div class="control-tabs">
+    <button class="control-tab active" onclick="switchControlTab('admin', this)">Admin</button>
+    <button class="control-tab" onclick="switchControlTab('scores', this)">Scores</button>
+    <button class="control-tab" onclick="switchControlTab('aigc', this)">AIGC</button>
+  </div>
+
+  <div class="control-panel active" id="controlPanel-admin">
+    {% include "_control_admin.html" %}
+  </div>
+
+  <div class="control-panel" id="controlPanel-scores">
+    {% include "_control_scores.html" %}
+  </div>
+
+  <div class="control-panel" id="controlPanel-aigc">
+    {% include "_control_aigc.html" %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function switchControlTab(tab, btn) {
+  document.querySelectorAll('.control-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.control-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('controlPanel-' + tab).classList.add('active');
+}
+</script>
+
+{# Admin scripts #}
+<script>
+const USERS = {{ users_json | tojson }};
+const TIERS = {{ tiers_json | tojson }};
+
+function filterUsers() {
+  const q = document.getElementById('adminUserSearch').value.toLowerCase();
+  document.querySelectorAll('#adminUsersTable tbody tr').forEach(tr => {
+    tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+
+function openUserModal(uid) {
+  const modal = document.getElementById('userModal');
+  const title = document.getElementById('userModalTitle');
+  const delBtn = document.getElementById('btnDeleteUser');
+  document.getElementById('editUserId').value = '';
+  document.getElementById('editUsername').value = '';
+  document.getElementById('editDisplayName').value = '';
+  document.getElementById('editEmail').value = '';
+  document.getElementById('editRole').value = 'user';
+  document.getElementById('editTier').value = '';
+  document.getElementById('editPw').textContent = '';
+
+  if (uid) {
+    const u = USERS.find(u => u.id === uid);
+    if (!u) return;
+    title.textContent = 'Edit User #' + uid;
+    document.getElementById('editUserId').value = uid;
+    document.getElementById('editUsername').value = u.username || '';
+    document.getElementById('editDisplayName').value = u.display_name || '';
+    document.getElementById('editEmail').value = u.email || '';
+    document.getElementById('editRole').value = u.role || 'user';
+    document.getElementById('editTier').value = u.tier_id || '';
+    document.getElementById('editPw').textContent = u.password_plain || '';
+    delBtn.style.display = '';
+  } else {
+    title.textContent = 'New User';
+    delBtn.style.display = 'none';
+  }
+  modal.classList.add('open');
+  setTimeout(() => document.getElementById('editUsername').focus(), 50);
+}
+
+function closeUserModal() { document.getElementById('userModal').classList.remove('open'); }
+
+async function saveUser() {
+  const uid = document.getElementById('editUserId').value;
+  const data = {
+    username: document.getElementById('editUsername').value.trim(),
+    display_name: document.getElementById('editDisplayName').value.trim(),
+    email: document.getElementById('editEmail').value.trim(),
+    role: document.getElementById('editRole').value,
+    tier_id: document.getElementById('editTier').value ? parseInt(document.getElementById('editTier').value) : null,
+  };
+  const pw = document.getElementById('editPw').textContent.trim();
+  if (pw) data.password = pw;
+  if (!data.username) { alert('Username is required'); return; }
+
+  let res;
+  if (uid) {
+    res = await fetch('/api/admin/users/' + uid, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+  } else {
+    if (!pw) { alert('Password is required for new users'); return; }
+    res = await fetch('/api/admin/users', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+  }
+  if (res.ok) window.location.reload();
+  else { const err = await res.json().catch(() => ({})); alert(err.error || 'Failed to save user'); }
+}
+
+function confirmDeleteUser() { document.getElementById('deleteUserModal').classList.add('open'); }
+function closeDeleteUserModal() { document.getElementById('deleteUserModal').classList.remove('open'); }
+
+async function doDeleteUser() {
+  const uid = document.getElementById('editUserId').value;
+  closeDeleteUserModal();
+  const res = await fetch('/api/admin/users/' + uid, { method: 'DELETE' });
+  if (res.ok) { closeUserModal(); window.location.reload(); }
+  else { const err = await res.json().catch(() => ({})); alert(err.error || 'Failed to delete user'); }
+}
+
+function filterTiers() {
+  const q = document.getElementById('adminTierSearch').value.toLowerCase();
+  document.querySelectorAll('#adminTiersTable tbody tr').forEach(tr => {
+    tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+
+function openTierModal(tid) {
+  const modal = document.getElementById('tierModal');
+  const title = document.getElementById('tierModalTitle');
+  const delBtn = document.getElementById('btnDeleteTier');
+  document.getElementById('editTierId').value = '';
+  document.getElementById('editTierName').value = '';
+  document.getElementById('editTierMonthRev').value = '';
+  document.getElementById('editTierYearRev').value = '';
+
+  if (tid) {
+    const t = TIERS.find(t => t.id === tid);
+    if (!t) return;
+    title.textContent = 'Edit Tier #' + tid;
+    document.getElementById('editTierId').value = tid;
+    document.getElementById('editTierName').value = t.name || '';
+    document.getElementById('editTierMonthRev').value = t.month_rev || '';
+    document.getElementById('editTierYearRev').value = t.year_rev || '';
+    delBtn.style.display = '';
+  } else {
+    title.textContent = 'New Tier';
+    delBtn.style.display = 'none';
+  }
+  modal.classList.add('open');
+  setTimeout(() => document.getElementById('editTierName').focus(), 50);
+}
+
+function closeTierModal() { document.getElementById('tierModal').classList.remove('open'); }
+
+async function saveTier() {
+  const tid = document.getElementById('editTierId').value;
+  const data = {
+    name: document.getElementById('editTierName').value.trim(),
+    month_rev: parseFloat(document.getElementById('editTierMonthRev').value) || 0,
+    year_rev: parseFloat(document.getElementById('editTierYearRev').value) || 0,
+  };
+  if (!data.name) { alert('Name is required'); return; }
+  let res;
+  if (tid) {
+    res = await fetch('/api/admin/tiers/' + tid, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+  } else {
+    res = await fetch('/api/admin/tiers', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+  }
+  if (res.ok) window.location.reload();
+  else { const err = await res.json().catch(() => ({})); alert(err.error || 'Failed to save tier'); }
+}
+
+function confirmDeleteTier() { document.getElementById('deleteTierModal').classList.add('open'); }
+function closeDeleteTierModal() { document.getElementById('deleteTierModal').classList.remove('open'); }
+
+async function doDeleteTier() {
+  const tid = document.getElementById('editTierId').value;
+  closeDeleteTierModal();
+  const res = await fetch('/api/admin/tiers/' + tid, { method: 'DELETE' });
+  if (res.ok) { closeTierModal(); window.location.reload(); }
+  else { const err = await res.json().catch(() => ({})); alert(err.error || 'Failed to delete tier'); }
+}
+</script>
+
+{# Scores scripts #}
+<script>
+const scSearch = document.getElementById('scorecardSearch');
+const scTbody = document.querySelector('#scorecardsTable tbody');
+
+scSearch.addEventListener('input', () => {
+  const q = scSearch.value.toLowerCase();
+  scTbody.querySelectorAll('tr').forEach(tr => {
+    const name = tr.querySelector('.name-col');
+    if (!name) return;
+    tr.style.display = name.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+});
+
+document.getElementById('btnAddScorecard').addEventListener('click', () => {
+  document.getElementById('addScorecardModal').classList.add('open');
+  setTimeout(() => document.getElementById('scorecardNameInput').focus(), 50);
+});
+
+function closeAddModal() {
+  document.getElementById('addScorecardModal').classList.remove('open');
+  document.getElementById('scorecardNameInput').value = '';
+}
+
+async function createScorecard() {
+  const name = document.getElementById('scorecardNameInput').value.trim();
+  if (!name) return;
+  const res = await fetch('/api/scorecards', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name}) });
+  if (res.ok) window.location.reload();
+}
+
+let currentScorecardId = null;
+
+async function openScorecard(id, name) {
+  currentScorecardId = id;
+  document.getElementById('scId').textContent = '#' + id;
+  document.getElementById('scName').textContent = name;
+  document.getElementById('scorecardModal').classList.add('open');
+  hideAddMetric();
+  await loadMetrics(id);
+}
+
+function closeScorecardModal() {
+  document.getElementById('scorecardModal').classList.remove('open');
+  document.querySelector('.scorecard-modal').style.transform = '';
+  currentScorecardId = null;
+}
+
+(function() {
+  const header = document.querySelector('.scorecard-modal .video-title-bar');
+  const modal = document.querySelector('.scorecard-modal');
+  if (!header || !modal) return;
+  let dragging = false, startX, startY, dx = 0, dy = 0;
+  header.addEventListener('mousedown', (e) => {
+    if (e.target.closest('button')) return;
+    dragging = true; startX = e.clientX - dx; startY = e.clientY - dy; header.style.cursor = 'grabbing';
+  });
+  document.addEventListener('mousemove', (e) => {
+    if (!dragging) return; dx = e.clientX - startX; dy = e.clientY - startY; modal.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+  });
+  document.addEventListener('mouseup', () => { dragging = false; if (header) header.style.cursor = 'grab'; });
+})();
+
+async function loadMetrics(id) {
+  const res = await fetch('/api/scorecards/' + id + '/metrics');
+  const metrics = await res.json();
+  const tbody = document.getElementById('metricsBody');
+  if (!metrics.length) { tbody.innerHTML = '<tr><td colspan="4" class="empty-row">No metrics yet</td></tr>'; return; }
+  tbody.innerHTML = metrics.map(m => {
+    const rangeStr = m.type === 'score' ? '0–10' : m.type === 'boolean' ? 'Yes / No' : '';
+    return '<tr data-mid="' + m.id + '"><td class="id-col">' + m.id + '</td><td class="name-col">' + m.name + '</td><td class="type-col">' + m.type + '</td><td class="range-col">' + rangeStr + '</td></tr>';
+  }).join('');
+}
+
+function showAddMetric() { document.getElementById('addMetricRow').classList.remove('hidden'); document.getElementById('addMetricBtn').classList.add('hidden'); document.getElementById('newMetricName').focus(); }
+function hideAddMetric() { document.getElementById('addMetricRow').classList.add('hidden'); document.getElementById('addMetricBtn').classList.remove('hidden'); document.getElementById('newMetricName').value = ''; }
+
+async function addMetric() {
+  const name = document.getElementById('newMetricName').value.trim();
+  const type = document.getElementById('newMetricType').value;
+  if (!name) return;
+  const res = await fetch('/api/scorecards/' + currentScorecardId + '/metrics', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name, type}) });
+  if (res.ok) { hideAddMetric(); loadMetrics(currentScorecardId); }
+}
+
+function filterMetrics() {
+  const q = document.getElementById('metricSearch').value.toLowerCase();
+  document.querySelectorAll('#metricsBody tr').forEach(tr => {
+    const name = tr.querySelector('.name-col');
+    if (!name) return;
+    tr.style.display = name.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+
+function startRenameScorecard() {
+  const el = document.getElementById('scName');
+  const current = el.textContent;
+  const input = document.createElement('input');
+  input.type = 'text'; input.value = current; input.className = 'sc-rename-input';
+  input.onkeydown = async (e) => {
+    if (e.key === 'Enter') {
+      const name = input.value.trim(); if (!name) return;
+      const res = await fetch('/api/scorecards/' + currentScorecardId, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name}) });
+      if (res.ok) { el.textContent = name; const row = document.querySelector('tr[data-id="' + currentScorecardId + '"] .name-col'); if (row) row.textContent = name; }
+      else el.textContent = current;
+    } else if (e.key === 'Escape') el.textContent = current;
+  };
+  input.onblur = () => { el.textContent = input.value.trim() || current; };
+  el.textContent = ''; el.appendChild(input); input.focus(); input.select();
+}
+
+function openDeleteScorecardModal() { document.getElementById('deleteScorecardModal').classList.add('open'); }
+function closeDeleteScorecardModal() { document.getElementById('deleteScorecardModal').classList.remove('open'); }
+
+async function confirmDeleteScorecard() {
+  closeDeleteScorecardModal();
+  const res = await fetch('/api/scorecards/' + currentScorecardId, { method: 'DELETE' });
+  if (res.ok) { closeScorecardModal(); const row = document.querySelector('tr[data-id="' + currentScorecardId + '"]'); if (row) row.remove(); }
+}
+</script>
+
+{# AIGC scripts #}
+<script>
+(function() {
+  const drop = document.getElementById('pocDrop');
+  const fileInput = document.getElementById('pocFile');
+  const preview = document.getElementById('pocPreview');
+  const video = document.getElementById('pocVideo');
+  const genBtn = document.getElementById('pocGenerate');
+  const strengthSlider = document.getElementById('pocStrength');
+  const strengthVal = document.getElementById('pocStrengthVal');
+  const prog = document.getElementById('pocProgress');
+  const fill = document.getElementById('pocFill');
+  const progText = document.getElementById('pocProgressText');
+  const statusEl = document.getElementById('pocStatus');
+  const resultEl = document.getElementById('pocResult');
+  let selectedFile = null;
+
+  if (!drop) return;
+
+  strengthSlider.addEventListener('input', () => { strengthVal.textContent = strengthSlider.value + '%'; });
+
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('dragover'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('dragover'));
+  drop.addEventListener('drop', e => {
+    e.preventDefault(); drop.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('video/')) loadVideo(file);
+  });
+  fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadVideo(fileInput.files[0]); });
+
+  window.loadVideo = function(file) { selectedFile = file; video.src = URL.createObjectURL(file); drop.classList.add('hidden'); preview.classList.remove('hidden'); genBtn.disabled = false; };
+  window.clearVideo = function() { selectedFile = null; video.src = ''; preview.classList.add('hidden'); drop.classList.remove('hidden'); genBtn.disabled = true; fileInput.value = ''; prog.classList.add('hidden'); statusEl.classList.add('hidden'); resultEl.innerHTML = '<p>Generated anime video will appear here.</p>'; };
+
+  function showStatus(msg) { statusEl.textContent = msg; statusEl.classList.remove('hidden'); }
+
+  genBtn.addEventListener('click', async () => {
+    if (!selectedFile) return;
+    genBtn.disabled = true; prog.classList.remove('hidden'); fill.style.width = '0%'; progText.textContent = 'Uploading...';
+    resultEl.innerHTML = '<p>Generated anime video will appear here.</p>';
+    try {
+      showStatus('Uploading video...'); fill.style.width = '2%'; progText.textContent = '2%';
+      const uploadData = await new Promise((resolve, reject) => {
+        const formData = new FormData(); formData.append('file', selectedFile);
+        const xhr = new XMLHttpRequest();
+        xhr.upload.addEventListener('progress', (e) => { if (e.lengthComputable) { const pct = Math.round((e.loaded / e.total) * 10); fill.style.width = pct + '%'; progText.textContent = pct + '%'; } });
+        xhr.addEventListener('load', () => { if (xhr.status >= 200 && xhr.status < 300) resolve(JSON.parse(xhr.responseText)); else reject(new Error('Upload failed: ' + xhr.status)); });
+        xhr.addEventListener('error', () => reject(new Error('Upload network error')));
+        xhr.open('POST', '/api/poc/upload'); xhr.send(formData);
+      });
+      const { blob_name, job_id } = uploadData;
+      fill.style.width = '10%'; progText.textContent = '10%'; showStatus('Upload complete. Starting conversion...');
+      const sampleEveryN = parseInt(document.getElementById('pocFps').value) || 2;
+      const strength = parseInt(strengthSlider.value) / 100;
+      const convRes = await fetch('/api/poc/convert', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ blob_name, job_id, sample_every_n: sampleEveryN, strength }) });
+      if (!convRes.ok) throw new Error('Failed to start conversion');
+      showStatus('Converting...');
+      const pollInterval = setInterval(async () => {
+        try {
+          const pRes = await fetch('/api/poc/progress/' + job_id); const data = await pRes.json();
+          fill.style.width = data.percent + '%'; progText.textContent = data.percent + '%'; showStatus(data.step || 'Processing...');
+          if (data.status === 'done') {
+            clearInterval(pollInterval); fill.style.width = '100%'; progText.textContent = 'Done!'; showStatus('Conversion complete!'); genBtn.disabled = false;
+            if (data.result_url) resultEl.innerHTML = '<video controls style="max-width:100%;max-height:400px;border-radius:8px"><source src="' + data.result_url + '" type="video/mp4"></video><div style="margin-top:8px"><a href="' + data.result_url + '" target="_blank" class="btn btn-sm">Download</a></div>';
+          } else if (data.status === 'error') { clearInterval(pollInterval); showStatus('Error: ' + (data.step || 'Unknown error')); genBtn.disabled = false; }
+        } catch (e) {}
+      }, 2000);
+    } catch (err) { showStatus('Error: ' + err.message); genBtn.disabled = false; }
+  });
+})();
+</script>
+{% endblock %}

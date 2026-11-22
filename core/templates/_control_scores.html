@@ -1,0 +1,74 @@
+<div class="scores-container">
+  <div class="scores-toolbar">
+    <input type="text" class="search-input" id="scorecardSearch" placeholder="...">
+    <button class="btn-add-scorecard" id="btnAddScorecard" title="New scorecard">+</button>
+  </div>
+
+  <div class="table-wrap">
+    <table class="app-table" id="scorecardsTable">
+      <thead><tr><th class="id-col">ID</th><th class="name-col">Name</th><th class="date-col">Created</th></tr></thead>
+      <tbody>
+        {% for sc in scorecards %}
+        <tr data-id="{{ sc.id }}" onclick="openScorecard({{ sc.id }}, '{{ sc.name }}')" style="cursor:pointer">
+          <td class="id-col">{{ sc.id }}</td><td class="name-col">{{ sc.name }}</td><td class="date-col">{{ sc.created_at.strftime('%b %d, %Y') if sc.created_at else '' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" class="empty-row">No scorecards yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal-overlay" id="scorecardModal" onclick="if(event.target===this)closeScorecardModal()">
+  <div class="scorecard-modal">
+    <div class="video-title-bar">
+      <span class="video-bar-id" id="scId"></span>
+      <span class="video-bar-sep">|</span>
+      <span class="video-bar-name" id="scName" ondblclick="startRenameScorecard()" title="Double-click to rename"></span>
+      <span style="flex:1"></span>
+      <button class="sc-bar-btn sc-bar-delete" onclick="openDeleteScorecardModal()">Delete</button>
+      <button class="video-bar-close" onclick="closeScorecardModal()">&times;</button>
+    </div>
+    <div class="scorecard-body">
+      <div class="scores-toolbar">
+        <input type="text" class="search-input" id="metricSearch" placeholder="..." oninput="filterMetrics()">
+      </div>
+      <table class="app-table" id="metricsTable">
+        <thead><tr><th class="id-col">ID</th><th class="name-col">Name</th><th class="type-col">Type</th><th class="range-col">Range</th></tr></thead>
+        <tbody id="metricsBody"><tr><td colspan="4" class="empty-row">Loading...</td></tr></tbody>
+      </table>
+      <div class="metrics-add-bottom hidden" id="addMetricRow">
+        <input type="text" id="newMetricName" placeholder="Name" class="metric-input" onkeydown="if(event.key==='Enter')addMetric()">
+        <select id="newMetricType" class="metric-select"><option value="score">Score (0-10)</option><option value="boolean">Yes/No</option></select>
+        <button class="btn btn-sm btn-accent" onclick="addMetric()">Add</button>
+        <button class="btn btn-sm" onclick="hideAddMetric()">Cancel</button>
+      </div>
+      <div class="metrics-add-bottom" id="addMetricBtn" style="justify-content:flex-end">
+        <button class="btn btn-sm" onclick="showAddMetric()">+ Add Metric</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="deleteScorecardModal" onclick="if(event.target===this)closeDeleteScorecardModal()">
+  <div class="files-modal">
+    <h3 style="margin-bottom:12px">Delete Scorecard</h3>
+    <p class="analyze-desc" style="margin-bottom:24px">This will permanently delete this scorecard and all its metrics. This cannot be undone.</p>
+    <div class="files-modal-actions" style="gap:12px">
+      <button class="btn btn-sm" style="padding:6px 16px" onclick="closeDeleteScorecardModal()">Cancel</button>
+      <button class="btn btn-sm" style="padding:6px 16px;color:var(--red);border-color:var(--red)" onclick="confirmDeleteScorecard()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="addScorecardModal" onclick="if(event.target===this)closeAddModal()">
+  <div class="files-modal">
+    <h3>New Scorecard</h3>
+    <input type="text" id="scorecardNameInput" placeholder="Scorecard name" autocomplete="off" onkeydown="if(event.key==='Enter')createScorecard()">
+    <div class="files-modal-actions">
+      <button class="btn btn-sm" onclick="closeAddModal()">Cancel</button>
+      <button class="btn btn-sm btn-accent" onclick="createScorecard()">Create</button>
+    </div>
+  </div>
+</div>

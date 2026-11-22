@@ -7,8 +7,8 @@ from core.adapters.videos import VideosAdapter
 from core.adapters.analyses import AnalysesAdapter
 from core.adapters.folders import FoldersAdapter
 from core.adapters.tiers import TiersAdapter, UserTiersAdapter
-from core.adapters.scorecards import ScorecardsAdapter
-from core.api._helpers import serialize
+from core.adapters.scorecards import ScorecardsAdapter, ScorecardMetricsAdapter
+from core.api._helpers import serialize, uid
 
 admin_bp = Blueprint("admin", __name__)
 
@@ -25,8 +25,8 @@ def _require_admin():
 
 # ── Page route ───────────────────────────────────────────────────────────────
 
-@admin_bp.route("/admin")
-def index():
+@admin_bp.route("/control")
+def control():
     denied = _require_admin()
     if denied:
         return denied
@@ -37,12 +37,10 @@ def index():
     analyses = AnalysesAdapter(repo).select()
     tiers = TiersAdapter(repo).select()
     ut_adapter = UserTiersAdapter(repo)
-    scorecards = ScorecardsAdapter(repo).select()
+    all_scorecards = ScorecardsAdapter(repo).select()
 
-    # Build tier lookup
     tier_map = {t["id"]: t["name"] for t in tiers}
 
-    # Enrich users with tier name and counts
     for u in users:
         ut = ut_adapter.get_by_user(u["id"])
         u["tier_id"] = ut["tier_id"] if ut else None
@@ -51,28 +49,36 @@ def index():
         u["analysis_count"] = sum(1 for a in analyses if a.get("video_id") and
                                   any(v["id"] == a["video_id"] and v["user_id"] == u["id"] for v in videos))
 
-    # Stats
     stats = {
         "users": len(users),
         "videos": len(videos),
         "analyses_done": sum(1 for a in analyses if a.get("status") == "done"),
         "analyses_running": sum(1 for a in analyses if a.get("status") == "running"),
         "analyses_error": sum(1 for a in analyses if a.get("status") == "error"),
-        "scorecards": len(scorecards),
+        "scorecards": len(all_scorecards),
     }
 
-    # Strip password_hash before passing to template
     for u in users:
         u.pop("password_hash", None)
 
-    # JSON-safe copy for JS (datetimes serialized)
     users_json = [serialize(u) for u in users]
-
-    # JSON-safe tiers for JS
     tiers_json = [serialize(t) for t in tiers]
 
-    return render_template("admin.html", users=users, users_json=users_json,
-                           stats=stats, tiers=tiers, tiers_json=tiers_json)
+    # Scores tab: current user's scorecards with metrics
+    sa = ScorecardsAdapter(repo)
+    ma = ScorecardMetricsAdapter(repo)
+    scorecards = sa.get_by_user(uid())
+    for sc in scorecards:
+        sc["metrics"] = ma.get_by_scorecard(sc["id"])
+
+    return render_template("control.html", users=users, users_json=users_json,
+                           stats=stats, tiers=tiers, tiers_json=tiers_json,
+                           scorecards=scorecards)
+
+
+@admin_bp.route("/admin")
+def admin_redirect():
+    return redirect("/control")
 
 
 # ── API routes ───────────────────────────────────────────────────────────────

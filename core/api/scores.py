@@ -13,13 +13,8 @@ scores_bp = Blueprint("scores", __name__)
 
 @scores_bp.route("/scores")
 def index():
-    repo = get_repo()
-    sa = ScorecardsAdapter(repo)
-    ma = ScorecardMetricsAdapter(repo)
-    scorecards = sa.get_by_user(uid())
-    for sc in scorecards:
-        sc["metrics"] = ma.get_by_scorecard(sc["id"])
-    return render_template("scores.html", scorecards=scorecards)
+    from flask import redirect
+    return redirect("/control")
 
 
 # ── API routes ────────────────────────────────────────────────────────────────
