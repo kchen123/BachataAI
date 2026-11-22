@@ -179,14 +179,14 @@ genBtn.addEventListener('click', async () => {
     const sampleEveryN = parseInt(document.getElementById('pocFps').value) || 2;
     const strength = parseInt(strengthSlider.value) / 100;
 
-    const convRes = await fetch('/api/poc/convert', {
+    // Fire convert request (blocks server-side, don't await it)
+    fetch('/api/poc/convert', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ blob_name, job_id, sample_every_n: sampleEveryN, strength })
-    });
-    if (!convRes.ok) throw new Error('Failed to start conversion');
+    }).catch(() => {});
 
-    // Step 4: Poll progress
+    // Step 4: Poll progress (starts immediately, GPU may take a moment to begin)
     showStatus('Converting...');
     const pollInterval = setInterval(async () => {
       try {

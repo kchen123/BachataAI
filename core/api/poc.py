@@ -3,7 +3,6 @@
 import os
 import uuid
 import json
-import threading
 import requests
 import google.auth.transport.requests
 import google.oauth2.id_token
@@ -86,36 +85,34 @@ def convert():
     sample_every_n = int(data.get("sample_every_n", 2))
     strength = float(data.get("strength", 0.75))
 
-    def _fire():
+    # Call pose service synchronously — blocks until done.
+    # Frontend polls progress via /api/poc/progress while this blocks.
+    try:
+        resp = requests.post(
+            f"{POSE_SERVICE_URL}/animify",
+            json={
+                "gcs_bucket": BUCKET_NAME,
+                "gcs_blob": blob_name,
+                "job_id": job_id,
+                "sample_every_n": sample_every_n,
+                "strength": strength,
+            },
+            headers=_auth_headers(),
+            timeout=600,
+        )
+        return jsonify({"ok": True, "job_id": job_id, "status": resp.status_code})
+    except Exception as e:
+        # Write error to GCS so frontend polling sees it
         try:
-            resp = requests.post(
-                f"{POSE_SERVICE_URL}/animify",
-                json={
-                    "gcs_bucket": BUCKET_NAME,
-                    "gcs_blob": blob_name,
-                    "job_id": job_id,
-                    "sample_every_n": sample_every_n,
-                    "strength": strength,
-                },
-                headers=_auth_headers(),
-                timeout=600,
+            bucket = _gcs().bucket(BUCKET_NAME)
+            blob = bucket.blob(f"progress/anime-{job_id}.json")
+            blob.upload_from_string(
+                json.dumps({"status": "error", "percent": 0, "step": str(e)}),
+                content_type="application/json",
             )
-            print(f"[PoC] animify response: {resp.status_code} {resp.text[:200]}")
-        except Exception as e:
-            # Write error to GCS so frontend can see it
-            print(f"[PoC] animify error: {e}")
-            try:
-                bucket = _gcs().bucket(BUCKET_NAME)
-                blob = bucket.blob(f"progress/anime-{job_id}.json")
-                blob.upload_from_string(
-                    json.dumps({"status": "error", "percent": 0, "step": str(e)}),
-                    content_type="application/json",
-                )
-            except Exception:
-                pass
-
-    threading.Thread(target=_fire, daemon=True).start()
-    return jsonify({"ok": True, "job_id": job_id})
+        except Exception:
+            pass
+        return jsonify({"ok": False, "error": str(e)}), 502
 
 
 @poc_bp.route("/api/poc/progress/<job_id>")
