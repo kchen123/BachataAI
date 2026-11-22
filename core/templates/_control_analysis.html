@@ -1,41 +1,55 @@
 <div class="analysis-container">
-  <div class="analysis-section">
-    <h3>Move Matching</h3>
-    <p class="analysis-desc">Select a video, pick a time range, and find similar moves across your library.</p>
 
-    <div class="analysis-row">
-      <div class="analysis-field">
-        <label>Video</label>
-        <select id="analysisVideo" onchange="onAnalysisVideoChange()">
-          <option value="">Select a video...</option>
-        </select>
+  <!-- Step 1: Pick a video -->
+  <div class="analysis-step">
+    <div class="analysis-step-num">1</div>
+    <div class="analysis-step-body">
+      <label class="analysis-label">Select a video</label>
+      <select id="analysisVideo" onchange="onAnalysisVideoChange()">
+        <option value="">Choose...</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Step 2: Select range (shown after video picked) -->
+  <div class="analysis-step hidden" id="analysisStep2">
+    <div class="analysis-step-num">2</div>
+    <div class="analysis-step-body" style="flex:1;min-width:0">
+      <label class="analysis-label">Select a move</label>
+      <div class="analysis-player-wrap">
+        <video id="analysisPlayer" controls></video>
       </div>
-      <div class="analysis-field">
-        <label>Time Range</label>
-        <div class="analysis-range">
-          <input type="number" id="analysisStart" placeholder="0.0" step="0.1" min="0" style="width:70px" onchange="validateRange()"> s
-          <span>&mdash;</span>
-          <input type="number" id="analysisEnd" placeholder="5.0" step="0.1" min="0" style="width:70px" onchange="validateRange()"> s
+      <div class="analysis-timeline-wrap">
+        <span class="analysis-time" id="analysisTimeStart">0:00</span>
+        <div class="analysis-timeline" id="analysisTimeline">
+          <div class="analysis-timeline-track"></div>
+          <div class="analysis-timeline-sel" id="analysisTimelineSel"></div>
+          <div class="analysis-handle analysis-handle-l" id="analysisHandleL"></div>
+          <div class="analysis-handle analysis-handle-r" id="analysisHandleR"></div>
         </div>
+        <span class="analysis-time" id="analysisTimeEnd">0:00</span>
       </div>
-      <div class="analysis-field" style="align-self:flex-end">
+      <div class="analysis-range-info">
+        <span id="analysisRangeLabel">Drag the handles to select a range</span>
         <button class="btn btn-sm btn-accent" id="analysisSearchBtn" onclick="runMoveSearch()" disabled>Find Similar</button>
       </div>
     </div>
-
-    <div class="analysis-preview" id="analysisPreview">
-      <video id="analysisPlayer" controls style="max-height:200px;border-radius:8px;width:100%"></video>
-    </div>
-
-    <div class="analysis-status" id="analysisStatus"></div>
-
-    <div id="analysisResults"></div>
   </div>
 
-  <div class="analysis-section">
-    <h3>Feature Index</h3>
-    <p class="analysis-desc">Compute pose features for all analyzed videos to enable matching.</p>
-    <button class="btn btn-sm" id="backfillBtn" onclick="runBackfill()">Compute All Features</button>
+  <!-- Step 3: Results -->
+  <div class="analysis-step hidden" id="analysisStep3">
+    <div class="analysis-step-num">3</div>
+    <div class="analysis-step-body" style="flex:1;min-width:0">
+      <label class="analysis-label">Matches</label>
+      <div class="analysis-status" id="analysisStatus"></div>
+      <div id="analysisResults"></div>
+    </div>
+  </div>
+
+  <!-- Footer: backfill -->
+  <div class="analysis-footer">
+    <button class="btn btn-sm" id="backfillBtn" onclick="runBackfill()">Reindex All Videos</button>
     <span class="analysis-status" id="backfillStatus"></span>
   </div>
+
 </div>

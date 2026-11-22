@@ -469,6 +469,7 @@ def api_find_similar(video_id):
         if v:
             m["title"] = v.get("title", "")
             m["thumbnail_url"] = v.get("thumbnail_url", "")
+            m["gcs_url"] = v.get("gcs_url", "")
 
     return jsonify({"matches": matches}), 200
 

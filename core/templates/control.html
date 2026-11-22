@@ -279,7 +279,7 @@ loadPoseConfig();
 {# Pitch deck navigation #}
 <script>
 let currentSlide = 0;
-const totalSlides = 10;
+const totalSlides = 9;
 
 function goSlide(n, btn) {
   currentSlide = n;
@@ -305,6 +305,7 @@ document.addEventListener('keydown', (e) => {
 {# Analysis scripts #}
 <script>
 const ANALYZED_VIDEOS = {{ analyzed_videos_json | tojson }};
+let _aSelStart = 0, _aSelEnd = 5, _aDuration = 0;
 
 (function() {
   const sel = document.getElementById('analysisVideo');
@@ -313,44 +314,141 @@ const ANALYZED_VIDEOS = {{ analyzed_videos_json | tojson }};
     const opt = document.createElement('option');
     opt.value = v.id;
     opt.textContent = v.title || 'Video #' + v.id;
-    if (v.has_features) opt.textContent += ' ✓';
     sel.appendChild(opt);
   });
 })();
 
+function fmtTime(s) {
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return m + ':' + (sec < 10 ? '0' : '') + sec;
+}
+
 function onAnalysisVideoChange() {
   const vid = document.getElementById('analysisVideo').value;
-  const preview = document.getElementById('analysisPreview');
+  const step2 = document.getElementById('analysisStep2');
+  const step3 = document.getElementById('analysisStep3');
   const player = document.getElementById('analysisPlayer');
+
+  step3.classList.add('hidden');
+  document.getElementById('analysisResults').innerHTML = '';
+  document.getElementById('analysisStatus').textContent = '';
+
   if (!vid) {
-    preview.style.display = 'none';
+    step2.classList.add('hidden');
     player.src = '';
     return;
   }
   const v = ANALYZED_VIDEOS.find(v => v.id == vid);
   if (v && v.gcs_url) {
     player.src = v.gcs_url;
-    preview.style.display = 'block';
+    step2.classList.remove('hidden');
+    player.onloadedmetadata = () => {
+      _aDuration = player.duration;
+      _aSelStart = 0;
+      _aSelEnd = Math.min(5, _aDuration);
+      document.getElementById('analysisTimeEnd').textContent = fmtTime(_aDuration);
+      updateTimeline();
+    };
   }
-  validateRange();
 }
 
-function validateRange() {
-  const vid = document.getElementById('analysisVideo').value;
-  const start = parseFloat(document.getElementById('analysisStart').value);
-  const end = parseFloat(document.getElementById('analysisEnd').value);
+function updateTimeline() {
+  if (_aDuration <= 0) return;
+  const sel = document.getElementById('analysisTimelineSel');
+  const handleL = document.getElementById('analysisHandleL');
+  const handleR = document.getElementById('analysisHandleR');
+  const pctL = (_aSelStart / _aDuration) * 100;
+  const pctR = (_aSelEnd / _aDuration) * 100;
+  sel.style.left = pctL + '%';
+  sel.style.width = (pctR - pctL) + '%';
+  handleL.style.left = pctL + '%';
+  handleR.style.left = pctR + '%';
+
+  const rangeLabel = document.getElementById('analysisRangeLabel');
+  const dur = _aSelEnd - _aSelStart;
+  rangeLabel.textContent = fmtTime(_aSelStart) + ' — ' + fmtTime(_aSelEnd) + ' (' + dur.toFixed(1) + 's)';
+  document.getElementById('analysisTimeStart').textContent = fmtTime(0);
+
   const btn = document.getElementById('analysisSearchBtn');
-  btn.disabled = !vid || isNaN(start) || isNaN(end) || end - start < 0.5;
+  btn.disabled = dur < 0.5;
 }
+
+// Drag handles on the timeline
+(function() {
+  let dragging = null; // 'l' or 'r'
+
+  function onDown(which) {
+    return function(e) {
+      e.preventDefault();
+      dragging = which;
+      document.body.style.cursor = 'ew-resize';
+      this.classList.add('dragging');
+    };
+  }
+
+  function onMove(e) {
+    if (!dragging) return;
+    const timeline = document.getElementById('analysisTimeline');
+    const rect = timeline.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const t = pct * _aDuration;
+    if (dragging === 'l') {
+      _aSelStart = Math.min(t, _aSelEnd - 0.5);
+    } else {
+      _aSelEnd = Math.max(t, _aSelStart + 0.5);
+    }
+    _aSelStart = Math.max(0, _aSelStart);
+    _aSelEnd = Math.min(_aDuration, _aSelEnd);
+    updateTimeline();
+  }
+
+  function onUp() {
+    if (!dragging) return;
+    document.querySelectorAll('.analysis-handle').forEach(h => h.classList.remove('dragging'));
+    document.body.style.cursor = '';
+    dragging = null;
+    // Seek player to selection start for preview
+    const player = document.getElementById('analysisPlayer');
+    player.currentTime = _aSelStart;
+  }
+
+  // Wait for DOM
+  setTimeout(() => {
+    const hL = document.getElementById('analysisHandleL');
+    const hR = document.getElementById('analysisHandleR');
+    if (hL) hL.addEventListener('mousedown', onDown('l'));
+    if (hR) hR.addEventListener('mousedown', onDown('r'));
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+
+    // Click on timeline to set position
+    const tl = document.getElementById('analysisTimeline');
+    if (tl) tl.addEventListener('click', (e) => {
+      if (e.target.classList.contains('analysis-handle')) return;
+      const rect = tl.getBoundingClientRect();
+      const pct = (e.clientX - rect.left) / rect.width;
+      const t = pct * _aDuration;
+      // Move the nearest handle
+      if (Math.abs(t - _aSelStart) < Math.abs(t - _aSelEnd)) {
+        _aSelStart = Math.max(0, Math.min(t, _aSelEnd - 0.5));
+      } else {
+        _aSelEnd = Math.min(_aDuration, Math.max(t, _aSelStart + 0.5));
+      }
+      updateTimeline();
+      document.getElementById('analysisPlayer').currentTime = _aSelStart;
+    });
+  }, 100);
+})();
 
 async function runMoveSearch() {
   const vid = document.getElementById('analysisVideo').value;
-  const start = parseFloat(document.getElementById('analysisStart').value);
-  const end = parseFloat(document.getElementById('analysisEnd').value);
   const btn = document.getElementById('analysisSearchBtn');
   const status = document.getElementById('analysisStatus');
   const results = document.getElementById('analysisResults');
+  const step3 = document.getElementById('analysisStep3');
 
+  step3.classList.remove('hidden');
   btn.disabled = true;
   btn.textContent = 'Searching...';
   status.textContent = 'Computing features...';
@@ -358,14 +456,13 @@ async function runMoveSearch() {
   results.innerHTML = '';
 
   try {
-    // Ensure features exist
     await fetch('/api/videos/' + vid + '/compute-features', {method: 'POST'});
     status.textContent = 'Searching across videos...';
 
     const res = await fetch('/api/videos/' + vid + '/find-similar', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({start_sec: start, end_sec: end, person_id: 0, top_k: 5}),
+      body: JSON.stringify({start_sec: _aSelStart, end_sec: _aSelEnd, person_id: 0, top_k: 5}),
     });
     const data = await res.json();
 
@@ -376,9 +473,8 @@ async function runMoveSearch() {
     }
 
     if (!data.matches || data.matches.length === 0) {
-      status.textContent = 'No similar moves found. Compute features for more videos.';
+      status.textContent = 'No similar moves found.';
       status.className = 'analysis-status';
-      results.innerHTML = '';
       return;
     }
 
@@ -386,10 +482,10 @@ async function runMoveSearch() {
     status.className = 'analysis-status success';
 
     let html = '<div class="analysis-matches">';
-    data.matches.forEach(m => {
-      const sf = m.start_sec.toFixed(1);
-      const ef = m.end_sec.toFixed(1);
-      html += '<div class="match-card">';
+    data.matches.forEach((m, i) => {
+      const gcsUrl = m.gcs_url || '';
+      html += '<div class="match-card" id="matchCard' + i + '">';
+      html += '<div class="match-card-header" onclick="toggleMatchVideo(' + i + ',\'' + gcsUrl + '\',' + m.start_sec + ',' + m.end_sec + ')">';
       if (m.thumbnail_url) {
         html += '<img class="match-thumb" src="' + m.thumbnail_url + '" alt="">';
       } else {
@@ -397,8 +493,12 @@ async function runMoveSearch() {
       }
       html += '<div class="match-info">';
       html += '<div class="match-title">' + (m.title || 'Video #' + m.video_id) + '</div>';
-      html += '<div class="match-meta">' + sf + 's — ' + ef + 's &middot; <strong>' + m.score + '%</strong> match</div>';
-      html += '</div></div>';
+      html += '<div class="match-meta">' + fmtTime(m.start_sec) + ' — ' + fmtTime(m.end_sec) + ' &middot; <strong>' + m.score + '%</strong></div>';
+      html += '</div>';
+      html += '<span class="match-play-icon">&#9654;</span>';
+      html += '</div>';
+      html += '<div class="match-video-wrap hidden" id="matchVideo' + i + '"></div>';
+      html += '</div>';
     });
     html += '</div>';
     results.innerHTML = html;
@@ -407,21 +507,49 @@ async function runMoveSearch() {
     status.className = 'analysis-status error';
   } finally {
     btn.textContent = 'Find Similar';
-    validateRange();
+    btn.disabled = (_aSelEnd - _aSelStart) < 0.5 ? true : false;
   }
+}
+
+function toggleMatchVideo(idx, gcsUrl, startSec, endSec) {
+  const wrap = document.getElementById('matchVideo' + idx);
+  if (!wrap.classList.contains('hidden')) {
+    wrap.classList.add('hidden');
+    wrap.innerHTML = '';
+    return;
+  }
+  // Close other open videos
+  document.querySelectorAll('.match-video-wrap').forEach(w => { w.classList.add('hidden'); w.innerHTML = ''; });
+
+  const vid = document.createElement('video');
+  vid.controls = true;
+  vid.autoplay = true;
+  vid.src = gcsUrl + '#t=' + startSec.toFixed(1) + ',' + endSec.toFixed(1);
+  vid.style.width = '100%';
+  vid.style.maxHeight = '200px';
+  vid.style.borderRadius = '6px';
+  vid.style.marginTop = '8px';
+  vid.addEventListener('loadedmetadata', () => { vid.currentTime = startSec; });
+  // Loop within the range
+  vid.addEventListener('timeupdate', () => {
+    if (vid.currentTime >= endSec) vid.currentTime = startSec;
+  });
+  wrap.innerHTML = '';
+  wrap.appendChild(vid);
+  wrap.classList.remove('hidden');
 }
 
 async function runBackfill() {
   const btn = document.getElementById('backfillBtn');
   const status = document.getElementById('backfillStatus');
   btn.disabled = true;
-  btn.textContent = 'Computing...';
+  btn.textContent = 'Indexing...';
   status.textContent = '';
   try {
     const res = await fetch('/api/admin/compute-all-features', {method: 'POST'});
     const data = await res.json();
     if (res.ok) {
-      status.textContent = data.computed + ' computed, ' + data.errors + ' errors';
+      status.textContent = data.computed + ' indexed, ' + data.errors + ' errors';
       status.className = 'analysis-status success';
     } else {
       status.textContent = data.error || 'Failed';
@@ -432,7 +560,7 @@ async function runBackfill() {
     status.className = 'analysis-status error';
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Compute All Features';
+    btn.textContent = 'Reindex All Videos';
   }
 }
 </script>
