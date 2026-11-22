@@ -30,13 +30,10 @@
         <span class="analysis-time" id="viewer3dTimeEnd">0:00</span>
       </div>
 
-      <!-- Playback + person selector -->
+      <!-- Playback controls -->
       <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
         <button class="btn btn-sm" id="viewer3dPlayBtn" onclick="toggle3dPlay()">Play</button>
-        <label style="color:#ccc;font-size:12px;margin-left:8px">Person:</label>
-        <select id="viewer3dPerson" onchange="set3dPerson(this.value)" style="font-size:12px;padding:2px 6px"></select>
-        <label style="color:#ccc;font-size:12px;margin-left:8px">Facing:</label>
-        <span id="viewer3dFacing" style="color:#fff;font-size:12px">0&deg;</span>
+        <span id="viewer3dFacing" style="color:#aaa;font-size:12px;margin-left:auto"></span>
       </div>
     </div>
   </div>

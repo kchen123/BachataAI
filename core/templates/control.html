@@ -31,6 +31,10 @@
   <div class="control-panel" id="controlPanel-pitch">
     {% include "_control_pitch.html" %}
   </div>
+
+  <div class="control-panel" id="controlPanel-3d">
+    {% include "_control_3d.html" %}
+  </div>
 </div>
 {% endblock %}
 
@@ -610,6 +614,340 @@ async function runBackfill() {
     btn.textContent = 'Reindex All Videos';
   }
 }
+</script>
+
+{# 3D Viewer scripts #}
+<script>
+(function() {
+  // ── State ──
+  let _3dPoseData = null;
+  let _3dFrameIdx = 0;
+  let _3dPlaying = false;
+  let _3dAnimId = null;
+  let _3dScene, _3dCamera, _3dRenderer, _3dControls;
+  let _3dPersonGroups = {};  // {personId: {joints:[], bones:[]}}
+  let _3dMaxPersons = 2;
+  let _3dInited = false;
+
+  // COCO skeleton bones: [from, to] pairs
+  const SKELETON = [
+    [0,1],[0,2],[1,3],[2,4],           // head
+    [5,6],[5,7],[7,9],[6,8],[8,10],    // arms
+    [5,11],[6,12],[11,12],             // torso
+    [11,13],[13,15],[12,14],[14,16],   // legs
+  ];
+
+  // Body proportion ratios for z-depth estimation (relative to torso height)
+  const EXPECTED_SHOULDER_W = 0.72;
+  const BONE_LENGTHS = {
+    '5-7':0.52,'7-9':0.44,'6-8':0.52,'8-10':0.44,
+    '11-13':0.72,'13-15':0.68,'12-14':0.72,'14-16':0.68,
+  };
+
+  // Populate video dropdown (reuses ANALYZED_VIDEOS from analysis tab)
+  const sel = document.getElementById('viewer3dVideo');
+  if (sel && typeof ANALYZED_VIDEOS !== 'undefined') {
+    ANALYZED_VIDEOS.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v.id;
+      opt.textContent = v.title || 'Video #' + v.id;
+      sel.appendChild(opt);
+    });
+  }
+
+  // ── Three.js init ──
+  function init3d() {
+    if (_3dInited) return;
+    const container = document.getElementById('viewer3dCanvas');
+    if (!container) return;
+
+    const w = container.clientWidth, h = container.clientHeight;
+
+    _3dScene = new THREE.Scene();
+    _3dScene.background = new THREE.Color(0x111111);
+
+    _3dCamera = new THREE.PerspectiveCamera(50, w / h, 0.01, 10);
+    _3dCamera.position.set(0, 0, 2.5);
+
+    _3dRenderer = new THREE.WebGLRenderer({ antialias: true });
+    _3dRenderer.setSize(w, h);
+    _3dRenderer.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(_3dRenderer.domElement);
+
+    _3dControls = new THREE.OrbitControls(_3dCamera, _3dRenderer.domElement);
+    _3dControls.enableDamping = true;
+    _3dControls.target.set(0, -0.3, 0);
+
+    // Grid
+    const grid = new THREE.GridHelper(2, 10, 0x333333, 0x222222);
+    grid.position.y = -1;
+    _3dScene.add(grid);
+
+    // Light
+    _3dScene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(1, 2, 2);
+    _3dScene.add(dirLight);
+
+    // Person colors: person 0 = cyan/blue, person 1 = magenta/pink, etc.
+    const PERSON_COLORS = [
+      { joint: 0x00ccff, bone: 0x4499ff, boneR: 0x00aacc, head: 0x0088aa },
+      { joint: 0xff44aa, bone: 0xff6699, boneR: 0xcc3388, head: 0xaa2266 },
+      { joint: 0x44ff88, bone: 0x66cc77, boneR: 0x33aa66, head: 0x228844 },
+    ];
+
+    // Pre-create geometry for up to _3dMaxPersons
+    _3dPersonGroups = {};
+    for (let pid = 0; pid < _3dMaxPersons; pid++) {
+      const colors = PERSON_COLORS[pid % PERSON_COLORS.length];
+      const joints = [];
+      const jointGeo = new THREE.SphereGeometry(0.015, 8, 8);
+      for (let i = 0; i < 17; i++) {
+        const mat = new THREE.MeshPhongMaterial({ color: i < 5 ? colors.head : colors.joint });
+        const mesh = new THREE.Mesh(jointGeo, mat);
+        mesh.visible = false;
+        if (i < 5) mesh.scale.setScalar(0.7);
+        _3dScene.add(mesh);
+        joints.push(mesh);
+      }
+      const bones = [];
+      SKELETON.forEach(() => {
+        const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+        const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: colors.bone, linewidth: 2 }));
+        line.visible = false;
+        _3dScene.add(line);
+        bones.push(line);
+      });
+      _3dPersonGroups[pid] = { joints, bones, colors };
+    }
+
+    // Render loop
+    function animate() {
+      requestAnimationFrame(animate);
+      _3dControls.update();
+      _3dRenderer.render(_3dScene, _3dCamera);
+    }
+    animate();
+
+    // Resize
+    new ResizeObserver(() => {
+      const w2 = container.clientWidth, h2 = container.clientHeight;
+      _3dCamera.aspect = w2 / h2;
+      _3dCamera.updateProjectionMatrix();
+      _3dRenderer.setSize(w2, h2);
+    }).observe(container);
+
+    _3dInited = true;
+  }
+
+  // ── 3D lifting ──
+  function liftTo3d(kpts, visThresh) {
+    visThresh = visThresh || 0.15;  // low threshold to keep legs visible
+    const pts = {};
+    for (let i = 0; i < 17; i++) {
+      const kp = kpts[String(i)];
+      if (kp && (kp.visibility > visThresh || (kp.x > 0 && kp.y > 0))) {
+        pts[i] = { x: kp.x, y: kp.y, vis: kp.visibility || 0, z: 0 };
+      }
+    }
+    // Need torso for depth estimation; if missing, return flat (z=0) positions
+    if (!pts[5] || !pts[6] || !pts[11] || !pts[12]) return pts;
+
+    const smx = (pts[5].x + pts[6].x) / 2, smy = (pts[5].y + pts[6].y) / 2;
+    const hmx = (pts[11].x + pts[12].x) / 2, hmy = (pts[11].y + pts[12].y) / 2;
+    const torsoH = Math.sqrt((smx-hmx)**2 + (smy-hmy)**2);
+    if (torsoH < 1e-4) return pts;
+
+    // Facing angle from shoulder foreshortening
+    const obsW = Math.sqrt((pts[5].x-pts[6].x)**2 + (pts[5].y-pts[6].y)**2);
+    const expW = EXPECTED_SHOULDER_W * torsoH;
+    let facing = 0;
+    if (obsW < expW) facing = Math.acos(Math.max(0, Math.min(1, obsW / expW)));
+
+    // Rotation sign: shoulder midpoint shifted from hip midpoint
+    const sign = (smx - hmx) > 0 ? -1 : 1;
+
+    // Place torso joints
+    const halfSW = (EXPECTED_SHOULDER_W * torsoH) / 2;
+    pts[5].z = sign * halfSW * Math.sin(facing);
+    pts[6].z = -sign * halfSW * Math.sin(facing);
+    const halfHW = 0.5 * torsoH / 2;
+    pts[11].z = sign * halfHW * Math.sin(facing);
+    pts[12].z = -sign * halfHW * Math.sin(facing);
+
+    // Propagate depth to limbs using bone length constraints
+    const chains = [[5,7],[7,9],[6,8],[8,10],[11,13],[13,15],[12,14],[14,16]];
+    chains.forEach(([pi, ci]) => {
+      if (!pts[pi] || !pts[ci]) return;
+      const key = pi + '-' + ci;
+      const expLen = (BONE_LENGTHS[key] || 0.5) * torsoH;
+      const obsLen = Math.sqrt((pts[ci].x-pts[pi].x)**2 + (pts[ci].y-pts[pi].y)**2);
+      let dz = 0;
+      if (obsLen < expLen) dz = Math.sqrt(expLen**2 - obsLen**2);
+      // Propagate from parent side
+      const pz = pts[pi].z;
+      pts[ci].z = Math.abs(pz) > 1e-3 ? pz + Math.sign(pz) * dz * 0.5 : 0;
+    });
+
+    return pts;
+  }
+
+  // ── Render frame (all persons) ──
+  function render3dFrame() {
+    if (!_3dPoseData || !_3dInited) return;
+    const frames = _3dPoseData.frames;
+    if (_3dFrameIdx >= frames.length) return;
+
+    const frame = frames[_3dFrameIdx];
+    const persons = frame.persons || [];
+
+    // Hide all
+    for (const pid in _3dPersonGroups) {
+      const g = _3dPersonGroups[pid];
+      g.joints.forEach(j => j.visible = false);
+      g.bones.forEach(b => b.visible = false);
+    }
+
+    // Render each person
+    const labels = [];
+    persons.forEach(p => {
+      const pid = p.person_id != null ? p.person_id : 0;
+      const kpts = p.keypoints;
+      if (!kpts) return;
+
+      // Ensure we have geometry for this person
+      if (!_3dPersonGroups[pid]) return; // skip if more persons than pre-allocated
+
+      const g = _3dPersonGroups[pid];
+      const pts3d = liftTo3d(kpts);
+
+      // Position joints
+      for (let i = 0; i < 17; i++) {
+        if (pts3d[i]) {
+          g.joints[i].position.set(
+            (pts3d[i].x - 0.5) * 2,
+            -(pts3d[i].y - 0.5) * 2,
+            pts3d[i].z * 2
+          );
+          g.joints[i].visible = true;
+        }
+      }
+
+      // Draw bones
+      SKELETON.forEach(([a, b], idx) => {
+        if (pts3d[a] && pts3d[b]) {
+          const positions = g.bones[idx].geometry.attributes.position.array;
+          positions[0] = g.joints[a].position.x;
+          positions[1] = g.joints[a].position.y;
+          positions[2] = g.joints[a].position.z;
+          positions[3] = g.joints[b].position.x;
+          positions[4] = g.joints[b].position.y;
+          positions[5] = g.joints[b].position.z;
+          g.bones[idx].geometry.attributes.position.needsUpdate = true;
+          g.bones[idx].visible = true;
+        }
+      });
+
+      const label = p.label || ('Person ' + pid);
+      labels.push(label);
+    });
+
+    // Update info
+    const ts = frame.timestamp_sec || 0;
+    document.getElementById('viewer3dInfo').textContent =
+      'Frame ' + _3dFrameIdx + '/' + frames.length + ' | ' +
+      fmtTime(ts) + ' | ' + labels.join(' + ');
+    document.getElementById('viewer3dFacing').textContent = persons.length + ' dancers';
+  }
+
+  // ── Load video pose data ──
+  window.on3dVideoChange = async function() {
+    const vid = document.getElementById('viewer3dVideo').value;
+    const step2 = document.getElementById('viewer3dStep2');
+    const status = document.getElementById('viewer3dLoadStatus');
+    _3dPoseData = null;
+    _3dFrameIdx = 0;
+
+    if (!vid) { step2.classList.add('hidden'); return; }
+
+    status.textContent = 'Loading pose data...';
+    status.className = 'analysis-status';
+
+    try {
+      const res = await fetch('/api/videos/' + vid + '/pose-data');
+      if (!res.ok) throw new Error('No pose data');
+      _3dPoseData = await res.json();
+
+      // Load Three.js if not loaded
+      if (typeof THREE === 'undefined') {
+        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js');
+        await loadScript('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.min.js');
+      }
+
+      init3d();
+
+      const frames = _3dPoseData.frames || [];
+      const scrubber = document.getElementById('viewer3dScrubber');
+      scrubber.max = frames.length - 1;
+      scrubber.value = 0;
+
+      const lastTs = frames.length ? frames[frames.length-1].timestamp_sec : 0;
+      document.getElementById('viewer3dTimeEnd').textContent = fmtTime(lastTs);
+
+      step2.classList.remove('hidden');
+      status.textContent = frames.length + ' frames loaded';
+      status.className = 'analysis-status success';
+      setTimeout(() => { status.textContent = ''; }, 2000);
+
+      render3dFrame();
+    } catch (e) {
+      status.textContent = 'Error: ' + e.message;
+      status.className = 'analysis-status error';
+    }
+  };
+
+  function loadScript(url) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = url; s.onload = resolve; s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
+  window.scrub3d = function(val) {
+    _3dFrameIdx = parseInt(val);
+    render3dFrame();
+    if (_3dPoseData && _3dPoseData.frames[_3dFrameIdx]) {
+      document.getElementById('viewer3dTime').textContent = fmtTime(_3dPoseData.frames[_3dFrameIdx].timestamp_sec || 0);
+    }
+  };
+
+  window.toggle3dPlay = function() {
+    _3dPlaying = !_3dPlaying;
+    document.getElementById('viewer3dPlayBtn').textContent = _3dPlaying ? 'Pause' : 'Play';
+    if (_3dPlaying) play3dLoop();
+    else if (_3dAnimId) { cancelAnimationFrame(_3dAnimId); _3dAnimId = null; }
+  };
+
+  let _3dLastTime = 0;
+  function play3dLoop() {
+    if (!_3dPlaying || !_3dPoseData) return;
+    const now = performance.now();
+    // Advance at roughly the video's fps
+    const fps = _3dPoseData.fps || 15;
+    if (now - _3dLastTime > 1000 / fps) {
+      _3dFrameIdx++;
+      if (_3dFrameIdx >= _3dPoseData.frames.length) _3dFrameIdx = 0;
+      document.getElementById('viewer3dScrubber').value = _3dFrameIdx;
+      render3dFrame();
+      if (_3dPoseData.frames[_3dFrameIdx]) {
+        document.getElementById('viewer3dTime').textContent = fmtTime(_3dPoseData.frames[_3dFrameIdx].timestamp_sec || 0);
+      }
+      _3dLastTime = now;
+    }
+    _3dAnimId = requestAnimationFrame(play3dLoop);
+  }
+})();
 </script>
 
 {# AIGC scripts #}
