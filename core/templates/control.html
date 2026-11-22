@@ -205,6 +205,81 @@ async function doDeleteTier() {
 }
 </script>
 
+{# App config scripts #}
+<script>
+let _appConfigSaved = '';
+
+async function loadAppConfig() {
+  const editor = document.getElementById('appConfigEditor');
+  const status = document.getElementById('appConfigStatus');
+  const saveBtn = document.getElementById('appConfigSaveBtn');
+  status.textContent = 'Loading...';
+  status.className = 'pose-config-status';
+  try {
+    const res = await fetch('/api/admin/app-config');
+    const data = await res.json();
+    if (res.ok) {
+      const text = JSON.stringify(data, null, 2);
+      editor.value = text;
+      _appConfigSaved = text;
+      saveBtn.disabled = true;
+      status.textContent = '';
+    } else {
+      status.textContent = data.error || 'Failed to load';
+      status.classList.add('error');
+    }
+  } catch (e) {
+    status.textContent = 'Error: ' + e.message;
+    status.classList.add('error');
+  }
+}
+
+async function saveAppConfig() {
+  const editor = document.getElementById('appConfigEditor');
+  const status = document.getElementById('appConfigStatus');
+  const saveBtn = document.getElementById('appConfigSaveBtn');
+  if (editor.value === _appConfigSaved) return;
+  let data;
+  try {
+    data = JSON.parse(editor.value);
+  } catch (e) {
+    status.textContent = 'Invalid JSON: ' + e.message;
+    status.className = 'pose-config-status error';
+    return;
+  }
+  status.textContent = 'Saving...';
+  status.className = 'pose-config-status';
+  try {
+    const res = await fetch('/api/admin/app-config', {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(data),
+    });
+    if (res.ok) {
+      _appConfigSaved = editor.value;
+      saveBtn.disabled = true;
+      status.textContent = 'Saved';
+      status.classList.add('success');
+      setTimeout(() => { status.textContent = ''; }, 3000);
+    } else {
+      const err = await res.json();
+      status.textContent = err.error || 'Failed';
+      status.classList.add('error');
+    }
+  } catch (e) {
+    status.textContent = 'Error: ' + e.message;
+    status.classList.add('error');
+  }
+}
+
+document.getElementById('appConfigEditor').addEventListener('input', () => {
+  document.getElementById('appConfigSaveBtn').disabled =
+    document.getElementById('appConfigEditor').value === _appConfigSaved;
+});
+
+loadAppConfig();
+</script>
+
 {# Pose config scripts #}
 <script>
 let _poseConfigSaved = '';  // last saved state
@@ -689,36 +764,92 @@ async function runBackfill() {
     dirLight.position.set(1, 2, 2);
     _3dScene.add(dirLight);
 
-    // Person colors: person 0 = cyan/blue, person 1 = magenta/pink, etc.
-    const PERSON_COLORS = [
-      { joint: 0x00ccff, bone: 0x4499ff, boneR: 0x00aacc, head: 0x0088aa },
-      { joint: 0xff44aa, bone: 0xff6699, boneR: 0xcc3388, head: 0xaa2266 },
-      { joint: 0x44ff88, bone: 0x66cc77, boneR: 0x33aa66, head: 0x228844 },
+    // Per-person styling
+    const PERSON_STYLES = [
+      { skin: 0xd4a574, shirt: 0x2a4a6b, pants: 0x1a2a3a },
+      { skin: 0xe8c4a0, shirt: 0x6b2a4a, pants: 0x3a1a2a },
     ];
 
-    // Pre-create geometry for up to _3dMaxPersons
+    // Limb radii for mannequin body
+    const LIMB_RADII = {};
+    SKELETON.forEach(([a,b]) => {
+      const k = a+'-'+b;
+      if (a < 5 || b < 5) { LIMB_RADII[k] = 0.008; return; }       // head links
+      if ((a===5&&b===6)||(a===11&&b===12)) { LIMB_RADII[k] = 0; return; } // torso rendered separately
+      if ((a===5&&b===11)||(a===6&&b===12)) { LIMB_RADII[k] = 0; return; }
+      if (a===5&&b===7 || a===6&&b===8) { LIMB_RADII[k] = 0.022; return; } // upper arm
+      if (a===7&&b===9 || a===8&&b===10) { LIMB_RADII[k] = 0.016; return; } // forearm
+      if (a===11&&b===13 || a===12&&b===14) { LIMB_RADII[k] = 0.032; return; } // thigh
+      if (a===13&&b===15 || a===14&&b===16) { LIMB_RADII[k] = 0.024; return; } // shin
+      LIMB_RADII[k] = 0.015;
+    });
+
+    const _yUp = new THREE.Vector3(0, 1, 0);
+
     _3dPersonGroups = {};
     for (let pid = 0; pid < _3dMaxPersons; pid++) {
-      const colors = PERSON_COLORS[pid % PERSON_COLORS.length];
+      const st = PERSON_STYLES[pid % PERSON_STYLES.length];
+      const skinMat = new THREE.MeshPhongMaterial({ color: st.skin, shininess: 30 });
+      const shirtMat = new THREE.MeshPhongMaterial({ color: st.shirt, shininess: 15 });
+      const pantsMat = new THREE.MeshPhongMaterial({ color: st.pants, shininess: 10 });
+
+      // Position trackers (invisible)
       const joints = [];
-      const jointGeo = new THREE.SphereGeometry(0.015, 8, 8);
-      for (let i = 0; i < 17; i++) {
-        const mat = new THREE.MeshPhongMaterial({ color: i < 5 ? colors.head : colors.joint });
-        const mesh = new THREE.Mesh(jointGeo, mat);
+      for (let i = 0; i < 17; i++) { const o = new THREE.Object3D(); _3dScene.add(o); joints.push(o); }
+
+      // Head
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.055, 12, 10), skinMat.clone());
+      head.visible = false;
+      _3dScene.add(head);
+
+      // Torso (scaled box — will position/scale at render time)
+      const torso = new THREE.Mesh(
+        new THREE.BoxGeometry(1, 1, 0.5),
+        shirtMat.clone()
+      );
+      torso.visible = false;
+      _3dScene.add(torso);
+
+      // Hip block
+      const hipBlock = new THREE.Mesh(
+        new THREE.BoxGeometry(1, 0.3, 0.5),
+        pantsMat.clone()
+      );
+      hipBlock.visible = false;
+      _3dScene.add(hipBlock);
+
+      // Limb cylinders
+      const limbs = [];
+      SKELETON.forEach(([a,b]) => {
+        const r = LIMB_RADII[a+'-'+b];
+        if (r <= 0) { limbs.push(null); return; }
+        const geo = new THREE.CylinderGeometry(r, r * 0.85, 1, 8, 1);
+        const isLeg = a >= 11 && b >= 11;
+        const mat = (isLeg ? pantsMat : (a < 5 || b < 5 ? skinMat : skinMat)).clone();
+        const mesh = new THREE.Mesh(geo, mat);
         mesh.visible = false;
-        if (i < 5) mesh.scale.setScalar(0.7);
         _3dScene.add(mesh);
-        joints.push(mesh);
-      }
-      const bones = [];
-      SKELETON.forEach(() => {
-        const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
-        const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: colors.bone, linewidth: 2 }));
-        line.visible = false;
-        _3dScene.add(line);
-        bones.push(line);
+        limbs.push(mesh);
       });
-      _3dPersonGroups[pid] = { joints, bones, colors };
+
+      // Joint spheres (small, at elbows/knees/wrists/ankles)
+      const jointSpheres = [];
+      const jsGeo = new THREE.SphereGeometry(0.018, 8, 6);
+      for (let i = 7; i <= 16; i++) {  // elbows through ankles
+        const m = new THREE.Mesh(jsGeo, (i >= 13 ? pantsMat : skinMat).clone());
+        m.visible = false;
+        _3dScene.add(m);
+        jointSpheres.push({ idx: i, mesh: m });
+      }
+
+      // Hands (small spheres)
+      const handGeo = new THREE.SphereGeometry(0.02, 8, 6);
+      const handL = new THREE.Mesh(handGeo, skinMat.clone());
+      const handR = new THREE.Mesh(handGeo, skinMat.clone());
+      handL.visible = false; handR.visible = false;
+      _3dScene.add(handL); _3dScene.add(handR);
+
+      _3dPersonGroups[pid] = { joints, head, torso, hipBlock, limbs, jointSpheres, handL, handR };
     }
 
     // Render loop
@@ -792,7 +923,23 @@ async function runBackfill() {
     return pts;
   }
 
-  // ── Render frame (all persons) ──
+  // Helper: orient a cylinder between two Vector3 positions
+  function placeLimb(mesh, posA, posB) {
+    const dir = new THREE.Vector3().subVectors(posB, posA);
+    const len = dir.length();
+    if (len < 1e-4) { mesh.visible = false; return; }
+    mesh.position.lerpVectors(posA, posB, 0.5);
+    mesh.scale.y = len;
+    mesh.quaternion.setFromUnitVectors(_yUp, dir.normalize());
+    mesh.visible = true;
+  }
+
+  // Convert normalized [0,1] pose coords to scene coords
+  function toScene(pt) {
+    return new THREE.Vector3((pt.x - 0.5) * 2, -(pt.y - 0.5) * 2, pt.z * 2);
+  }
+
+  // ── Render frame (all persons as mannequins) ──
   function render3dFrame() {
     if (!_3dPoseData || !_3dInited) return;
     const frames = _3dPoseData.frames;
@@ -804,52 +951,93 @@ async function runBackfill() {
     // Hide all
     for (const pid in _3dPersonGroups) {
       const g = _3dPersonGroups[pid];
-      g.joints.forEach(j => j.visible = false);
-      g.bones.forEach(b => b.visible = false);
+      g.head.visible = false;
+      g.torso.visible = false;
+      g.hipBlock.visible = false;
+      g.handL.visible = false;
+      g.handR.visible = false;
+      g.limbs.forEach(l => { if (l) l.visible = false; });
+      g.jointSpheres.forEach(js => js.mesh.visible = false);
     }
 
-    // Render each person (use array index as ID since person_id can be null)
     const labels = [];
-    persons.forEach((p, idx) => {
-      if (idx >= _3dMaxPersons) return;  // skip beyond pre-allocated
+    persons.forEach((p, pIdx) => {
+      if (pIdx >= _3dMaxPersons) return;
       const kpts = p.keypoints;
       if (!kpts) return;
 
-      const g = _3dPersonGroups[idx];
+      const g = _3dPersonGroups[pIdx];
       const pts3d = liftTo3d(kpts);
 
-      // Position joints
+      // Update joint positions
       for (let i = 0; i < 17; i++) {
-        if (pts3d[i]) {
-          g.joints[i].position.set(
-            (pts3d[i].x - 0.5) * 2,
-            -(pts3d[i].y - 0.5) * 2,
-            pts3d[i].z * 2
-          );
-          g.joints[i].visible = true;
-        }
+        if (pts3d[i]) g.joints[i].position.copy(toScene(pts3d[i]));
       }
 
-      // Draw bones
-      SKELETON.forEach(([a, b], idx) => {
-        if (pts3d[a] && pts3d[b]) {
-          const positions = g.bones[idx].geometry.attributes.position.array;
-          positions[0] = g.joints[a].position.x;
-          positions[1] = g.joints[a].position.y;
-          positions[2] = g.joints[a].position.z;
-          positions[3] = g.joints[b].position.x;
-          positions[4] = g.joints[b].position.y;
-          positions[5] = g.joints[b].position.z;
-          g.bones[idx].geometry.attributes.position.needsUpdate = true;
-          g.bones[idx].visible = true;
+      // Head: position above midpoint of shoulders, or at nose
+      if (pts3d[0]) {
+        g.head.position.copy(toScene(pts3d[0]));
+        // Offset upward slightly
+        g.head.position.y += 0.04;
+        g.head.visible = true;
+      } else if (pts3d[5] && pts3d[6]) {
+        const mid = toScene({ x:(pts3d[5].x+pts3d[6].x)/2, y:(pts3d[5].y+pts3d[6].y)/2 - 0.06, z:(pts3d[5].z+pts3d[6].z)/2 });
+        g.head.position.copy(mid);
+        g.head.visible = true;
+      }
+
+      // Torso: box between shoulders and hips
+      if (pts3d[5] && pts3d[6] && pts3d[11] && pts3d[12]) {
+        const ls = toScene(pts3d[5]), rs = toScene(pts3d[6]);
+        const lh = toScene(pts3d[11]), rh = toScene(pts3d[12]);
+        const mid = new THREE.Vector3().addVectors(ls, rs).add(lh).add(rh).multiplyScalar(0.25);
+        const sw = ls.distanceTo(rs);
+        const torsoH = new THREE.Vector3().lerpVectors(ls, rs, 0.5).distanceTo(new THREE.Vector3().lerpVectors(lh, rh, 0.5));
+        const hw = lh.distanceTo(rh);
+
+        g.torso.position.copy(mid);
+        g.torso.position.y += torsoH * 0.1; // shift up slightly (chest)
+        g.torso.scale.set(sw, torsoH * 0.75, Math.max(sw * 0.4, 0.04));
+        // Orient torso: use shoulder line for rotation
+        const shoulderDir = new THREE.Vector3().subVectors(rs, ls).normalize();
+        const spineDir = new THREE.Vector3().subVectors(
+          new THREE.Vector3().lerpVectors(ls, rs, 0.5),
+          new THREE.Vector3().lerpVectors(lh, rh, 0.5)
+        ).normalize();
+        const fwd = new THREE.Vector3().crossVectors(shoulderDir, spineDir).normalize();
+        const mat4 = new THREE.Matrix4().makeBasis(shoulderDir, spineDir, fwd);
+        g.torso.quaternion.setFromRotationMatrix(mat4);
+        g.torso.visible = true;
+
+        // Hip block
+        g.hipBlock.position.copy(new THREE.Vector3().lerpVectors(lh, rh, 0.5));
+        g.hipBlock.scale.set(hw * 1.1, torsoH * 0.2, Math.max(hw * 0.5, 0.04));
+        g.hipBlock.quaternion.copy(g.torso.quaternion);
+        g.hipBlock.visible = true;
+      }
+
+      // Limbs
+      SKELETON.forEach(([a, b], boneIdx) => {
+        if (!g.limbs[boneIdx]) return;
+        if (!pts3d[a] || !pts3d[b]) return;
+        placeLimb(g.limbs[boneIdx], g.joints[a].position, g.joints[b].position);
+      });
+
+      // Joint spheres (elbows, knees, wrists, ankles)
+      g.jointSpheres.forEach(js => {
+        if (pts3d[js.idx]) {
+          js.mesh.position.copy(g.joints[js.idx].position);
+          js.mesh.visible = true;
         }
       });
 
-      const label = p.label || ('Person ' + idx);
-      labels.push(label);
+      // Hands
+      if (pts3d[9]) { g.handL.position.copy(g.joints[9].position); g.handL.visible = true; }
+      if (pts3d[10]) { g.handR.position.copy(g.joints[10].position); g.handR.visible = true; }
+
+      labels.push(p.label || ('Person ' + pIdx));
     });
 
-    // Update info
     const ts = frame.timestamp_sec || 0;
     document.getElementById('viewer3dInfo').textContent =
       'Frame ' + _3dFrameIdx + '/' + frames.length + ' | ' +
