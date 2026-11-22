@@ -279,7 +279,7 @@ loadPoseConfig();
 {# Pitch deck navigation #}
 <script>
 let currentSlide = 0;
-const totalSlides = 9;
+const totalSlides = 7;
 
 function goSlide(n, btn) {
   currentSlide = n;
@@ -300,6 +300,52 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); nextSlide(); }
   if (e.key === 'ArrowLeft') { e.preventDefault(); prevSlide(); }
 });
+
+async function downloadPitchPDF() {
+  const btn = document.querySelector('.pitch-dl-btn');
+  btn.disabled = true;
+  btn.style.opacity = '0.4';
+
+  // Load libraries dynamically
+  if (!window.html2canvas) {
+    await new Promise(r => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'; s.onload = r; document.head.appendChild(s); });
+  }
+  if (!window.jspdf) {
+    await new Promise(r => { const s = document.createElement('script'); s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'; s.onload = r; document.head.appendChild(s); });
+  }
+
+  const deck = document.getElementById('pitchDeck');
+  const slides = deck.querySelectorAll('.pitch-slide');
+  const saved = currentSlide;
+
+  // Render each slide 1-7
+  const pdf = new jspdf.jsPDF({ orientation: 'landscape', unit: 'px', format: [1280, 720] });
+
+  for (let i = 0; i < slides.length; i++) {
+    // Show only this slide
+    slides.forEach(s => s.classList.remove('active'));
+    slides[i].classList.add('active');
+    await new Promise(r => setTimeout(r, 100));
+
+    const canvas = await html2canvas(deck, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: null,
+      width: deck.offsetWidth,
+      height: deck.offsetHeight,
+    });
+
+    if (i > 0) pdf.addPage([1280, 720]);
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 1280, 720);
+  }
+
+  // Restore original slide
+  goSlide(saved);
+  pdf.save('PASO_Pitch_Deck.pdf');
+
+  btn.disabled = false;
+  btn.style.opacity = '';
+}
 </script>
 
 {# Analysis scripts #}
