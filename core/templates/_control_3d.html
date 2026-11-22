@@ -1,0 +1,44 @@
+<div class="analysis-container">
+
+  <!-- Step 1: Pick a video -->
+  <div class="analysis-step">
+    <div class="step-badge analysis-step-num">1</div>
+    <div class="analysis-step-body">
+      <label class="analysis-label">Select a video</label>
+      <select id="viewer3dVideo" onchange="on3dVideoChange()">
+        <option value="">Choose...</option>
+      </select>
+      <span class="analysis-status" id="viewer3dLoadStatus"></span>
+    </div>
+  </div>
+
+  <!-- Step 2: 3D viewer + controls -->
+  <div class="analysis-step hidden" id="viewer3dStep2">
+    <div class="step-badge analysis-step-num">2</div>
+    <div class="analysis-step-body" style="flex:1;min-width:0">
+      <label class="analysis-label">3D Skeleton</label>
+
+      <!-- Viewer -->
+      <div id="viewer3dCanvas" style="width:100%;height:400px;background:#111;border-radius:8px;position:relative;overflow:hidden">
+        <div id="viewer3dInfo" style="position:absolute;top:8px;left:12px;color:#aaa;font-size:11px;pointer-events:none;z-index:1"></div>
+      </div>
+
+      <!-- Frame scrubber -->
+      <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+        <span class="analysis-time" id="viewer3dTime">0:00</span>
+        <input type="range" id="viewer3dScrubber" min="0" max="100" value="0" style="flex:1" oninput="scrub3d(this.value)">
+        <span class="analysis-time" id="viewer3dTimeEnd">0:00</span>
+      </div>
+
+      <!-- Playback + person selector -->
+      <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+        <button class="btn btn-sm" id="viewer3dPlayBtn" onclick="toggle3dPlay()">Play</button>
+        <label style="color:#ccc;font-size:12px;margin-left:8px">Person:</label>
+        <select id="viewer3dPerson" onchange="set3dPerson(this.value)" style="font-size:12px;padding:2px 6px"></select>
+        <label style="color:#ccc;font-size:12px;margin-left:8px">Facing:</label>
+        <span id="viewer3dFacing" style="color:#fff;font-size:12px">0&deg;</span>
+      </div>
+    </div>
+  </div>
+
+</div>

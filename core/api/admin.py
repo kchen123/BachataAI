@@ -1,56 +1,25 @@
 """Admin dashboard routes – admin only."""
 
-import os
 import json
 import requests as http_requests
-import google.auth.transport.requests
-import google.oauth2.id_token
-from flask import Blueprint, render_template, session, redirect, url_for, jsonify, request
-from core.adapters.storage import BUCKET_NAME, _get_client as _gcs
-
-POSE_SERVICE_URL = os.environ.get("POSE_SERVICE_URL", "http://localhost:8080")
-
-
-def _pose_auth_headers():
-    if POSE_SERVICE_URL.startswith("http://localhost"):
-        return {}
-    try:
-        auth_req = google.auth.transport.requests.Request()
-        token = google.oauth2.id_token.fetch_id_token(auth_req, POSE_SERVICE_URL)
-        return {"Authorization": f"Bearer {token}"}
-    except Exception:
-        import subprocess, shutil
-        gcloud_path = shutil.which("gcloud") or "gcloud"
-        token = subprocess.check_output(
-            [gcloud_path, "auth", "print-identity-token"], text=True, shell=True
-        ).strip()
-        return {"Authorization": f"Bearer {token}"}
+from flask import Blueprint, render_template, jsonify, request
+from werkzeug.security import generate_password_hash
 from core.adapters.repository import get_repo
 from core.adapters.users import UsersAdapter
 from core.adapters.videos import VideosAdapter
 from core.adapters.analyses import AnalysesAdapter
-from core.adapters.folders import FoldersAdapter
 from core.adapters.tiers import TiersAdapter, UserTiersAdapter
-from core.api._helpers import serialize, uid
+from core.adapters.storage import BUCKET_NAME, _get_client as _gcs
+from core.api._helpers import serialize, require_admin, pose_auth_headers, POSE_SERVICE_URL
 
 admin_bp = Blueprint("admin", __name__)
-
-
-def _require_admin():
-    uid = session.get("user_id")
-    if not uid:
-        return redirect(url_for("auth.login"))
-    user = UsersAdapter(get_repo()).get(uid)
-    if not user or user.get("role") != "admin":
-        return redirect("/studio")
-    return None
 
 
 # ── Page route ───────────────────────────────────────────────────────────────
 
 @admin_bp.route("/control")
 def control():
-    denied = _require_admin()
+    denied = require_admin()
     if denied:
         return denied
 
@@ -101,7 +70,7 @@ def admin_redirect():
 
 @admin_bp.route("/api/admin/users", methods=["GET"])
 def list_users():
-    denied = _require_admin()
+    denied = require_admin()
     if denied:
         return jsonify({"error": "forbidden"}), 403
     repo = get_repo()
@@ -111,7 +80,7 @@ def list_users():
 
 @admin_bp.route("/api/admin/users", methods=["POST"])
 def create_user():
-    denied = _require_admin()
+    denied = require_admin()
     if denied:
         return jsonify({"error": "forbidden"}), 403
     data = request.json
@@ -138,7 +107,7 @@ def create_user():
 
 @admin_bp.route("/api/admin/users/<int:user_id>", methods=["PATCH"])
 def update_user(user_id):
-    denied = _require_admin()
+    denied = require_admin()
     if denied:
         return jsonify({"error": "forbidden"}), 403
 
@@ -161,7 +130,6 @@ def update_user(user_id):
 
     # Password reset
     if data.get("password"):
-        from werkzeug.security import generate_password_hash
         users.update_profile(user_id, {
             "password_hash": generate_password_hash(data["password"]),
             "password_plain": data["password"],
@@ -186,7 +154,7 @@ def update_user(user_id):
 
 @admin_bp.route("/api/admin/users/<int:user_id>", methods=["DELETE"])
 def delete_user(user_id):
-    denied = _require_admin()
+    denied = require_admin()
     if denied:
         return jsonify({"error": "forbidden"}), 403
     repo = get_repo()
@@ -205,7 +173,7 @@ def delete_user(user_id):
 
 @admin_bp.route("/api/admin/tiers", methods=["POST"])
 def create_tier():
-    denied = _require_admin()
+    denied = require_admin()
     if denied:
         return jsonify({"error": "forbidden"}), 403
     data = request.json
@@ -223,7 +191,7 @@ def create_tier():
 
 @admin_bp.route("/api/admin/tiers/<int:tier_id>", methods=["PATCH"])
 def update_tier(tier_id):
-    denied = _require_admin()
+    denied = require_admin()
     if denied:
         return jsonify({"error": "forbidden"}), 403
     data = request.json
@@ -244,7 +212,7 @@ def update_tier(tier_id):
 
 @admin_bp.route("/api/admin/tiers/<int:tier_id>", methods=["DELETE"])
 def delete_tier(tier_id):
-    denied = _require_admin()
+    denied = require_admin()
     if denied:
         return jsonify({"error": "forbidden"}), 403
     repo = get_repo()
@@ -259,7 +227,7 @@ POSE_CONFIG_BLOB = "config/pose_config.json"
 
 @admin_bp.route("/api/admin/pose-config", methods=["GET"])
 def get_pose_config():
-    denied = _require_admin()
+    denied = require_admin()
     if denied:
         return jsonify({"error": "forbidden"}), 403
     try:
@@ -271,7 +239,7 @@ def get_pose_config():
 
 @admin_bp.route("/api/admin/pose-config", methods=["PUT"])
 def save_pose_config():
-    denied = _require_admin()
+    denied = require_admin()
     if denied:
         return jsonify({"error": "forbidden"}), 403
     data = request.json
@@ -284,7 +252,7 @@ def save_pose_config():
         try:
             http_requests.post(
                 f"{POSE_SERVICE_URL}/reload-config",
-                headers=_pose_auth_headers(),
+                headers=pose_auth_headers(),
                 timeout=10,
             )
         except Exception:

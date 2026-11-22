@@ -1078,7 +1078,7 @@ async function uploadSingleFile(file, idx, onDone) {
   const box = document.getElementById('uploadProgress');
   const row = document.createElement('div');
   row.className = 'upload-row';
-  row.innerHTML = '<div class="upload-row-info"><span class="upload-row-name">' + file.name + '</span><span class="upload-row-pct" id="uPct' + idx + '">0%</span></div><div class="upload-progress-bar"><div class="upload-progress-fill" id="uFill' + idx + '"></div></div>';
+  row.innerHTML = '<div class="upload-row-info"><span class="upload-row-name">' + file.name + '</span><span class="upload-row-pct" id="uPct' + idx + '">0%</span></div><div class="progress-bar upload-progress-bar"><div class="upload-progress-fill" id="uFill' + idx + '"></div></div>';
   box.appendChild(row);
 
   const pctEl = document.getElementById('uPct' + idx);

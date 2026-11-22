@@ -1,45 +1,13 @@
 """PoC routes – admin only."""
 
-import os
 import uuid
 import json
 import requests
-import google.auth.transport.requests
-import google.oauth2.id_token
-from flask import Blueprint, render_template, session, redirect, url_for, request, jsonify
-from core.adapters.repository import get_repo
-from core.adapters.users import UsersAdapter
+from flask import Blueprint, redirect, request, jsonify
 from core.adapters.storage import BUCKET_NAME, _get_client as _gcs
+from core.api._helpers import require_admin, pose_auth_headers, POSE_SERVICE_URL
 
 poc_bp = Blueprint("poc", __name__)
-
-POSE_SERVICE_URL = os.environ.get("POSE_SERVICE_URL", "http://localhost:8080")
-
-
-def _require_admin():
-    uid = session.get("user_id")
-    if not uid:
-        return redirect(url_for("auth.login"))
-    user = UsersAdapter(get_repo()).get(uid)
-    if not user or user.get("role") != "admin":
-        return redirect("/studio")
-    return None
-
-
-def _auth_headers():
-    if POSE_SERVICE_URL.startswith("http://localhost"):
-        return {}
-    try:
-        auth_req = google.auth.transport.requests.Request()
-        token = google.oauth2.id_token.fetch_id_token(auth_req, POSE_SERVICE_URL)
-        return {"Authorization": f"Bearer {token}"}
-    except Exception:
-        import subprocess, shutil
-        gcloud_path = shutil.which("gcloud") or "gcloud"
-        token = subprocess.check_output(
-            [gcloud_path, "auth", "print-identity-token"], text=True, shell=True
-        ).strip()
-        return {"Authorization": f"Bearer {token}"}
 
 
 # ── Page route ───────────────────────────────────────────────────────────────
@@ -54,7 +22,7 @@ def index():
 @poc_bp.route("/api/poc/upload", methods=["POST"])
 def upload_video():
     """Upload video directly to GCS through the server."""
-    denied = _require_admin()
+    denied = require_admin()
     if denied:
         return jsonify({"error": "forbidden"}), 403
 
@@ -75,7 +43,7 @@ def upload_video():
 @poc_bp.route("/api/poc/convert", methods=["POST"])
 def convert():
     """Trigger anime conversion on the GPU service."""
-    denied = _require_admin()
+    denied = require_admin()
     if denied:
         return jsonify({"error": "forbidden"}), 403
 
@@ -97,7 +65,7 @@ def convert():
                 "sample_every_n": sample_every_n,
                 "strength": strength,
             },
-            headers=_auth_headers(),
+            headers=pose_auth_headers(),
             timeout=600,
         )
         return jsonify({"ok": True, "job_id": job_id, "status": resp.status_code})
@@ -118,7 +86,7 @@ def convert():
 @poc_bp.route("/api/poc/progress/<job_id>")
 def progress(job_id):
     """Poll progress from GCS."""
-    denied = _require_admin()
+    denied = require_admin()
     if denied:
         return jsonify({"error": "forbidden"}), 403
 

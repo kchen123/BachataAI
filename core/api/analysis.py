@@ -13,40 +13,18 @@ Flow:
 No background threads. No race conditions. No stuck jobs.
 """
 
-import os
 import json
 import threading
 import requests
 from datetime import datetime, timezone, timedelta
-import google.auth.transport.requests
-import google.oauth2.id_token
 from flask import Blueprint, request, jsonify, Response
 from core.adapters.repository import get_repo
 from core.adapters.analyses import AnalysesAdapter
 from core.adapters.videos import VideosAdapter
 from core.adapters.storage import BUCKET_NAME, _get_client as _gcs
-from core.api._helpers import uid
+from core.api._helpers import uid, pose_auth_headers, POSE_SERVICE_URL
 
 analysis_bp = Blueprint("analysis", __name__)
-
-POSE_SERVICE_URL = os.environ.get("POSE_SERVICE_URL", "http://localhost:8080")
-
-
-def _auth_headers():
-    if POSE_SERVICE_URL.startswith("http://localhost"):
-        return {}
-    try:
-        auth_req = google.auth.transport.requests.Request()
-        token = google.oauth2.id_token.fetch_id_token(auth_req, POSE_SERVICE_URL)
-        return {"Authorization": f"Bearer {token}"}
-    except Exception:
-        # Fallback for local dev — use gcloud CLI
-        import subprocess, shutil
-        gcloud_path = shutil.which("gcloud") or "gcloud"
-        token = subprocess.check_output(
-            [gcloud_path, "auth", "print-identity-token"], text=True, shell=True
-        ).strip()
-        return {"Authorization": f"Bearer {token}"}
 
 
 def _read_progress(video_id):
@@ -129,7 +107,7 @@ def api_detect_first_frame(video_id):
         return jsonify({"error": "video has no file"}), 400
 
     try:
-        headers = _auth_headers()
+        headers = pose_auth_headers()
         resp = requests.post(
             f"{POSE_SERVICE_URL}/detect-first-frame",
             json={"gcs_bucket": BUCKET_NAME, "gcs_blob": video["filename"]},
@@ -202,7 +180,7 @@ def api_run_analysis(video_id):
             requests.post(
                 f"{POSE_SERVICE_URL}/analyze",
                 json=gpu_payload,
-                headers=_auth_headers(),
+                headers=pose_auth_headers(),
                 timeout=3600,
             )
         except Exception:

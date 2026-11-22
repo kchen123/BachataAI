@@ -1,11 +1,18 @@
 """API routes for folders and videos — GDrive-like file browser."""
 
+import os
+import uuid
+import requests as req_lib
+import google.auth
+import google.auth.transport.requests
 from flask import Blueprint, render_template, request, jsonify, abort, session, redirect
 from core.adapters.repository import get_repo
 from core.adapters.folders import FoldersAdapter
 from core.adapters.videos import VideosAdapter
 from core.adapters.users import UsersAdapter
-from core.adapters.storage import BUCKET_NAME, generate_thumbnail
+from core.adapters.analyses import AnalysesAdapter
+from core.adapters.storage import BUCKET_NAME, _get_client as _gcs_client, generate_thumbnail
+from core.adapters.tiers import TiersAdapter
 from core.api._helpers import serialize, uid
 
 ALLOWED_EXTS = {".mp4", ".mov", ".avi", ".webm", ".mkv"}
@@ -30,7 +37,6 @@ PAGE_SIZE = 20
 def home():
     if session.get("logged_in"):
         return redirect("/studio")
-    from core.adapters.tiers import TiersAdapter
     repo = get_repo()
     all_tiers = TiersAdapter(repo).select(order_by="id ASC")
     tiers = [t for t in all_tiers if t["name"] != "Admin"]
@@ -109,7 +115,9 @@ def api_rename_folder(folder_id):
     body = request.get_json()
     repo = get_repo()
     folder = FoldersAdapter(repo).rename(folder_id, body["name"])
-    return jsonify(serialize(folder)) if folder else ("", 404)
+    if not folder:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(serialize(folder))
 
 
 @videos_bp.route("/api/folders/<int:folder_id>/move", methods=["PATCH"])
@@ -117,14 +125,18 @@ def api_move_folder(folder_id):
     body = request.get_json()
     repo = get_repo()
     folder = FoldersAdapter(repo).move(folder_id, body.get("folder_id"))
-    return jsonify(serialize(folder)) if folder else ("", 404)
+    if not folder:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(serialize(folder))
 
 
 @videos_bp.route("/api/folders/<int:folder_id>", methods=["DELETE"])
 def api_delete_folder(folder_id):
     repo = get_repo()
     ok = FoldersAdapter(repo).delete(folder_id)
-    return ("", 204) if ok else ("", 404)
+    if not ok:
+        return jsonify({"error": "not found"}), 404
+    return "", 204
 
 
 # ── Video CRUD API ─────────────────────────────────────────────────────────────
@@ -140,10 +152,6 @@ def api_create_video():
 @videos_bp.route("/api/videos/upload-url", methods=["POST"])
 def api_get_upload_url():
     """Get a resumable upload URL for direct browser-to-GCS upload."""
-    import os, uuid
-    import google.auth
-    import google.auth.transport.requests
-
     body = request.get_json()
     original_name = body.get("filename", "video.mp4")
     ext = os.path.splitext(original_name)[1].lower()
@@ -159,7 +167,6 @@ def api_get_upload_url():
     auth_req = google.auth.transport.requests.Request()
     credentials.refresh(auth_req)
 
-    import requests as req_lib
     init_resp = req_lib.post(
         f"https://storage.googleapis.com/upload/storage/v1/b/{BUCKET_NAME}/o?uploadType=resumable&name={filename}",
         headers={
@@ -198,7 +205,9 @@ def api_rename_video(video_id):
     body = request.get_json()
     repo = get_repo()
     video = VideosAdapter(repo).rename(video_id, body["title"])
-    return jsonify(serialize(video)) if video else ("", 404)
+    if not video:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(serialize(video))
 
 
 @videos_bp.route("/api/videos/<int:video_id>/move", methods=["PATCH"])
@@ -206,7 +215,9 @@ def api_move_video(video_id):
     body = request.get_json()
     repo = get_repo()
     video = VideosAdapter(repo).move(video_id, body.get("folder_id"))
-    return jsonify(serialize(video)) if video else ("", 404)
+    if not video:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(serialize(video))
 
 
 @videos_bp.route("/api/videos/<int:video_id>", methods=["DELETE"])
@@ -214,11 +225,9 @@ def api_delete_video(video_id):
     repo = get_repo()
     video = VideosAdapter(repo).get(video_id)
     if not video:
-        return ("", 404)
+        return jsonify({"error": "not found"}), 404
     # Delete GCS files (video, thumbnail, pose data, progress, cancel flag)
-    from core.adapters.storage import _get_client, BUCKET_NAME
-    from core.adapters.analyses import AnalysesAdapter
-    bucket = _get_client().bucket(BUCKET_NAME)
+    bucket = _gcs_client().bucket(BUCKET_NAME)
     prefix = f"https://storage.googleapis.com/{BUCKET_NAME}/"
     for url_field in ("gcs_url", "thumbnail_url"):
         url = video.get(url_field)
@@ -237,7 +246,7 @@ def api_delete_video(video_id):
     for old in aa.select(video_id=video_id):
         aa.delete(old["id"])
     VideosAdapter(repo).delete(video_id)
-    return ("", 204)
+    return "", 204
 
 
 # ── Thumbnail API ─────────────────────────────────────────────────────────────
@@ -248,7 +257,7 @@ def api_generate_thumbnail(video_id):
     repo = get_repo()
     video = VideosAdapter(repo).get(video_id)
     if not video or not video.get("gcs_url"):
-        return ("", 404)
+        return jsonify({"error": "not found"}), 404
     thumb_url = generate_thumbnail(video["gcs_url"])
     if thumb_url:
         repo.update("bachata.videos", video_id, {"thumbnail_url": thumb_url})
@@ -265,7 +274,7 @@ def api_update_account():
     allowed = {"username", "display_name", "email", "role"}
     data = {k: v for k, v in body.items() if k in allowed and v}
     if not data:
-        return ("", 400)
+        return jsonify({"error": "bad request"}), 400
     user = UsersAdapter(repo).update_profile(uid(), data)
     if user:
         session["username"] = user["username"]

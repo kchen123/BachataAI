@@ -4,10 +4,8 @@ Uses Dynamic Time Warping (DTW) for tempo-invariant sequence comparison,
 with a two-pass approach: cheap mean-vector screening, then full DTW.
 """
 
-import json
 import numpy as np
 from core.pose_features import load_features_from_gcs, FEATURE_DIM
-from core.adapters.storage import BUCKET_NAME, _get_client as _gcs
 
 # In-memory cache to avoid re-downloading features from GCS on every search
 _features_cache: dict[int, dict] = {}
