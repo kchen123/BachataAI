@@ -47,10 +47,7 @@ def _auth_headers():
 
 @poc_bp.route("/poc")
 def index():
-    denied = _require_admin()
-    if denied:
-        return denied
-    return render_template("poc.html")
+    return redirect("/control")
 
 
 # ── API routes ───────────────────────────────────────────────────────────────
@@ -91,7 +88,7 @@ def convert():
 
     def _fire():
         try:
-            requests.post(
+            resp = requests.post(
                 f"{POSE_SERVICE_URL}/animify",
                 json={
                     "gcs_bucket": BUCKET_NAME,
@@ -103,8 +100,19 @@ def convert():
                 headers=_auth_headers(),
                 timeout=600,
             )
-        except Exception:
-            pass
+            print(f"[PoC] animify response: {resp.status_code} {resp.text[:200]}")
+        except Exception as e:
+            # Write error to GCS so frontend can see it
+            print(f"[PoC] animify error: {e}")
+            try:
+                bucket = _gcs().bucket(BUCKET_NAME)
+                blob = bucket.blob(f"progress/anime-{job_id}.json")
+                blob.upload_from_string(
+                    json.dumps({"status": "error", "percent": 0, "step": str(e)}),
+                    content_type="application/json",
+                )
+            except Exception:
+                pass
 
     threading.Thread(target=_fire, daemon=True).start()
     return jsonify({"ok": True, "job_id": job_id})
